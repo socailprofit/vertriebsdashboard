@@ -260,9 +260,11 @@ Deno.serve(async (request) => {
     const nextDate = addDays(endDate, 1);
     const startTimestamp = berlinMidnightUtc(startDate);
     const endTimestamp = berlinMidnightUtc(nextDate);
-    // The existing Supabase secret was created with this display name.
-    // Keep the conventional underscore variant as a local-development fallback.
-    const closeApiKey = requiredEnvironment("Close API Key", "CLOSE_API_KEY");
+    // A Supabase secret named "Close API Key" is stored and shown in the
+    // dashboard, but the edge runtime cannot expose a name containing spaces,
+    // so that variant is unreadable here and is deliberately not consulted.
+    // Prefer the conventional name; accept the mixed-case one that exists today.
+    const closeApiKey = requiredEnvironment("CLOSE_API_KEY", "Close_API_Key");
 
     if (mode === "write") {
       supabase = createClient(

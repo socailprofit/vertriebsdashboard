@@ -3,7 +3,7 @@
 ## Current Truth
 
 - GitHub, Supabase und die serverseitige Close-Sync-Function sind verbunden; der Live-Healthcheck ist erfolgreich.
-- `CLOSE_SYNC_SECRET` ist in GitHub und Supabase hinterlegt. Der Close-API-Key existiert in Supabase unter dem Namen `Close API Key`.
+- `CLOSE_SYNC_SECRET` ist in GitHub und Supabase hinterlegt und stimmt seit 2026-09-02 auf beiden Seiten überein. Der Close-API-Key wird aus dem Supabase-Secret `Close_API_Key` gelesen.
 - Der nächste sichere Schritt ist ein manueller `dry-run` über den GitHub-Workflow. Noch wurden keine Close-Daten nach Supabase geschrieben.
 - Das UI ist ein funktionierender statischer Prototyp mit Demo-Daten; eine produktive Frontend-Anbindung existiert noch nicht.
 
@@ -65,7 +65,7 @@ Begründung: Das Dashboard soll auf überprüften Close-Daten und validiertem Ma
 | Supabase-GitHub-Integration | verbunden mit `socailprofit/vertriebsdashboard`, Arbeitsverzeichnis `.`, Produktion auf `main` |
 | GitHub Workflow | `Close sync test` / ID `348396189`, manuell startbar |
 | GitHub Secret | `CLOSE_SYNC_SECRET` ist gesetzt (Wert nie ausgeben oder überschreiben) |
-| Supabase Secrets | `Close API Key` und `CLOSE_SYNC_SECRET` sind laut Dashboard gespeichert |
+| Supabase Secrets | `Close_API_Key` und `CLOSE_SYNC_SECRET` werden von der Function gelesen. Das ältere `Close API Key` ist gespeichert, aber für die Edge-Runtime unlesbar |
 
 Der Screenshot vom 2026-09-02 zeigt beide Supabase-Secrets. Werte sind absichtlich nicht auslesbar. Der aktuelle `CLOSE_SYNC_SECRET` wurde zuletzt sowohl in GitHub als auch in Supabase hinterlegt und muss übereinstimmen.
 
@@ -107,7 +107,7 @@ Bei einem Fehler:
 1. Zuerst nur Logs und Funktionslogs prüfen.
 2. Keine Secrets in Logs, Issues oder Commits schreiben.
 3. Prüfen, ob `CLOSE_SYNC_SECRET` in GitHub und Supabase derselbe Wert ist.
-4. Prüfen, ob die Function den bestehenden Supabase-Namen `Close API Key` nutzt. Das ist im Code bewusst unterstützt; nicht ungefragt einen neuen Close-Key erzeugen.
+4. Prüfen, ob das Supabase-Secret `CLOSE_API_KEY` oder `Close_API_Key` heißt. Namen mit Leerzeichen erreichen die Function nie; nicht ungefragt einen neuen Close-Key erzeugen.
 5. Keine Close-Datensätze verändern.
 
 ## Erst nach erfolgreichem Dry Run: kontrollierter Import
@@ -183,7 +183,7 @@ Wichtige Regeln aus dem Mapping:
 ## Sicherheitsgrenzen
 
 - Keine API-Keys, Secrets, Tokens oder personenbezogenen CRM-Rohdaten in Git, Frontend, Logs oder Chat ausgeben.
-- `CLOSE_API_KEY` ist **nicht** der tatsächliche Supabase-Secret-Name. Dort heißt der bestehende Key `Close API Key`; die Function unterstützt ihn mit Fallback auf `CLOSE_API_KEY` für lokale Entwicklung.
+- Der Close-API-Key muss unter einem Namen **ohne Leerzeichen** in Supabase liegen. Die Function liest `CLOSE_API_KEY`, ersatzweise `Close_API_Key`. Das ursprüngliche `Close API Key` wurde am 2026-09-02 als unlesbar nachgewiesen: Die Edge-Runtime kann Umgebungsvariablen mit Leerzeichen im Namen nicht durchreichen, die Function scheiterte reproduzierbar mit `Missing server secret`.
 - `CLOSE_SYNC_SECRET` schützt POST-Requests zur Function. Die Function hat `verify_jwt = false`, deshalb ist dieser Header zwingend.
 - Nur serverseitige Function schreibt CRM-Importdaten. Normale Dashboard-Nutzer dürfen Rohdaten und Sync-Schreibzugriffe nicht erhalten.
 - Öffentliche Login-Seite ist möglich, aber ein Frontend-PIN allein ist kein Zugriffsschutz. Fertigstellung braucht Supabase Auth, RLS, Rollen und echte Sessions.
