@@ -1,0 +1,118 @@
+# Close Mapping für das Vertriebsdashboard
+
+## Current Truth
+
+### Personen und Attribution
+
+| Dashboard | Close-Benutzer | ID |
+|---|---|---|
+| Michael | Michael Giesbrecht | `user_PtDJ2ZbYSQx82Dht5CRc2QBLcDfRjvXKjQuOi1N5lzy` |
+| Felix | Felix Wenk | `user_thRspTxlj3UlN5P4ALk2vGwdSh2KlFxPth8OldN3pq4` |
+| Chef | Antony Rigone | `user_0ppgt8ZGdSGuoTvR7KE4UZPUqP6OJhLmQOkxizfacgR` |
+
+- Call- und Custom-Activity-KPIs werden über `user_id` der Aktivität zugeordnet.
+- Gewonnene Deals und Umsatz werden für den Wettbewerb über das Lead-Feld `3.01 Opener` zugeordnet.
+- `3.02 Setter` und `3.03 Closer` werden zusätzlich gespeichert, aber ändern die Wettbewerbszuordnung nicht.
+- Die Opportunity-Zuordnung über `assigned_to` wird nicht verwendet, weil aktuelle gewonnene Opportunities Antony zugewiesen sind.
+
+### Call-KPIs
+
+| KPI | Close-Quelle | Regel |
+|---|---|---|
+| Anrufe brutto | Call Activity | `direction = outbound` und finaler Status `completed`, `no-answer`, `busy`, `failed` oder `timeout` |
+| Anrufe netto | Call Activity | Brutto-Call mit `status = completed` und `disposition = answered` |
+| Gesprächszeit | Call Activity | Summe `duration` nur für Netto-Calls |
+| Beste Anrufzeiten | Call Activity | Brutto-/Netto-Verhältnis nach Stunde in `Europe/Berlin` |
+
+`created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die stündliche Überlappung werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
+
+### KPI-Umfang des ersten Dashboards
+
+Im ersten produktiven Stand werden nur folgende Werte sichtbar gemacht:
+
+1. Anrufe brutto
+2. Anrufe netto
+3. Nettoquote nach Stunde zur Ermittlung der besten Anrufzeiten
+4. Vorzimmer-Kontakte
+5. Durchstellungen und Durchstellquote
+6. Entscheiderkontakte, zusätzlich getrennt nach direkt erreicht und durchgestellt
+7. Termine und Terminquote
+8. Newsletter, sobald eine belastbare Close-Quelle feststeht
+
+Michael wird blau (`#4f8cff`) und Felix orange (`#f59e0b`) dargestellt. Leistungsfarben werden später gegen die Manager-Ziele berechnet und nicht als feste Erfolgsbehauptung aus den Rohzahlen abgeleitet.
+
+### Opening und Follow-up
+
+Berücksichtigte Aktivitätstypen:
+
+- `1.📞 Opening Call` – `actitype_3YiimGlbRMzQxr2O3hPKHJ`
+- `2.☎️ Follow Up - Setter & Closer` – `actitype_38qU8FYNxY0WkWAy66Uc65`
+
+| KPI | Regel |
+|---|---|
+| Gatekeeper-Kontakte | Gatekeeper-Ergebnis ist gesetzt und nicht `🛑 Kein Gatekeeper` |
+| Durchstellungen | Gatekeeper-Ergebnis ist exakt `✅ Durchgestellt` |
+| Direkter Entscheider | Gatekeeper-Ergebnis ist exakt `🛑 Kein Gatekeeper` |
+| Entscheider erreicht | Entscheider-Ergebnis ist gesetzt |
+| Termine | Entscheider-Ergebnis ist `4: ✅ Termin vereinbart` oder `Entscheider: Termin vereinbart` |
+| Produkt/Kampagne | Bedarf aus `Entscheider Info: Welcher Bedarf?` |
+
+Quoten:
+
+- Durchstellquote = Durchstellungen / Gatekeeper-Kontakte
+- Entscheiderquote = Entscheider erreicht / Netto-Calls
+- Terminquote = Termine / Entscheider erreicht
+
+### Technisch vorbereitet, zunächst nicht sichtbar
+
+| KPI | Close-Quelle | Regel |
+|---|---|---|
+| Setter Calls | `3.✅ Setter Call` | Jede veröffentlichte Aktivität |
+| Setter-Erfolge | Ergebnis Setter Call | `✅ Closer terminiert` |
+| Closer Calls | `4.⭐️ Closer Call` | Jede veröffentlichte Aktivität |
+| Closer-Verkäufe | Ergebnis Closer Call | `1. ✅ Verkauft - in CC1` oder `3. ✅ Verkauft - in CC2 🔥` |
+| No Shows | `5.🔄 No Show` | Setter- oder Closer-Wert `Nicht erschienen` |
+| Absagen | `5.🔄 No Show` | Setter- oder Closer-Wert `⛔ Abgesagt` |
+| Verschoben | `5.🔄 No Show` | Setter- oder Closer-Wert `🔄 Termin verschoben` |
+
+Absagen und verschobene Termine werden nicht als No Show gewertet.
+
+### Deals und Umsatz
+
+- Quelle ist die Pipeline `Sales` (`pipe_42eLhfS7p2vd5Fjw2ou2Sw`).
+- Gewonnen sind ausschließlich `Kunde` und `Upsell/Verlängerung`.
+- Der Stichtag ist das offizielle Opportunity-Feld `date_won`.
+- Umsatz ist der Opportunity-Wert `value` in Cent; der Wert wird nicht von KI berechnet.
+- `value_period` wird mitgespeichert. Aktuell geprüfte gewonnene Opportunities sind `one_time`; abweichende Perioden werden später als Mapping-Warnung protokolliert.
+
+### Supabase-Ebenen
+
+1. `close_raw_activities`: gekürzte Close-Rohantwort zur Nachprüfung.
+2. `close_activity_facts`: pro Aktivität normalisierte KPI-Flags mit Mapping-Version.
+3. `close_opportunity_facts`: gewonnene Opportunity mit Opener-/Setter-/Closer-Zuordnung.
+4. `daily_sales_metrics`: verdichtete Tageswerte pro Vertriebler.
+5. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
+
+Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormonaten.
+
+## Missing Context
+
+- Für `Newsletter` existiert in den aktiven Custom-Activity-Typen keine belastbare Quelle. Supabase speichert deshalb `NULL`, und die Oberfläche zeigt `—` statt `0`.
+- Falls künftig Opportunities mit `monthly` oder `annual` auftreten, muss festgelegt werden, ob das Dashboard Vertragswert, MRR oder ARR zeigt.
+- Brutto-/Netto-Regel und Opportunity-Zuordnung müssen anhand eines vollständigen manuellen Testtags bestätigt werden.
+
+## Sources
+
+- Close Plugin: aktive Organisationsbenutzer am 2026-09-02.
+- Close Plugin: Call-Felder und reale Call-Beispiele von Michael und Felix am 2026-09-01 und 2026-09-02.
+- Close Plugin: aktive Custom-Activity-Typen und konkrete veröffentlichte Beispiele.
+- Close Plugin: Pipeline `Sales`, Won-Status und gewonnene Opportunities.
+- Close Plugin: Lead-Felder `3.01 Opener`, `3.02 Setter` und `3.03 Closer` auf gewonnenen Leads.
+
+## Timeline
+
+- 2026-09-02: Organisation, Benutzer, Call-Felder, Custom Activities und Pipelines read-only geprüft.
+- 2026-09-02: Wettbewerbszuordnung über `3.01 Opener` festgelegt.
+- 2026-09-02: Mapping-Version `2026-09-02.v1` lokal angelegt.
+- 2026-09-02: Sichtbaren MVP-Umfang auf Brutto, Netto, Anrufzeiten, Vorzimmer, Entscheider, Termine und Newsletter begrenzt.
+- Nächster Schritt: Mapping in den manuellen Close-Sync einbauen und einen vollständigen Testtag gegen Close zählen.

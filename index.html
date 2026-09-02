@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
+    <title>Social Profit · Sales Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="?view=team&period=month" aria-label="Zur Teamansicht">
+          <span class="brand-mark" aria-hidden="true">SP</span>
+          <span>
+            <strong>Sales Pulse</strong>
+            <small>Social Profit</small>
+          </span>
+        </a>
+
+        <nav class="view-nav" aria-label="Dashboard-Ansichten">
+          <button class="nav-button" data-view="team">Team</button>
+          <button class="nav-button" data-view="michael">Michael</button>
+          <button class="nav-button" data-view="felix">Felix</button>
+          <button class="nav-button" data-view="chef">Chef</button>
+        </nav>
+
+        <div class="sync-status" title="Im MVP werden Demo-Daten verwendet">
+          <span class="sync-dot" aria-hidden="true"></span>
+          <span><strong>Demo-Daten</strong><small>Close-Sync folgt</small></span>
+        </div>
+      </header>
+
+      <main>
+        <section class="workspace-header" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow" id="view-kicker">Gemeinsamer Wettbewerb</p>
+            <h1 id="page-title">Michael gegen Felix</h1>
+            <p id="view-description">Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt.</p>
+          </div>
+
+          <div class="period-switch" role="group" aria-label="Zeitraum auswählen">
+            <button data-period="day">Heute</button>
+            <button data-period="week">Woche</button>
+            <button data-period="month">Monat</button>
+          </div>
+        </section>
+
+        <section class="race-section" aria-labelledby="race-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Live-Rennen</p>
+              <h2 id="race-title">Zielerreichung</h2>
+            </div>
+            <p class="section-note">Gewichtet aus Aktivität, Terminen und Umsatz</p>
+          </div>
+          <div class="race-board" id="race-board"></div>
+        </section>
+
+        <section class="metrics-section" aria-labelledby="metrics-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Leistungsstrecke</p>
+              <h2 id="metrics-title">Einzelwerte und Team</h2>
+            </div>
+            <p class="section-note">Zahlen werden später direkt aus Close berechnet</p>
+          </div>
+          <div class="metric-table" id="metric-table"></div>
+        </section>
+
+        <section class="funnel-section" aria-labelledby="funnel-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Conversion</p>
+              <h2 id="funnel-title">Vom Anruf zum Abschluss</h2>
+            </div>
+            <div class="person-legend" aria-label="Farblegende">
+              <span><i class="legend-dot michael"></i>Michael</span>
+              <span><i class="legend-dot felix"></i>Felix</span>
+            </div>
+          </div>
+          <div class="funnel" id="funnel"></div>
+        </section>
+
+        <div class="analysis-grid">
+          <section class="analysis-panel" aria-labelledby="time-title">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Durchstellquote</p>
+                <h2 id="time-title">Beste Anrufzeiten</h2>
+              </div>
+              <p class="section-note">Erfolg nach Uhrzeit</p>
+            </div>
+            <div id="heatmap" class="heatmap"></div>
+          </section>
+
+          <section class="analysis-panel" aria-labelledby="caller-title">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Rangliste</p>
+                <h2 id="caller-title">Top 2 Anrufer</h2>
+              </div>
+              <p class="section-note">Netto-Anrufe</p>
+            </div>
+            <div id="caller-ranking" class="caller-ranking"></div>
+          </section>
+        </div>
+
+        <section class="projects-section" aria-labelledby="projects-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Kampagnen</p>
+              <h2 id="projects-title">Projekte und Gesprächszeit</h2>
+            </div>
+            <p class="section-note">Die endgültige Close-Zuordnung wird im Datenmapping festgelegt</p>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Projekt</th>
+                  <th>Status</th>
+                  <th>Michael</th>
+                  <th>Felix</th>
+                  <th>Anrufe</th>
+                  <th>Gesprächszeit</th>
+                  <th>Zeitraum</th>
+                </tr>
+              </thead>
+              <tbody id="project-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="manager-section" id="manager-section" aria-labelledby="manager-title" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Chefbereich</p>
+              <h2 id="manager-title">Ziele und Tageszusammenfassung</h2>
+            </div>
+            <p class="section-note">Im Grundgerüst nur lokal; Speicherung folgt mit Supabase</p>
+          </div>
+          <div class="manager-grid">
+            <form class="goal-editor" id="goal-editor">
+              <div class="editor-heading">
+                <h3>Monatsziele</h3>
+                <span>Demo</span>
+              </div>
+              <div id="goal-fields"></div>
+              <button class="primary-button" type="submit">Ziele anwenden</button>
+              <p class="form-status" id="goal-status" aria-live="polite"></p>
+            </form>
+
+            <article class="ai-summary">
+              <div class="editor-heading">
+                <h3>KI-Tageszusammenfassung</h3>
+                <span>Vorschau</span>
+              </div>
+              <p id="ai-summary-text"></p>
+              <div class="summary-facts" id="summary-facts"></div>
+              <p class="summary-footnote">Später einmal täglich aus bereits berechneten Kennzahlen – ohne KI-Berechnung der KPIs.</p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>Interner Prototyp · keine produktiven Close-Daten</span>
+        <span id="footer-context">Ansicht: Team · Zeitraum: Monat</span>
+      </footer>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
