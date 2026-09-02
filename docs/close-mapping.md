@@ -22,7 +22,7 @@
 | Anrufe brutto | Call Activity | `direction = outbound` und finaler Status `completed`, `no-answer`, `busy`, `failed` oder `timeout` |
 | Anrufe netto | Call Activity | Brutto-Call mit `status = completed` und `disposition = answered` |
 | Gesprächszeit | Call Activity | Summe `duration` nur für Netto-Calls |
-| Beste Anrufzeiten | Call Activity | Brutto-/Netto-Verhältnis nach Stunde in `Europe/Berlin` |
+| Beste Anrufzeiten | Call Activity und Opening/Follow-up | Zwei Quoten je Stunde in `Europe/Berlin`: Nettoquote (netto/brutto) und Durchstellquote (Durchstellungen/Vorzimmer-Kontakte) |
 
 `created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die stündliche Überlappung werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
 
@@ -32,12 +32,18 @@ Im ersten produktiven Stand werden nur folgende Werte sichtbar gemacht:
 
 1. Anrufe brutto
 2. Anrufe netto
-3. Nettoquote nach Stunde zur Ermittlung der besten Anrufzeiten
+3. Nettoquote **und** Durchstellquote nach Stunde zur Ermittlung der besten Anrufzeiten
 4. Vorzimmer-Kontakte
 5. Durchstellungen und Durchstellquote
 6. Entscheiderkontakte, zusätzlich getrennt nach direkt erreicht und durchgestellt
 7. Termine und Terminquote
 8. Newsletter, sobald eine belastbare Close-Quelle feststeht
+
+Am 2026-09-02 festgelegt: Beide Stundenquoten werden gezeigt, weil sie verschiedene Fragen beantworten — die Nettoquote sagt, wann überhaupt abgenommen wird, die Durchstellquote, wann man am Vorzimmer vorbeikommt.
+
+Deals und Umsatz werden weiterhin importiert und in Supabase vorgehalten, aber **nicht angezeigt**. Die offene Frage nach Vertragswert, MRR oder ARR bei `monthly`/`annual` bleibt damit vertagt, bis der Umsatz sichtbar werden soll.
+
+Leistungsfarben stützen sich auf `sales_targets`. Die Tabelle wurde um `calls_gross`, `gatekeeper_contacts`, `transfer_rate_target` und `appointment_rate_target` erweitert, damit jede sichtbare Zahl ein eigenes Ziel bekommen kann. Die beiden Quotenziele sind nullable: kein Ziel ist etwas anderes als ein Ziel von null Prozent. Ohne gesetztes Ziel bleibt eine Zahl neutral eingefärbt statt rot.
 
 Michael wird blau (`#4f8cff`) und Felix orange (`#f59e0b`) dargestellt. Leistungsfarben werden später gegen die Manager-Ziele berechnet und nicht als feste Erfolgsbehauptung aus den Rohzahlen abgeleitet.
 

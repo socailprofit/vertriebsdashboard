@@ -157,8 +157,8 @@ Aktuell stammen Kennzahlen aus `demoData` und Ziele aus lokalem `state`. Der nä
 - Termine und Terminquote
 - Setter-/Closer-Calls und Erfolge
 - No-Shows, Absagen, Verschiebungen
-- Deals und Umsatz
-- beste Anrufzeiten / Durchstellquote nach Uhrzeit
+- Deals und Umsatz werden importiert, aber vorerst **nicht angezeigt** (am 2026-09-02 entschieden)
+- beste Anrufzeiten: Nettoquote **und** Durchstellquote nach Uhrzeit (am 2026-09-02 entschieden; die Datenbankfunktion liefert beide)
 - Michael-vs.-Felix-Rangliste und Zielerreichung
 - Newsletter bleibt `null`, bis eine echte Close-Quelle feststeht
 
@@ -244,7 +244,7 @@ Die nächste Phase ist fertig, wenn:
 ## Offene Fachentscheidungen, nicht raten
 
 - Quelle und Definition der Newsletter-Zahl.
-- Bei `monthly`/`annual` Opportunities: Vertragswert, MRR oder ARR für die Umsatzanzeige.
+- Bei `monthly`/`annual` Opportunities: Vertragswert, MRR oder ARR für die Umsatzanzeige. Vertagt, solange der Umsatz nicht angezeigt wird.
 - Genaue Konten/E-Mails für Michael, Felix und Antony in Supabase Auth.
 - Welche vier bis sechs KPIs in der kompakten Drei-Monats-Trendansicht besonders prominent sind.
 
