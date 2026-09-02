@@ -1,0 +1,96 @@
+name: Close sync write
+
+# Separate from the dry run on purpose: that workflow asserts wroteData is
+# false and must stay incapable of writing. This one is the only manual path
+# that imports Close data into Supabase.
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: Start date in YYYY-MM-DD
+        required: true
+        type: string
+      end_date:
+        description: End date in YYYY-MM-DD
+        required: true
+        type: string
+      confirm_write:
+        description: Type WRITE to confirm this imports into Supabase
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  write:
+    name: Import Close data into Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Invoke protected Supabase function in write mode
+        env:
+          START_DATE_INPUT: ${{ inputs.start_date }}
+          END_DATE_INPUT: ${{ inputs.end_date }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          CLOSE_SYNC_SECRET: ${{ secrets.CLOSE_SYNC_SECRET }}
+          FUNCTION_URL: https://pdobcvffnzqxtmkkpfnn.supabase.co/functions/v1/close-sync
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM_WRITE" != "WRITE" ]; then
+            echo "confirm_write must be exactly WRITE. Nothing was sent." >&2
+            exit 1
+          fi
+
+          test -n "$CLOSE_SYNC_SECRET" || {
+            echo "Missing GitHub secret: CLOSE_SYNC_SECRET" >&2
+            exit 1
+          }
+
+          start_date="$START_DATE_INPUT"
+          end_date="$END_DATE_INPUT"
+          [[ "$start_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+          [[ "$end_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+
+          # A mistyped year should fail here rather than import a quarter of
+          # history. The hourly job will get its own workflow and its own limit.
+          span=$(( ( $(date -u -d "$end_date" +%s) - $(date -u -d "$start_date" +%s) ) / 86400 + 1 ))
+          if [ "$span" -lt 1 ] || [ "$span" -gt 7 ]; then
+            echo "Refusing a range of $span day(s). This workflow imports at most 7." >&2
+            exit 1
+          fi
+          echo "Importing $span day(s): $start_date to $end_date"
+
+          payload="$(jq -n \
+            --arg mode "write" \
+            --arg startDate "$start_date" \
+            --arg endDate "$end_date" \
+            '{mode: $mode, startDate: $startDate, endDate: $endDate}')"
+
+          status="$(curl --silent --show-error --max-time 300 \
+            --output response.json --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "x-sync-secret: $CLOSE_SYNC_SECRET" \
+            --data "$payload" \
+            "$FUNCTION_URL")"
+
+          echo "HTTP status: $status"
+
+          if [ "$status" != "200" ]; then
+            echo "Import failed." >&2
+            jq '.' response.json >&2 2>/dev/null || cat response.json >&2
+            exit 1
+          fi
+
+          # This repository is public, so Actions logs are public. Print only
+          # non-personal totals; named per-person KPIs stay out of the log.
+          jq '{ok, mode, wroteData, scheduled, range, mappingVersion, fetched, inWindow, mapped,
+               warnings, syncRunId, peopleSummarised: (.people | keys | length)}' response.json
+
+          test "$(jq -r '.ok' response.json)" = "true"
+          test "$(jq -r '.mode' response.json)" = "write"
+          test "$(jq -r '.wroteData' response.json)" = "true"
