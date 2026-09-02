@@ -18,6 +18,11 @@ import {
 const CLOSE_API_BASE = "https://api.close.com/api/v1";
 const TARGET_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
 const MAX_RANGE_DAYS = 31;
+// /activity/call/ and /activity/custom/ sort by date_created and expose no
+// _order_by, so an activity_at filter is refused. Fetch a wider creation-time
+// window and pick the reporting day from activity_at below. Logging happens on
+// the day of the call, so two days absorb late entries and the Berlin offset.
+const ACTIVITY_FETCH_BUFFER_DAYS = 2;
 const PAGE_SIZE = 100;
 const MAX_RECORDS_PER_RESOURCE = 20_000;
 const jsonHeaders = { "content-type": "application/json; charset=utf-8" };
@@ -330,11 +335,8 @@ Deno.serve(async (request) => {
 
     const activityWindow = {
       user_id: TARGET_USER_IDS.join(","),
-      activity_at__gte: startTimestamp,
-      activity_at__lt: endTimestamp,
-      // Close sorts activities by date_created and refuses to combine that with
-      // an activity_at filter, so order by the field the window filters on.
-      _order_by: "activity_at",
+      date_created__gte: berlinMidnightUtc(addDays(startDate, -ACTIVITY_FETCH_BUFFER_DAYS)),
+      date_created__lt: berlinMidnightUtc(addDays(nextDate, ACTIVITY_FETCH_BUFFER_DAYS)),
     };
     // Custom activities are fetched unfiltered by type: Close only allows the
     // custom_activity_type filter together with a single lead_id, which a daily
@@ -361,8 +363,22 @@ Deno.serve(async (request) => {
       );
     }
 
-    const rawCalls = callResult.value;
-    const rawCustomActivities = customResult.value;
+    // The reporting day is decided here rather than by Close, on the same field
+    // the mapping reports on. Raw rows are filtered too, so nothing outside the
+    // window reaches storage or the counts.
+    const startMilliseconds = Date.parse(startTimestamp);
+    const endMilliseconds = Date.parse(endTimestamp);
+    let activitiesWithoutTimestamp = 0;
+    const withinReportingWindow = (record: JsonRecord) => {
+      const activityAt = typeof record.activity_at === "string" ? Date.parse(record.activity_at) : NaN;
+      if (Number.isNaN(activityAt)) {
+        activitiesWithoutTimestamp += 1;
+        return false;
+      }
+      return activityAt >= startMilliseconds && activityAt < endMilliseconds;
+    };
+    const rawCalls = callResult.value.filter(withinReportingWindow);
+    const rawCustomActivities = customResult.value.filter(withinReportingWindow);
     const opportunities = opportunityResult.value;
 
     const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
@@ -391,6 +407,9 @@ Deno.serve(async (request) => {
     if (unassignedDeals > 0) warnings.push(`${unassignedDeals} won opportunities could not be assigned to an opener.`);
     const recurringValueDeals = deals.filter((deal) => deal.valuePeriod !== "one_time").length;
     if (recurringValueDeals > 0) warnings.push(`${recurringValueDeals} recurring opportunities count as deals but not as one-time revenue.`);
+    if (activitiesWithoutTimestamp > 0) {
+      warnings.push(`${activitiesWithoutTimestamp} activities were skipped because activity_at could not be read.`);
+    }
     warnings.push("Newsletter has no verified Close source and remains null.");
 
     if (mode === "write" && supabase) {
@@ -442,7 +461,12 @@ Deno.serve(async (request) => {
       scheduled: false,
       range: { startDate, endDate, timezone: REPORTING_TIMEZONE },
       mappingVersion: MAPPING_VERSION,
-      fetched: { calls: rawCalls.length, customActivities: rawCustomActivities.length, wonOpportunities: opportunities.length },
+      fetched: {
+        calls: callResult.value.length,
+        customActivities: customResult.value.length,
+        wonOpportunities: opportunities.length,
+      },
+      inWindow: { calls: rawCalls.length, customActivities: rawCustomActivities.length },
       mapped: { activities: activityFacts.length, deals: deals.length },
       people: summarize(activityFacts, deals),
       warnings,

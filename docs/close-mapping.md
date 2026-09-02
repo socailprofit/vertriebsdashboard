@@ -85,6 +85,16 @@ Absagen und verschobene Termine werden nicht als No Show gewertet.
 - Umsatz ist der Opportunity-Wert `value` in Cent; der Wert wird nicht von KI berechnet.
 - `value_period` wird mitgespeichert. Aktuell geprüfte gewonnene Opportunities sind `one_time`; abweichende Perioden werden später als Mapping-Warnung protokolliert.
 
+### Abruf aus Close
+
+Die Typ-Endpunkte `/activity/call/` und `/activity/custom/` sortieren fest nach `date_created` und kennen keinen `_order_by`-Parameter. Ein `activity_at`-Filter wird deshalb mit `400` abgelehnt: `"activity_at" filtering can not be used together with "date_created" sorting`. Sortierung nach `-activity_at` ist laut Close-Doku nur beim Abruf eines einzelnen Leads möglich.
+
+Der Sync ruft daher nach `date_created` ab, mit zwei Tagen Puffer vor und nach dem Berichtszeitraum, und entscheidet die Tageszuordnung anschließend selbst anhand von `activity_at`. Die fachliche Regel bleibt damit unverändert: Eine Kennzahl zählt an dem Tag, an dem das Gespräch stattfand, nicht an dem Tag, an dem es erfasst wurde.
+
+Der Puffer von zwei Tagen ist am 2026-09-02 festgelegt worden, weil Protokolle grundsätzlich direkt nach dem Gespräch und in jedem Fall am selben Tag erfasst werden. Er deckt verspätete Einträge und den Versatz zwischen `Europe/Berlin` und UTC ab.
+
+`custom_activity_type_id` lässt sich nicht als Filter verwenden: Close verlangt dafür zwingend ein einzelnes `lead_id`. Die Typauswahl passiert deshalb beim Mapping, nicht beim Abruf.
+
 ### Supabase-Ebenen
 
 1. `close_raw_activities`: gekürzte Close-Rohantwort zur Nachprüfung.

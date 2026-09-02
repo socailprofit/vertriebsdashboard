@@ -67,7 +67,7 @@ jobs:
 
           # This repository is public, so Actions logs are public. Print only
           # non-personal totals; named per-person KPIs stay out of the log.
-          jq '{ok, mode, wroteData, scheduled, range, mappingVersion, fetched, mapped, warnings,
+          jq '{ok, mode, wroteData, scheduled, range, mappingVersion, fetched, inWindow, mapped, warnings,
                peopleSummarised: (.people | keys | length),
                peopleMetricKeys: (.people | to_entries | map(.value | keys | length) | add)}' response.json
 
