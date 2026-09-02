@@ -145,6 +145,7 @@ Aktuell stammen Kennzahlen aus `demoData` und Ziele aus lokalem `state`. Der nä
 4. Chefansicht: Ziele in `sales_targets` speichern; nur Manager darf schreiben.
 5. Sync-Status und Zeitstempel im UI zeigen.
 6. Filter für Tag, Woche, Monat sowie eine kompakte Trendsicht für aktueller Monat + zwei Vormonate implementieren.
+6a. Live-Aktualisierung über Supabase Realtime einbauen (am 2026-09-02 entschieden). `daily_sales_metrics` in die Publikation `supabase_realtime` aufnehmen und die Tabellenänderung als Signal nutzen, um die Views neu zu laden — Views selbst sind nicht abonnierbar. Die Policy `daily_sales_metrics_authenticated_read` besteht bereits, es ist kein Umbau der Rechte nötig. Verbrauch bei stündlichem Sync und vier offenen Ansichten rund 5.800 Nachrichten pro Monat gegenüber 2 Millionen im Free-Plan; Rohdaten- und Fakten-Tabellen werden bewusst nicht abonniert.
 7. Erst dann GitHub Pages als statisches Hosting konfigurieren und veröffentlichen.
 
 ### MVP-KPIs, die sichtbar sein müssen
