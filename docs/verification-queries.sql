@@ -62,3 +62,44 @@ order by p.sort_order;
 -- 6. Wurde nichts außerhalb des Berichtstags gespeichert?
 select min(occurred_at) as frueheste, max(occurred_at) as spaeteste, count(*) as anzahl
 from public.close_raw_activities;
+
+-- 7. Kennt das Mapping alle Auswahlwerte, die Close tatsächlich liefert?
+--    Das ist die riskanteste Stelle: Beim Gatekeeper zählt nur exakt
+--    '✅ Durchgestellt' als Durchstellung, beim Entscheider nur zwei bestimmte
+--    Werte als Termin. Eine umbenannte oder zusätzliche Variante würde
+--    stillschweigend als null zählen.
+--
+--    Freitextfelder sind ausgeschlossen — nur Werte bis 60 Zeichen aus Feldern
+--    mit höchstens 25 Varianten, also Auswahllisten. So tauchen hier keine
+--    Kundeninhalte auf, sondern nur die Bezeichner der Auswahlwerte.
+with werte as (
+  select kv.key as feld, kv.value #>> '{}' as wert
+  from public.close_raw_activities r,
+       lateral jsonb_each(r.payload) kv
+  where r.activity_type = 'custom_activity'
+    and kv.key like 'custom.%'
+    and jsonb_typeof(kv.value) = 'string'
+), gezaehlt as (
+  select feld, wert, count(*) as anzahl
+  from werte
+  where length(wert) <= 60
+  group by feld, wert
+)
+select feld, wert, anzahl
+from gezaehlt
+where feld in (select feld from gezaehlt group by feld having count(*) <= 25)
+order by feld, anzahl desc;
+
+-- 8. Stimmen die Regeln für Brutto und Netto?
+--    Brutto = ausgehend mit endgültigem Status (completed, no-answer, busy,
+--    failed, timeout). Netto = zusätzlich status 'completed' und
+--    disposition 'answered'. Diese Aufstellung zeigt, welche Kombinationen
+--    real vorkommen — darunter auch solche, die die Regel bewusst ausschließt.
+select payload ->> 'direction'   as richtung,
+       payload ->> 'status'      as status,
+       payload ->> 'disposition' as ergebnis,
+       count(*)                  as anzahl
+from public.close_raw_activities
+where activity_type = 'call'
+group by 1, 2, 3
+order by 4 desc;
