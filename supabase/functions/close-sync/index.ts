@@ -56,10 +56,20 @@ class SyncError extends Error {
 // Supabase client errors carry a Postgres SQLSTATE. The code identifies the
 // problem — a missing table, a denied permission, a violated constraint — and
 // unlike the accompanying message it cannot carry row content into a log.
-function postgresFailure(error: unknown) {
+function postgresCode(error: unknown) {
   if (typeof error !== "object" || error === null) return null;
   const code = (error as { code?: unknown }).code;
-  return typeof code === "string" ? { error: "supabase_error", code } : null;
+  return typeof code === "string" ? code : null;
+}
+
+// The step name is ours, so reporting it says where a write failed without
+// quoting anything the database returned. The message stays in the log only.
+function supabaseError(step: string, error: unknown) {
+  const code = postgresCode(error);
+  const message = typeof error === "object" && error !== null && "message" in error
+    ? String((error as { message: unknown }).message)
+    : String(error);
+  return new SyncError("supabase_error", `${step}: ${message}`, { step, ...(code ? { code } : {}) });
 }
 
 function requiredEnvironment(name: string, ...fallbackNames: string[]) {
@@ -260,7 +270,7 @@ async function upsertBatches(
 ) {
   for (let index = 0; index < rows.length; index += 500) {
     const { error } = await supabase.from(table).upsert(rows.slice(index, index + 500), { onConflict });
-    if (error) throw error;
+    if (error) throw supabaseError(`upsert ${table}`, error);
   }
 }
 
@@ -338,7 +348,7 @@ Deno.serve(async (request) => {
         source_window_end: endTimestamp,
         metadata: { mode, mappingVersion: MAPPING_VERSION, scheduled: false },
       }).select("id").single();
-      if (error) throw error;
+      if (error) throw supabaseError("insert sync_runs", error);
       syncRunId = data.id;
     }
 
@@ -450,9 +460,9 @@ Deno.serve(async (request) => {
       const { error: recalculateError } = await supabase.rpc("recalculate_daily_sales_metrics", {
         p_start_date: startDate, p_end_date: endDate,
       });
-      if (recalculateError) throw recalculateError;
+      if (recalculateError) throw supabaseError("rpc recalculate_daily_sales_metrics", recalculateError);
       const { error: cleanupError } = await supabase.rpc("cleanup_dashboard_history");
-      if (cleanupError) throw cleanupError;
+      if (cleanupError) throw supabaseError("rpc cleanup_dashboard_history", cleanupError);
       const { error: runError } = await supabase.from("sync_runs").update({
         status: "success",
         completed_at: new Date().toISOString(),
@@ -460,7 +470,7 @@ Deno.serve(async (request) => {
         upserted_records: rawRows.length + factRows.length + opportunityRows.length,
         metadata: { mode, mappingVersion: MAPPING_VERSION, scheduled: false, warnings },
       }).eq("id", syncRunId);
-      if (runError) throw runError;
+      if (runError) throw supabaseError("update sync_runs", runError);
     }
 
     return response(200, {
@@ -492,7 +502,7 @@ Deno.serve(async (request) => {
     }
     const failure = error instanceof SyncError
       ? { error: error.category, ...error.safeDetail }
-      : postgresFailure(error) ?? { error: "sync_failed" };
+      : { error: "sync_failed", ...(postgresCode(error) ? { code: postgresCode(error) } : {}) };
     return response(500, { ok: false, ...failure });
   }
 });
