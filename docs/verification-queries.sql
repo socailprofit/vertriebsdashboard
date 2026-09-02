@@ -1,9 +1,8 @@
 -- Manueller Abgleich eines importierten Tages gegen Close.
--- Im Supabase SQL Editor ausführen. Der Platzhalter unten ist der Testtag.
+-- Im Supabase SQL Editor ausführen, Abschnitte einzeln markieren und starten.
+-- Für einen anderen Tag alle Vorkommen von '2026-09-01' ersetzen.
 -- Die Ergebnisse bleiben im Supabase-Dashboard; sie gehören nicht in Git,
 -- nicht in Actions-Logs und nicht in den Chat.
-
-\set testtag '2026-09-01'
 
 -- 1. Lief der Sync-Lauf sauber durch?
 select status, started_at, completed_at, fetched_records, upserted_records,
