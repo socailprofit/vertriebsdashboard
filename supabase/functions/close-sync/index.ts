@@ -1,6 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
-  ACTIVITY_TYPES,
   CLOSE_USERS,
   CUSTOM_FIELDS,
   MAPPING_VERSION,
@@ -333,26 +332,25 @@ Deno.serve(async (request) => {
       user_id: TARGET_USER_IDS.join(","),
       activity_at__gte: startTimestamp,
       activity_at__lt: endTimestamp,
+      // Close sorts activities by date_created and refuses to combine that with
+      // an activity_at filter, so order by the field the window filters on.
+      _order_by: "activity_at",
     };
-    // Close rejects an unfiltered custom activity listing, so ask for one type
-    // at a time. The mapper discards every unmapped type anyway, so asking only
-    // for the mapped ones loses nothing and fetches less.
-    const [callResult, opportunityResult, customResults] = await Promise.all([
+    // Custom activities are fetched unfiltered by type: Close only allows the
+    // custom_activity_type filter together with a single lead_id, which a daily
+    // export across all leads cannot supply. mapCustomActivity drops the types
+    // it does not know, so the type selection happens during mapping instead.
+    const [callResult, customResult, opportunityResult] = await Promise.all([
       settle(closeList<JsonRecord>(closeApiKey, "/activity/call/", activityWindow)),
+      settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", activityWindow)),
       settle(closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
         status_id__in: [...SALES_PIPELINE.wonStatusIds].join(","),
         date_won__gte: startDate,
         date_won__lt: nextDate,
       })),
-      Promise.all(Object.values(ACTIVITY_TYPES).map((customActivityTypeId) =>
-        settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
-          ...activityWindow,
-          custom_activity_type_id: customActivityTypeId,
-        }))
-      )),
     ]);
 
-    const failures = [callResult, opportunityResult, ...customResults]
+    const failures = [callResult, customResult, opportunityResult]
       .map((result) => result.failure)
       .filter((failure): failure is SyncError => failure !== null);
     if (failures.length > 0) {
@@ -364,8 +362,8 @@ Deno.serve(async (request) => {
     }
 
     const rawCalls = callResult.value;
+    const rawCustomActivities = customResult.value;
     const opportunities = opportunityResult.value;
-    const rawCustomActivities = customResults.flatMap((result) => result.value);
 
     const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
     const customFacts = rawCustomActivities.map(normalizeCustomActivity).map(mapCustomActivity)
