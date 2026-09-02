@@ -29,12 +29,25 @@ function response(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
 }
 
+// The full message goes to the function log, which is private. Only `category`
+// and `safeDetail` reach the caller, whose Actions log is public.
+class SyncError extends Error {
+  constructor(
+    readonly category: string,
+    message: string,
+    readonly safeDetail: Record<string, unknown> = {},
+  ) {
+    super(message);
+  }
+}
+
 function requiredEnvironment(name: string, ...fallbackNames: string[]) {
   for (const candidate of [name, ...fallbackNames]) {
     const value = Deno.env.get(candidate);
     if (value) return value;
   }
-  throw new Error(`Missing server secret: ${[name, ...fallbackNames].join(" or ")}`);
+  const names = [name, ...fallbackNames].join(" or ");
+  throw new SyncError("missing_server_secret", `Missing server secret: ${names}`, { secret: names });
 }
 
 function dateInBerlin(date: Date) {
@@ -78,7 +91,7 @@ function berlinMidnightUtc(date: string) {
 function validateDate(value: unknown, fallback: string) {
   const date = typeof value === "string" ? value : fallback;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
-    throw new Error(`Invalid date: ${date}`);
+    throw new SyncError("invalid_date", `Invalid date: ${date}`, { date });
   }
   return date;
 }
@@ -117,7 +130,11 @@ async function closeRequest<T>(apiKey: string, path: string, params: Record<stri
   });
   if (!result.ok) {
     const details = (await result.text()).slice(0, 500);
-    throw new Error(`Close API ${result.status} for ${path}: ${details}`);
+    throw new SyncError(
+      "close_api_error",
+      `Close API ${result.status} for ${path}: ${details}`,
+      { closeStatus: result.status, closePath: path },
+    );
   }
   return await result.json() as T;
 }
@@ -387,6 +404,9 @@ Deno.serve(async (request) => {
         error_message: error instanceof Error ? error.message.slice(0, 1_000) : "Unknown sync error",
       }).eq("id", syncRunId);
     }
-    return response(500, { ok: false, error: "sync_failed" });
+    const failure = error instanceof SyncError
+      ? { error: error.category, ...error.safeDetail }
+      : { error: "sync_failed" };
+    return response(500, { ok: false, ...failure });
   }
 });
