@@ -5,7 +5,8 @@
 - GitHub, Supabase und die serverseitige Close-Sync-Function sind verbunden; der Live-Healthcheck ist erfolgreich.
 - `CLOSE_SYNC_SECRET` ist in GitHub und Supabase hinterlegt und stimmt seit 2026-09-02 auf beiden Seiten überein. Der Close-API-Key wird aus dem Supabase-Secret `Close_API_Key` gelesen.
 - Der manuelle `dry-run` über den GitHub-Workflow ist am 2026-09-02 erfolgreich gelaufen (Run `33638744316`, Zeitraum 2026-09-01): `ok: true`, `mode: dry-run`, `wroteData: false`, 32 Calls und 13 Custom Activities im Berichtsfenster, 45 gemappte Aktivitäten, 2 Personen. Noch wurden keine Close-Daten nach Supabase geschrieben.
-- Der nächste Schritt ist der begrenzte Ein-Tages-Schreibimport. Er ist noch nicht freigegeben.
+- Der begrenzte Ein-Tages-Schreibimport für 2026-09-01 ist am 2026-09-02 erfolgreich gelaufen (Workflow `Close sync write`, Run `33640131990`, `syncRunId` `e8e8302c-04b8-4800-aa70-1a55294e4252`): `wroteData: true`, dieselben Zahlen wie im Dry Run.
+- Der nächste Schritt ist der manuelle Abgleich dieser Daten gegen Close. Die Abfragen dafür stehen in `docs/verification-queries.sql`. Vorher wird **kein** stündlicher Zeitplan aktiviert.
 - Das UI ist ein funktionierender statischer Prototyp mit Demo-Daten; eine produktive Frontend-Anbindung existiert noch nicht.
 
 ## Missing Context
@@ -25,7 +26,7 @@
 ## Timeline
 
 1. ~~Dry Run ausführen und Ergebnis prüfen.~~ Am 2026-09-02 erledigt.
-2. Nach ausdrücklicher Freigabe einen begrenzten Ein-Tages-Import schreiben und gegen Close abgleichen.
+2. ~~Nach ausdrücklicher Freigabe einen begrenzten Ein-Tages-Import schreiben~~ am 2026-09-02 erledigt; der Abgleich gegen Close steht noch aus.
 3. Frontend von Demo- auf Supabase-Daten umstellen.
 4. Auth/Rollen fertigstellen, danach stündliche Automation und GitHub Pages aktivieren.
 
@@ -196,9 +197,9 @@ Wichtige Regeln aus dem Mapping:
 
 Aktuell gibt es nur den manuellen Safe-Workflow:
 
-- `.github/workflows/close-sync-test.yml`
-- löst ausschließlich `dry-run` aus
-- verwendet GitHub Secret `CLOSE_SYNC_SECRET`
+- `.github/workflows/close-sync-test.yml` — löst ausschließlich `dry-run` aus und prüft `wroteData: false`
+- `.github/workflows/close-sync-write.yml` — der einzige manuelle Schreibpfad; verlangt `confirm_write: WRITE` und lehnt Zeiträume über sieben Tage ab
+- beide verwenden GitHub Secret `CLOSE_SYNC_SECRET` und halten personenbezogene Zahlen aus dem öffentlichen Actions-Log heraus
 
 Nach validiertem Schreibimport:
 
