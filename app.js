@@ -1,318 +1,572 @@
-const people = {
-  michael: {
-    name: "Michael",
-    fullName: "Michael Giesbrecht",
-    initials: "MG",
-    color: "var(--michael)",
-    soft: "var(--michael-soft)",
-  },
-  felix: {
-    name: "Felix",
-    fullName: "Felix Wenk",
-    initials: "FW",
-    color: "var(--felix)",
-    soft: "var(--felix-soft)",
-  },
-};
+import * as data from "./data.js";
 
-const demoData = {
-  day: {
-    michael: { callsGross: 78, callsNet: 55, talkMinutes: 164, gatekeeper: 29, connected: 20, decisionMakers: 13, appointments: 5, setterCalls: 2, closerCalls: 1, noShows: 1, deals: 1, revenue: 6000, newsletters: 12 },
-    felix: { callsGross: 31, callsNet: 22, talkMinutes: 68, gatekeeper: 12, connected: 7, decisionMakers: 4, appointments: 2, setterCalls: 1, closerCalls: 0, noShows: 0, deals: 0, revenue: 0, newsletters: 4 },
-  },
-  week: {
-    michael: { callsGross: 316, callsNet: 224, talkMinutes: 712, gatekeeper: 116, connected: 78, decisionMakers: 49, appointments: 18, setterCalls: 8, closerCalls: 4, noShows: 3, deals: 2, revenue: 12000, newsletters: 49 },
-    felix: { callsGross: 66, callsNet: 47, talkMinutes: 151, gatekeeper: 25, connected: 15, decisionMakers: 9, appointments: 4, setterCalls: 2, closerCalls: 1, noShows: 1, deals: 0, revenue: 0, newsletters: 9 },
-  },
-  month: {
-    michael: { callsGross: 818, callsNet: 554, talkMinutes: 2014, gatekeeper: 241, connected: 154, decisionMakers: 92, appointments: 31, setterCalls: 14, closerCalls: 7, noShows: 5, deals: 4, revenue: 24000, newsletters: 126 },
-    felix: { callsGross: 72, callsNet: 51, talkMinutes: 166, gatekeeper: 28, connected: 17, decisionMakers: 10, appointments: 4, setterCalls: 2, closerCalls: 1, noShows: 1, deals: 0, revenue: 0, newsletters: 10 },
-  },
-};
+// Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
+// Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
+// werden weiter importiert, aber nicht angezeigt.
+const metricDefinitions = [
+  { key: "callsGross", label: "Anrufe brutto", detail: "Ausgehend, endgültiger Status", format: number, target: "calls_gross" },
+  { key: "callsNet", label: "Anrufe netto", detail: "Abgeschlossen und angenommen", format: number, target: "calls_net" },
+  { key: "gatekeeper", label: "Vorzimmer", detail: "Gatekeeper erreicht", format: number, target: "gatekeeper_contacts" },
+  { key: "connected", label: "Durchstellungen", detail: "Vom Vorzimmer durchgestellt", format: number, target: "connected_calls" },
+  { key: "connectionRate", label: "Durchstellquote", detail: "Durchstellungen ÷ Vorzimmer", format: percent, rateTarget: "transfer_rate_target", ratio: ["connected", "gatekeeper"] },
+  { key: "directDecisionMakers", label: "Entscheider direkt", detail: "Ohne Vorzimmer erreicht", format: number },
+  { key: "decisionMakers", label: "Entscheider gesamt", detail: "Direkt und durchgestellt", format: number, target: "decision_maker_contacts" },
+  { key: "appointments", label: "Termine", detail: "Termin vereinbart", format: number, target: "appointments" },
+  { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, rateTarget: "appointment_rate_target", ratio: ["appointments", "decisionMakers"] },
+  { key: "newsletters", label: "Newsletter", detail: "Quelle in Close noch offen", format: count },
+];
 
-const periodLabels = { day: "Heute", week: "Woche", month: "Monat" };
+// Zielspalten, die der Chef pflegen kann. Die Reihenfolge bestimmt das Formular.
+const targetFields = [
+  ["calls_gross", "Anrufe brutto"],
+  ["calls_net", "Anrufe netto"],
+  ["gatekeeper_contacts", "Vorzimmer"],
+  ["connected_calls", "Durchstellungen"],
+  ["transfer_rate_target", "Durchstellquote (%)"],
+  ["decision_maker_contacts", "Entscheider gesamt"],
+  ["appointments", "Termine"],
+  ["appointment_rate_target", "Terminquote (%)"],
+];
+
+const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  michael: ["Persönliche Ansicht", "Michael im Fokus", "Michaels Fortschritt prominent – Felix und das Team bleiben als Vergleich sichtbar."],
-  felix: ["Persönliche Ansicht", "Felix im Fokus", "Felix' Fortschritt prominent – Michael und das Team bleiben als Vergleich sichtbar."],
-  chef: ["Chefansicht", "Vertrieb steuern", "Einzelwerte, Teamleistung, Ziele und tägliche Management-Zusammenfassung."],
+  chef: ["Chefansicht", "Vertrieb steuern", "Einzelwerte, Teamleistung, Ziele und Sync-Status."],
 };
 
 const state = {
   view: "team",
   period: "month",
-  goals: {
-    michael: { callsNet: 700, connected: 190, decisionMakers: 115, appointments: 38, deals: 5, revenue: 30000 },
-    felix: { callsNet: 350, connected: 95, decisionMakers: 58, appointments: 19, deals: 3, revenue: 16000 },
-  },
+  referenceDate: berlinToday(),
+  people: [],
+  metrics: {},
+  hours: [],
+  trends: [],
+  targets: [],
+  periodRange: { start: null, end: null },
+  profile: { displayName: null, role: "sales", salesPersonId: null },
+  syncRun: null,
+  heatmapRate: "connection",
+  status: "start",
+  error: null,
+  unsubscribe: null,
 };
 
-const metricDefinitions = [
-  { key: "callsGross", label: "Anrufe brutto", detail: "Alle ausgehenden Versuche", format: number, goalKey: "callsNet" },
-  { key: "callsNet", label: "Anrufe netto", detail: "Definition wird final bestätigt", format: number, goalKey: "callsNet" },
-  { key: "talkMinutes", label: "Gesprächszeit", detail: "Summierte Anrufdauer", format: minutes, goal: { michael: 2400, felix: 1200 } },
-  { key: "connected", label: "Durchstellungen", detail: "Gatekeeper: durchgestellt", format: number, goalKey: "connected" },
-  { key: "decisionMakers", label: "Entscheider erreicht", detail: "Entscheider-Ergebnis vorhanden", format: number, goalKey: "decisionMakers" },
-  { key: "appointments", label: "Termine", detail: "Vom Vertriebler vereinbart", format: number, goalKey: "appointments" },
-  { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, goal: { michael: 35, felix: 33 }, aggregate: aggregateRate("appointments", "decisionMakers") },
-  { key: "setterCalls", label: "Setter Calls", detail: "Qualifizierungsgespräche", format: number, goal: { michael: 18, felix: 9 } },
-  { key: "noShows", label: "No Shows", detail: "Nicht erschienen / abgesagt", format: number, lowerIsBetter: true, goal: { michael: 4, felix: 2 } },
-  { key: "deals", label: "Deals", detail: "Verkaufte Closer-Ergebnisse", format: number, goalKey: "deals" },
-  { key: "conversionRate", label: "Erfolgsquote", detail: "Deals ÷ Closer Calls", format: percent, goal: { michael: 55, felix: 50 }, aggregate: aggregateRate("deals", "closerCalls") },
-  { key: "revenue", label: "Umsatz", detail: "Gewonnene Opportunities", format: currency, goalKey: "revenue" },
-  { key: "newsletters", label: "Newsletter", detail: "Quelle wird noch festgelegt", format: number, goal: { michael: 150, felix: 75 } },
-];
+// --- Formatierung ------------------------------------------------------------
 
-const heatmapValues = {
-  michael: [24, 31, 42, 38, 29, 35, 47, 40, 27],
-  felix: [18, 26, 33, 29, 24, 31, 37, 35, 22],
-};
-
-const projects = [
-  { name: "LinkedIn Neukundengewinnung", status: "Aktiv", michael: 468, felix: 42, calls: 510, minutes: 1284, range: "September" },
-  { name: "Mitarbeitergewinnung", status: "Aktiv", michael: 266, felix: 30, calls: 296, minutes: 731, range: "September" },
-  { name: "Follow-up Bestand", status: "Aktiv", michael: 84, felix: 0, calls: 84, minutes: 165, range: "laufend" },
-];
+function berlinToday() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
 
 function number(value) {
   return new Intl.NumberFormat("de-DE").format(Math.round(value || 0));
 }
 
-function currency(value) {
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value || 0);
+// Newsletter hat bewusst keinen Wert, solange die Close-Quelle offen ist. Eine
+// Null würde behaupten, es habe keine gegeben.
+function count(value) {
+  return value === null || value === undefined ? "—" : number(value);
 }
 
 function minutes(value) {
-  const hours = Math.floor((value || 0) / 60);
-  const rest = Math.round((value || 0) % 60);
-  return `${hours}h ${String(rest).padStart(2, "0")}m`;
+  const total = Math.round(value || 0);
+  return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
 }
 
 function percent(value) {
-  return `${Math.round(value || 0)} %`;
+  return value === null || value === undefined ? "—" : `${Math.round(value)} %`;
+}
+
+function germanDate(isoDate) {
+  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
+    .format(new Date(`${isoDate}T12:00:00Z`));
+}
+
+function monthLabel(isoDate) {
+  return new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" })
+    .format(new Date(`${isoDate}T12:00:00Z`));
+}
+
+function initials(displayName) {
+  return displayName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function firstName(displayName) {
+  return displayName.split(/\s+/)[0];
 }
 
 function safeRate(numerator, denominator) {
   return denominator > 0 ? (numerator / denominator) * 100 : 0;
 }
 
-function aggregateRate(numeratorKey, denominatorKey) {
-  return (data) => safeRate(data.michael[numeratorKey] + data.felix[numeratorKey], data.michael[denominatorKey] + data.felix[denominatorKey]);
-}
+// --- Daten laden -------------------------------------------------------------
 
-function enrich(personData) {
+// Eine Zeile aus get_dashboard_metrics auf die Namen bringen, die die Ansicht
+// nutzt. Die Quoten kommen aus der Datenbank, nicht aus dem Browser.
+function toPerson(row) {
   return {
-    ...personData,
-    appointmentRate: safeRate(personData.appointments, personData.decisionMakers),
-    conversionRate: safeRate(personData.deals, personData.closerCalls),
+    slug: row.slug,
+    displayName: row.display_name,
+    color: row.color,
+    callsGross: Number(row.calls_gross),
+    callsNet: Number(row.calls_net),
+    talkMinutes: Number(row.talk_seconds) / 60,
+    gatekeeper: Number(row.gatekeeper_contacts),
+    connected: Number(row.connected_calls),
+    connectionRate: Number(row.connection_rate),
+    directDecisionMakers: Number(row.direct_decision_maker_calls),
+    decisionMakers: Number(row.decision_maker_contacts),
+    appointments: Number(row.appointments),
+    appointmentRate: Number(row.appointment_rate),
+    newsletters: row.newsletters === null ? null : Number(row.newsletters),
   };
 }
 
-function getPeriodData() {
-  const period = demoData[state.period];
-  return { michael: enrich(period.michael), felix: enrich(period.felix) };
+async function loadAll() {
+  const [people, metricRows, hourRows, trends] = await Promise.all([
+    data.loadPeople(),
+    data.loadMetrics(state.period, state.referenceDate),
+    data.loadHourPerformance(state.period, state.referenceDate),
+    data.loadTrends(),
+  ]);
+
+  state.people = people;
+  state.hours = hourRows;
+  state.trends = trends;
+  state.metrics = {};
+  metricRows.forEach((row) => { state.metrics[row.slug] = toPerson(row); });
+
+  const first = metricRows[0];
+  state.periodRange = first
+    ? { start: first.period_start, end: first.period_end }
+    : { start: state.referenceDate, end: state.referenceDate };
+
+  state.targets = await data.loadTargets(state.periodRange.start, state.periodRange.end);
+  state.syncRun = state.profile.role === "manager" ? await data.loadLatestSyncRun() : null;
 }
 
-function getGoal(metric, personKey) {
-  if (metric.goalKey) return state.goals[personKey][metric.goalKey] || 1;
-  return metric.goal?.[personKey] || 1;
+// --- Ziele -------------------------------------------------------------------
+
+function daysBetween(startIso, endIso) {
+  const start = Date.parse(`${startIso}T00:00:00Z`);
+  const end = Date.parse(`${endIso}T00:00:00Z`);
+  return Math.round((end - start) / 86400000) + 1;
 }
 
-function scaledGoal(value) {
-  if (state.period === "day") return Math.max(1, Math.round(value / 20));
-  if (state.period === "week") return Math.max(1, Math.round(value / 4));
-  return value;
+// Ein Ziel gilt für seinen eigenen Zeitraum. Deckt die Ansicht nur einen Teil
+// davon ab, wird ein Zählwert anteilig verkleinert: Ein Monatsziel von 600
+// Anrufen entspricht an einem Tag rund 20. Quotenziele werden nicht skaliert,
+// eine Quote ist von der Dauer unabhängig.
+function targetFor(personId, column) {
+  const isRate = column.endsWith("_target");
+  let total = 0;
+  let found = false;
+
+  for (const target of state.targets) {
+    if (target.sales_person_id !== personId) continue;
+    const value = target[column];
+    if (value === null || value === undefined) continue;
+
+    if (isRate) return Number(value);
+
+    const overlapStart = target.period_start > state.periodRange.start ? target.period_start : state.periodRange.start;
+    const overlapEnd = target.period_end < state.periodRange.end ? target.period_end : state.periodRange.end;
+    if (overlapEnd < overlapStart) continue;
+
+    total += Number(value) * (daysBetween(overlapStart, overlapEnd) / daysBetween(target.period_start, target.period_end));
+    found = true;
+  }
+
+  return found ? Math.max(1, Math.round(total)) : null;
 }
 
-function attainment(metric, personKey, value) {
-  const goal = scaledGoal(getGoal(metric, personKey));
-  if (metric.lowerIsBetter) return value <= goal ? 100 : Math.max(0, (goal / value) * 100);
-  return Math.min(130, (value / goal) * 100);
+function metricTarget(metric, personId) {
+  if (metric.rateTarget) return targetFor(personId, metric.rateTarget);
+  if (metric.target) return targetFor(personId, metric.target);
+  return null;
 }
 
-function focusClass(personKey) {
+function attainment(value, target) {
+  if (!target) return null;
+  return Math.min(130, (value / target) * 100);
+}
+
+// Ohne hinterlegtes Ziel bleibt eine Zahl neutral. Sie rot zu färben würde
+// behaupten, sie sei zu niedrig — dafür fehlt die Grundlage.
+function performanceClass(score) {
+  if (score === null) return "is-neutral";
+  if (score >= 100) return "is-strong";
+  if (score >= 70) return "is-ok";
+  return "is-weak";
+}
+
+// --- Rendern -----------------------------------------------------------------
+
+function orderedPeople() {
+  return state.people.filter((person) => state.metrics[person.slug]);
+}
+
+function focusClass(slug) {
   if (state.view === "team" || state.view === "chef") return "";
-  return state.view === personKey ? "is-focused" : "is-dimmed";
+  return state.view === slug ? "is-focused" : "is-dimmed";
+}
+
+function renderNav() {
+  const buttons = [`<button class="nav-button" data-view="team">Team</button>`];
+  state.people.forEach((person) => {
+    buttons.push(`<button class="nav-button" data-view="${person.slug}">${firstName(person.display_name)}</button>`);
+  });
+  if (state.profile.role === "manager") {
+    buttons.push(`<button class="nav-button" data-view="chef">Chef</button>`);
+  }
+  document.querySelector(".view-nav").innerHTML = buttons.join("");
 }
 
 function renderHeader() {
-  document.querySelectorAll("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === state.view));
-  document.querySelectorAll("[data-period]").forEach((button) => button.classList.toggle("active", button.dataset.period === state.period));
-  const [kicker, title, description] = viewCopy[state.view];
-  document.querySelector("#view-kicker").textContent = kicker;
-  document.querySelector("#page-title").textContent = title;
-  document.querySelector("#view-description").textContent = description;
-  document.querySelector("#footer-context").textContent = `Ansicht: ${state.view === "chef" ? "Chef" : state.view === "team" ? "Team" : people[state.view].name} · Zeitraum: ${periodLabels[state.period]}`;
-  document.querySelector("#manager-section").hidden = state.view !== "chef";
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === state.view);
+  });
+  document.querySelectorAll("[data-period]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.period === state.period);
+  });
+
+  const person = state.people.find((entry) => entry.slug === state.view);
+  const copy = viewCopy[state.view] ?? [
+    "Persönliche Ansicht",
+    `${person ? firstName(person.display_name) : "Person"} im Fokus`,
+    "Der eigene Fortschritt prominent, das Team bleibt als Vergleich sichtbar.",
+  ];
+
+  document.querySelector("#view-kicker").textContent = copy[0];
+  document.querySelector("#page-title").textContent = copy[1];
+  document.querySelector("#view-description").textContent = copy[2];
+  document.querySelector("#manager-section").hidden = state.view !== "chef" || state.profile.role !== "manager";
+
+  const range = state.periodRange.start === state.periodRange.end
+    ? germanDate(state.periodRange.start)
+    : `${germanDate(state.periodRange.start)} – ${germanDate(state.periodRange.end)}`;
+  document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${range}`;
 }
 
-function weightedScore(personKey, data) {
-  const d = data[personKey];
-  const goals = state.goals[personKey];
-  const activity = Math.min(1.2, d.callsNet / scaledGoal(goals.callsNet));
-  const appointments = Math.min(1.2, d.appointments / scaledGoal(goals.appointments));
-  const revenue = Math.min(1.2, d.revenue / scaledGoal(goals.revenue));
-  return Math.round(((activity * 0.35 + appointments * 0.35 + revenue * 0.3) / 1.2) * 100);
+// Gewichtet aus den sichtbaren Kennzahlen. Umsatz fließt nicht ein, solange er
+// nicht angezeigt wird — eine Zahl, die niemand sieht, soll die Rangfolge nicht
+// bestimmen. Ohne Ziele gibt es keine Zielerreichung.
+function weightedScore(metrics, salesPersonId) {
+  const parts = [
+    ["callsNet", "calls_net", 0.35],
+    ["decisionMakers", "decision_maker_contacts", 0.3],
+    ["appointments", "appointments", 0.35],
+  ];
+  let score = 0;
+  let weightUsed = 0;
+  for (const [key, column, weight] of parts) {
+    const target = targetFor(salesPersonId, column);
+    if (!target) continue;
+    score += Math.min(1.2, metrics[key] / target) * weight;
+    weightUsed += weight;
+  }
+  return weightUsed === 0 ? null : Math.round((score / weightUsed / 1.2) * 100);
 }
 
-function renderRace(data) {
-  const scores = Object.keys(people).map((key) => ({ key, score: weightedScore(key, data) })).sort((a, b) => b.score - a.score);
-  document.querySelector("#race-board").innerHTML = scores.map(({ key, score }, index) => {
-    const person = people[key];
-    const d = data[key];
+function renderRace() {
+  const entries = orderedPeople().map((person) => {
+    const metrics = state.metrics[person.slug];
+    return { person, metrics, score: weightedScore(metrics, person.id) };
+  });
+
+  const hasScores = entries.some((entry) => entry.score !== null);
+  entries.sort((a, b) => hasScores
+    ? (b.score ?? -1) - (a.score ?? -1)
+    : b.metrics.appointments - a.metrics.appointments);
+
+  document.querySelector("#race-board").innerHTML = entries.map(({ person, metrics, score }, index) => {
+    const headline = score === null ? "—" : `${score}%`;
+    const note = score === null
+      ? "kein Ziel hinterlegt"
+      : score >= 80 ? "auf Kurs" : score >= 55 ? "im Rennen" : "Potenzial";
     return `
-      <article class="racer ${focusClass(key)}" style="--racer-color:${person.color};--racer-soft:${person.soft}">
+      <article class="racer ${focusClass(person.slug)} ${performanceClass(score)}" style="--racer-color:${person.color};--racer-soft:${person.color}22">
         <div class="racer-topline">
-          <div class="person-id"><span class="avatar">${person.initials}</span><span><strong>${person.name}</strong><small>${index === 0 ? "Aktuell auf Platz 1" : "Aktuell auf Platz 2"}</small></span></div>
+          <div class="person-id">
+            <span class="avatar">${initials(person.display_name)}</span>
+            <span><strong>${firstName(person.display_name)}</strong><small>${hasScores ? `Aktuell auf Platz ${index + 1}` : "Zielerreichung offen"}</small></span>
+          </div>
           <small>${periodLabels[state.period]}</small>
         </div>
-        <div class="racer-result"><strong>${score}%</strong><span>${score >= 80 ? "auf Kurs" : score >= 55 ? "im Rennen" : "Potenzial"}</span></div>
-        <div class="progress-track"><div class="progress-fill" data-width="${Math.min(score, 100)}" style="--progress-color:${person.color}"></div></div>
-        <div class="racer-stats"><span><b>${number(d.callsNet)}</b> Netto-Calls</span><span><b>${number(d.appointments)}</b> Termine</span><span><b>${currency(d.revenue)}</b> Umsatz</span></div>
+        <div class="racer-result"><strong>${headline}</strong><span>${note}</span></div>
+        <div class="progress-track"><div class="progress-fill" data-width="${Math.min(score ?? 0, 100)}" style="--progress-color:${person.color}"></div></div>
+        <div class="racer-stats">
+          <span><b>${number(metrics.callsNet)}</b> Netto-Calls</span>
+          <span><b>${number(metrics.appointments)}</b> Termine</span>
+          <span><b>${percent(metrics.connectionRate)}</b> Durchstellquote</span>
+        </div>
       </article>`;
   }).join("");
 }
 
-function renderMetrics(data) {
-  const container = document.querySelector("#metric-table");
-  container.innerHTML = metricDefinitions.map((metric) => {
-    const michaelValue = data.michael[metric.key] ?? 0;
-    const felixValue = data.felix[metric.key] ?? 0;
-    const aggregate = metric.aggregate ? metric.aggregate(data) : michaelValue + felixValue;
+function teamValue(metric) {
+  const people = orderedPeople();
+  if (metric.ratio) {
+    const [numeratorKey, denominatorKey] = metric.ratio;
+    const numerator = people.reduce((sum, person) => sum + state.metrics[person.slug][numeratorKey], 0);
+    const denominator = people.reduce((sum, person) => sum + state.metrics[person.slug][denominatorKey], 0);
+    return safeRate(numerator, denominator);
+  }
+  const values = people.map((person) => state.metrics[person.slug][metric.key]);
+  if (values.length > 0 && values.every((value) => value === null)) return null;
+  return values.reduce((sum, value) => sum + (value ?? 0), 0);
+}
+
+function renderMetrics() {
+  const people = orderedPeople();
+  document.querySelector("#metric-table").innerHTML = metricDefinitions.map((metric) => {
+    const cells = people.map((person) => {
+      const value = state.metrics[person.slug][metric.key];
+      const target = metricTarget(metric, person.id);
+      const score = value === null ? null : attainment(value, target);
+      return `
+        <div class="metric-person ${focusClass(person.slug)} ${performanceClass(score)}">
+          <span class="metric-value" style="color:${person.color}">${metric.format(value)}</span>
+          <div class="metric-progress">
+            <div class="progress-track"><div class="progress-fill" data-width="${Math.min(score ?? 0, 100)}" style="--progress-color:${person.color}"></div></div>
+            <small>${target === null ? "kein Ziel hinterlegt" : `${Math.round(score)}% vom Ziel ${metric.format(target)}`}</small>
+          </div>
+        </div>`;
+    }).join("");
+
     return `
       <div class="metric-line">
         <div class="metric-name"><strong>${metric.label}</strong><small>${metric.detail}</small></div>
-        ${personMetric(metric, "michael", michaelValue)}
-        ${personMetric(metric, "felix", felixValue)}
-        <div class="metric-team"><small>Team</small><strong>${metric.format(aggregate)}</strong></div>
+        ${cells}
+        <div class="metric-team"><small>Team</small><strong>${metric.format(teamValue(metric))}</strong></div>
       </div>`;
   }).join("");
 }
 
-function personMetric(metric, personKey, value) {
-  const person = people[personKey];
-  const score = attainment(metric, personKey, value);
-  const goal = scaledGoal(getGoal(metric, personKey));
-  return `
-    <div class="metric-person ${focusClass(personKey)}">
-      <span class="metric-value" style="color:${person.color}">${metric.format(value)}</span>
-      <div class="metric-progress">
-        <div class="progress-track"><div class="progress-fill" data-width="${Math.min(score, 100)}" style="--progress-color:${person.color}"></div></div>
-        <small>${Math.round(score)}% vom Ziel ${metric.format(goal)}</small>
-      </div>
-    </div>`;
-}
-
-function renderFunnel(data) {
+function renderFunnel() {
   const steps = [
     ["Netto-Anrufe", "callsNet"],
+    ["Vorzimmer", "gatekeeper"],
     ["Durchgestellt", "connected"],
     ["Entscheider", "decisionMakers"],
     ["Termine", "appointments"],
-    ["Deals", "deals"],
   ];
+  const people = orderedPeople();
+
   document.querySelector("#funnel").innerHTML = steps.map(([label, key]) => {
-    const total = Math.max(1, data.michael[key] + data.felix[key]);
-    const mShare = (data.michael[key] / total) * 100;
-    const fShare = 100 - mShare;
+    const total = Math.max(1, people.reduce((sum, person) => sum + state.metrics[person.slug][key], 0));
+    const values = people.map((person) => `
+      <div class="funnel-person ${focusClass(person.slug)}">
+        <strong style="color:${person.color}">${number(state.metrics[person.slug][key])}</strong>
+        <span>${firstName(person.display_name)}</span>
+      </div>`).join("");
+    const bars = people.map((person) => {
+      const share = (state.metrics[person.slug][key] / total) * 100;
+      return `<i style="width:${share}%;background:${person.color}"></i>`;
+    }).join("");
     return `
       <div class="funnel-step">
         <small>${label}</small>
-        <div class="funnel-values">
-          <div class="funnel-person ${focusClass("michael")}"><strong style="color:var(--michael)">${number(data.michael[key])}</strong><span>Michael</span></div>
-          <div class="funnel-person ${focusClass("felix")}"><strong style="color:var(--felix)">${number(data.felix[key])}</strong><span>Felix</span></div>
-        </div>
-        <div class="funnel-line"><i style="width:${mShare}%;background:var(--michael)"></i><i style="width:${fShare}%;background:var(--felix)"></i></div>
+        <div class="funnel-values">${values}</div>
+        <div class="funnel-line">${bars}</div>
       </div>`;
   }).join("");
 }
 
+// Beide Stundenquoten liegen vor. Angezeigt wird die gewählte, damit die
+// Tabelle lesbar bleibt. Stunden ohne Grundlage entfallen ganz.
 function renderHeatmap() {
-  const hours = Array.from({ length: 9 }, (_, index) => `${index + 8}:00`);
-  const rows = Object.entries(people).map(([key, person]) => {
-    const cells = heatmapValues[key].map((value) => `<span class="heat-cell" style="--heat-color:${person.color};--heat-strength:${Math.max(12, value * 1.55)}%" title="${person.name}: ${value}%">${value}%</span>`).join("");
-    return `<div class="heat-row"><span class="heat-person" style="color:${person.color}">${person.name}</span>${cells}</div>`;
+  const container = document.querySelector("#heatmap");
+  const useConnection = state.heatmapRate === "connection";
+  const valueKey = useConnection ? "transfer_rate" : "reach_rate";
+  const baseKey = useConnection ? "gatekeeper_contacts" : "calls_gross";
+
+  const activeHours = [...new Set(state.hours.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
+    .sort((a, b) => a - b);
+
+  if (activeHours.length === 0) {
+    container.innerHTML = `<p class="empty-note">Für diesen Zeitraum liegen keine ${useConnection ? "Vorzimmer-Kontakte" : "Anrufe"} vor.</p>`;
+    return;
+  }
+
+  const header = `<div class="heat-row header"><span>Person</span>${activeHours.map((hour) => `<span>${String(hour).padStart(2, "0")}:00</span>`).join("")}</div>`;
+  const rows = orderedPeople().map((person) => {
+    const cells = activeHours.map((hour) => {
+      const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
+      const base = row ? Number(row[baseKey]) : 0;
+      const value = row ? Number(row[valueKey]) : 0;
+      if (base === 0) return `<span class="heat-cell is-empty" title="${firstName(person.display_name)}, ${hour}:00 Uhr: keine Daten">–</span>`;
+      return `<span class="heat-cell" style="--heat-color:${person.color};--heat-strength:${Math.max(12, value)}%" title="${firstName(person.display_name)}, ${hour}:00 Uhr: ${Math.round(value)} % aus ${base}">${Math.round(value)}%</span>`;
+    }).join("");
+    return `<div class="heat-row"><span class="heat-person" style="color:${person.color}">${firstName(person.display_name)}</span>${cells}</div>`;
   }).join("");
-  document.querySelector("#heatmap").innerHTML = `<div class="heat-row header"><span>Person</span>${hours.map((hour) => `<span>${hour}</span>`).join("")}</div>${rows}`;
+
+  container.innerHTML = header + rows;
 }
 
-function renderRanking(data) {
-  const ranking = Object.keys(people).sort((a, b) => data[b].callsNet - data[a].callsNet);
-  document.querySelector("#caller-ranking").innerHTML = ranking.map((key, index) => {
-    const person = people[key];
+function renderRanking() {
+  const ranked = [...orderedPeople()].sort((a, b) => state.metrics[b.slug].callsNet - state.metrics[a.slug].callsNet);
+  document.querySelector("#caller-ranking").innerHTML = ranked.map((person, index) => {
+    const metrics = state.metrics[person.slug];
     return `
-      <div class="ranking-person" style="--rank-color:${person.color};--rank-soft:${person.soft}">
+      <div class="ranking-person" style="--rank-color:${person.color};--rank-soft:${person.color}22">
         <span class="rank-number">0${index + 1}</span>
-        <span class="rank-avatar">${person.initials}</span>
-        <span class="rank-copy"><strong>${person.fullName}</strong><small>${minutes(data[key].talkMinutes)} Gespräch</small></span>
-        <span class="rank-value">${number(data[key].callsNet)}</span>
+        <span class="rank-avatar">${initials(person.display_name)}</span>
+        <span class="rank-copy"><strong>${person.display_name}</strong><small>${minutes(metrics.talkMinutes)} Gespräch</small></span>
+        <span class="rank-value">${number(metrics.callsNet)}</span>
       </div>`;
   }).join("");
 }
 
-function renderProjects() {
-  const factor = state.period === "day" ? 0.05 : state.period === "week" ? 0.24 : 1;
-  document.querySelector("#project-rows").innerHTML = projects.map((project) => {
-    const michael = Math.round(project.michael * factor);
-    const felix = Math.round(project.felix * factor);
-    return `<tr><td>${project.name}</td><td><span class="status-chip">${project.status}</span></td><td>${number(michael)}</td><td>${number(felix)}</td><td>${number(michael + felix)}</td><td>${minutes(project.minutes * factor)}</td><td>${state.period === "day" ? "heute" : state.period === "week" ? "diese Woche" : project.range}</td></tr>`;
+// Aktueller Monat und die zwei Vormonate, in den Kennzahlen, die sichtbar sind.
+function renderTrends() {
+  const columns = [
+    ["calls_net", "Netto-Anrufe", number],
+    ["gatekeeper_contacts", "Vorzimmer", number],
+    ["connected_calls", "Durchstellungen", number],
+    ["connection_rate", "Durchstellquote", percent],
+    ["decision_maker_contacts", "Entscheider", number],
+    ["appointments", "Termine", number],
+    ["appointment_rate", "Terminquote", percent],
+  ];
+  const months = [...new Set(state.trends.map((row) => row.month_start))].sort().reverse();
+
+  const rows = months.flatMap((month) => orderedPeople().map((person) => {
+    const row = state.trends.find((entry) => entry.month_start === month && entry.slug === person.slug);
+    if (!row) return "";
+    const cells = columns.map(([key, , format]) => `<td>${format(Number(row[key]))}</td>`).join("");
+    return `<tr><td>${monthLabel(month)}</td><td><span class="status-chip" style="color:${person.color}">${firstName(person.display_name)}</span></td>${cells}</tr>`;
+  })).join("");
+
+  document.querySelector("#trend-head").innerHTML =
+    `<tr><th>Monat</th><th>Person</th>${columns.map(([, label]) => `<th>${label}</th>`).join("")}</tr>`;
+  document.querySelector("#trend-rows").innerHTML = rows || `<tr><td colspan="9">Noch keine Monatsdaten vorhanden.</td></tr>`;
+}
+
+function renderManager() {
+  if (state.profile.role !== "manager") return;
+
+  const startField = document.querySelector("#target-period-start");
+  const endField = document.querySelector("#target-period-end");
+  if (!startField.value) startField.value = state.periodRange.start;
+  if (!endField.value) endField.value = state.periodRange.end;
+
+  document.querySelector("#goal-fields").innerHTML = targetFields.map(([column, label]) => {
+    const inputs = state.people.map((person) => {
+      const existing = state.targets.find((target) => target.sales_person_id === person.id);
+      const value = existing?.[column] ?? "";
+      return `<input id="goal-${person.slug}-${column}" name="${person.id}--${column}" type="number" min="0" step="any" value="${value}" placeholder="${firstName(person.display_name)}" aria-label="${label}, Ziel für ${person.display_name}" />`;
+    }).join("");
+    return `<div class="goal-field"><label for="goal-${state.people[0]?.slug}-${column}">${label}</label>${inputs}</div>`;
   }).join("");
+
+  const sync = state.syncRun;
+  document.querySelector("#sync-detail").innerHTML = sync
+    ? `<span>Status: <strong>${sync.status}</strong></span><span>${sync.completed_at ? germanDate(sync.completed_at.slice(0, 10)) : "läuft"}</span><span>${number(sync.fetched_records ?? 0)} gelesen</span><span>${number(sync.upserted_records ?? 0)} gespeichert</span>`
+    : `<span>Noch kein Sync-Lauf erfasst.</span>`;
 }
 
-function renderGoalEditor() {
-  const goalLabels = { callsNet: "Netto-Anrufe", connected: "Durchstellungen", decisionMakers: "Entscheider", appointments: "Termine", deals: "Deals", revenue: "Umsatz (€)" };
-  document.querySelector("#goal-fields").innerHTML = Object.entries(goalLabels).map(([key, label]) => `
-    <div class="goal-field">
-      <label for="goal-michael-${key}">${label}</label>
-      <input id="goal-michael-${key}" name="michael-${key}" type="number" min="0" value="${state.goals.michael[key]}" aria-label="${label} Ziel Michael" />
-      <input id="goal-felix-${key}" name="felix-${key}" type="number" min="0" value="${state.goals.felix[key]}" aria-label="${label} Ziel Felix" />
-    </div>`).join("");
-}
-
-function renderSummary(data) {
-  const leader = weightedScore("michael", data) >= weightedScore("felix", data) ? "Michael" : "Felix";
-  const totalAppointments = data.michael.appointments + data.felix.appointments;
-  const totalRevenue = data.michael.revenue + data.felix.revenue;
-  document.querySelector("#ai-summary-text").textContent = `${leader} führt aktuell in der gewichteten Zielerreichung. Das Team hat im gewählten Zeitraum ${number(totalAppointments)} Termine vereinbart und ${currency(totalRevenue)} Umsatz erfasst. Die stärkste gemeinsame Anrufzeit liegt zwischen 14 und 16 Uhr.`;
-  document.querySelector("#summary-facts").innerHTML = [
-    `${number(data.michael.callsNet + data.felix.callsNet)} Netto-Anrufe`,
-    `${number(data.michael.decisionMakers + data.felix.decisionMakers)} Entscheider`,
-    `${percent(safeRate(totalAppointments, data.michael.decisionMakers + data.felix.decisionMakers))} Team-Terminquote`,
-  ].map((fact) => `<span>${fact}</span>`).join("");
+function renderSyncBadge() {
+  const label = state.status === "live" ? "Live-Daten" : state.status === "loading" ? "Lädt" : "Getrennt";
+  const note = state.status === "live" ? "Supabase, aktualisiert automatisch" : state.error ?? "Verbindung wird aufgebaut";
+  document.querySelector(".sync-status").innerHTML =
+    `<span class="sync-dot ${state.status === "live" ? "is-live" : ""}" aria-hidden="true"></span><span><strong>${label}</strong><small>${note}</small></span>`;
 }
 
 function animateProgress() {
-  requestAnimationFrame(() => document.querySelectorAll(".progress-fill[data-width]").forEach((bar) => { bar.style.width = `${bar.dataset.width}%`; }));
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".progress-fill[data-width]").forEach((bar) => {
+      bar.style.width = `${bar.dataset.width}%`;
+    });
+  });
 }
 
 function updateUrl() {
   const url = new URL(window.location.href);
   url.searchParams.set("view", state.view);
   url.searchParams.set("period", state.period);
+  url.searchParams.set("date", state.referenceDate);
   window.history.replaceState({}, "", url);
 }
 
 function render() {
-  const data = getPeriodData();
+  renderNav();
   renderHeader();
-  renderRace(data);
-  renderMetrics(data);
-  renderFunnel(data);
+  renderRace();
+  renderMetrics();
+  renderFunnel();
   renderHeatmap();
-  renderRanking(data);
-  renderProjects();
-  renderGoalEditor();
-  renderSummary(data);
+  renderRanking();
+  renderTrends();
+  renderManager();
+  renderSyncBadge();
   animateProgress();
   updateUrl();
 }
 
+// --- Ablauf ------------------------------------------------------------------
+
+function showError(message) {
+  state.status = "error";
+  state.error = message;
+  renderSyncBadge();
+  const box = document.querySelector("#load-error");
+  box.textContent = message;
+  box.hidden = false;
+}
+
+async function refresh() {
+  try {
+    document.querySelector("#load-error").hidden = true;
+    state.status = "loading";
+    renderSyncBadge();
+    await loadAll();
+    state.status = "live";
+    state.error = null;
+    render();
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+function showApp(visible) {
+  document.querySelector(".app-shell").hidden = !visible;
+  document.querySelector("#login-screen").hidden = visible;
+}
+
+async function startSession() {
+  state.profile = await data.loadProfile();
+  showApp(true);
+  await refresh();
+
+  // Wer einer Person zugeordnet ist, startet in der eigenen Ansicht.
+  const own = state.people.find((person) => person.id === state.profile.salesPersonId);
+  if (own && state.view === "team") {
+    state.view = own.slug;
+    render();
+  }
+
+  state.unsubscribe?.();
+  state.unsubscribe = data.subscribeToUpdates(() => refresh());
+}
+
+function endSession() {
+  state.unsubscribe?.();
+  state.unsubscribe = null;
+  state.profile = { displayName: null, role: "sales", salesPersonId: null };
+  showApp(false);
+}
+
 function readInitialState() {
   const params = new URLSearchParams(window.location.search);
-  const requestedView = params.get("view");
-  const requestedPeriod = params.get("period");
-  if (requestedView && viewCopy[requestedView]) state.view = requestedView;
-  if (requestedPeriod && demoData[requestedPeriod]) state.period = requestedPeriod;
+  const view = params.get("view");
+  const period = params.get("period");
+  const date = params.get("date");
+  if (view) state.view = view;
+  if (period && periodLabels[period]) state.period = period;
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) state.referenceDate = date;
 }
 
 document.addEventListener("click", (event) => {
@@ -326,22 +580,99 @@ document.addEventListener("click", (event) => {
   const periodButton = event.target.closest("[data-period]");
   if (periodButton) {
     state.period = periodButton.dataset.period;
-    render();
+    refresh();
+    return;
+  }
+  const rateButton = event.target.closest("[data-rate]");
+  if (rateButton) {
+    state.heatmapRate = rateButton.dataset.rate;
+    document.querySelectorAll("[data-rate]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.rate === state.heatmapRate);
+    });
+    renderHeatmap();
   }
 });
 
-document.querySelector("#goal-editor").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  Object.keys(state.goals.michael).forEach((key) => {
-    state.goals.michael[key] = Number(form.get(`michael-${key}`)) || 0;
-    state.goals.felix[key] = Number(form.get(`felix-${key}`)) || 0;
-  });
-  render();
-  const status = document.querySelector("#goal-status");
-  status.textContent = "Ziele für diese Demo-Sitzung angewendet.";
-  setTimeout(() => { status.textContent = ""; }, 2800);
+document.querySelector("#reference-date").addEventListener("change", (event) => {
+  state.referenceDate = event.target.value || berlinToday();
+  refresh();
 });
 
-readInitialState();
-render();
+document.querySelector("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const status = document.querySelector("#login-status");
+  status.textContent = "Anmeldung läuft …";
+  try {
+    await data.signIn(String(form.get("email")).trim(), String(form.get("password")));
+    status.textContent = "";
+  } catch (error) {
+    status.textContent = `Anmeldung fehlgeschlagen: ${error.message}`;
+  }
+});
+
+document.querySelector("#sign-out").addEventListener("click", () => data.signOut());
+
+// Ziele schreiben darf ausschließlich der Manager. Die Policy setzt das
+// serverseitig durch, das Formular erscheint nur passend dazu.
+document.querySelector("#goal-editor").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const status = document.querySelector("#goal-status");
+  const form = new FormData(event.currentTarget);
+  const periodStart = String(form.get("period_start"));
+  const periodEnd = String(form.get("period_end"));
+
+  if (!periodStart || !periodEnd || periodEnd < periodStart) {
+    status.textContent = "Bitte einen gültigen Zeitraum angeben.";
+    return;
+  }
+
+  const session = await data.currentSession();
+  const rows = state.people.map((person) => {
+    const row = {
+      sales_person_id: person.id,
+      period_start: periodStart,
+      period_end: periodEnd,
+      created_by: session?.user?.id ?? null,
+    };
+    targetFields.forEach(([column]) => {
+      const raw = form.get(`${person.id}--${column}`);
+      const value = raw === "" || raw === null ? null : Number(raw);
+      row[column] = column.endsWith("_target") ? value : (value ?? 0);
+    });
+    return row;
+  });
+
+  status.textContent = "Ziele werden gespeichert …";
+  try {
+    await data.saveTargets(rows);
+    status.textContent = "Ziele gespeichert.";
+    await refresh();
+  } catch (error) {
+    status.textContent = `Speichern fehlgeschlagen: ${error.message}`;
+  }
+  setTimeout(() => { status.textContent = ""; }, 4000);
+});
+
+function boot() {
+  readInitialState();
+  document.querySelector("#reference-date").value = state.referenceDate;
+
+  if (!data.isConfigured) {
+    showApp(false);
+    document.querySelector("#login-form").hidden = true;
+    document.querySelector("#login-status").textContent =
+      "Supabase ist noch nicht verbunden: In config.js fehlt der Publishable Key.";
+    return;
+  }
+
+  data.onAuthChange((session) => {
+    if (session) startSession(); else endSession();
+  });
+
+  data.currentSession()
+    .then((session) => { if (session) startSession(); else showApp(false); })
+    .catch((error) => showError(error.message));
+}
+
+boot();
