@@ -53,6 +53,15 @@ class SyncError extends Error {
   }
 }
 
+// Supabase client errors carry a Postgres SQLSTATE. The code identifies the
+// problem — a missing table, a denied permission, a violated constraint — and
+// unlike the accompanying message it cannot carry row content into a log.
+function postgresFailure(error: unknown) {
+  if (typeof error !== "object" || error === null) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? { error: "supabase_error", code } : null;
+}
+
 function requiredEnvironment(name: string, ...fallbackNames: string[]) {
   for (const candidate of [name, ...fallbackNames]) {
     const value = Deno.env.get(candidate);
@@ -483,7 +492,7 @@ Deno.serve(async (request) => {
     }
     const failure = error instanceof SyncError
       ? { error: error.category, ...error.safeDetail }
-      : { error: "sync_failed" };
+      : postgresFailure(error) ?? { error: "sync_failed" };
     return response(500, { ok: false, ...failure });
   }
 });
