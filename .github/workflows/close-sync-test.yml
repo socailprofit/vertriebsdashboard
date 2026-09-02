@@ -1,0 +1,60 @@
+name: Close sync test
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: Start date in YYYY-MM-DD (blank uses yesterday)
+        required: false
+        type: string
+      end_date:
+        description: End date in YYYY-MM-DD (blank uses start date)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    name: Read Close without writing data
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invoke protected Supabase function
+        env:
+          START_DATE_INPUT: ${{ inputs.start_date }}
+          END_DATE_INPUT: ${{ inputs.end_date }}
+          CLOSE_SYNC_SECRET: ${{ secrets.CLOSE_SYNC_SECRET }}
+          FUNCTION_URL: https://pdobcvffnzqxtmkkpfnn.supabase.co/functions/v1/close-sync
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "$CLOSE_SYNC_SECRET" || {
+            echo "Missing GitHub secret: CLOSE_SYNC_SECRET" >&2
+            exit 1
+          }
+
+          start_date="${START_DATE_INPUT:-$(date -u -d 'yesterday' +%F)}"
+          end_date="${END_DATE_INPUT:-$start_date}"
+          [[ "$start_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+          [[ "$end_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+
+          payload="$(jq -n \
+            --arg mode "dry-run" \
+            --arg startDate "$start_date" \
+            --arg endDate "$end_date" \
+            '{mode: $mode, startDate: $startDate, endDate: $endDate}')"
+
+          response="$(curl --silent --show-error --fail-with-body --max-time 90 \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "x-sync-secret: $CLOSE_SYNC_SECRET" \
+            --data "$payload" \
+            "$FUNCTION_URL")"
+
+          echo "$response" | jq '{ok, mode, wroteData, range, mappingVersion, fetched, mapped, people, warnings}'
+          test "$(echo "$response" | jq -r '.ok')" = "true"
+          test "$(echo "$response" | jq -r '.mode')" = "dry-run"
+          test "$(echo "$response" | jq -r '.wroteData')" = "false"
