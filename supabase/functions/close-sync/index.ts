@@ -23,6 +23,13 @@ const PAGE_SIZE = 100;
 const MAX_RECORDS_PER_RESOURCE = 20_000;
 const jsonHeaders = { "content-type": "application/json; charset=utf-8" };
 
+// Vocabulary used to characterise a Close error without quoting it.
+const CLOSE_ERROR_HINTS = [
+  "activity_at", "date_created", "date_updated", "sort", "order_by", "query",
+  "_skip", "_cursor", "_limit", "cursor", "pagination", "offset",
+  "combined", "supported", "required", "together", "instead", "deprecated",
+];
+
 type JsonRecord = Record<string, unknown>;
 type SyncMode = "dry-run" | "write";
 
@@ -131,14 +138,15 @@ async function closeRequest<T>(apiKey: string, path: string, params: Record<stri
   });
   if (!result.ok) {
     const details = (await result.text()).slice(0, 500);
-    // Name the parameters Close objected to without echoing its response text.
-    // Only keys we constructed ourselves are reported, so nothing from Close
-    // can reach the caller's public log.
-    const rejectedParams = Object.keys(params).filter((name) => details.includes(name));
+    // Close's message must not reach the caller's public log, so probe it with a
+    // fixed vocabulary of our own strings and report only which ones occur.
+    // That identifies a rejected filter without echoing anything Close wrote.
+    const hints = [...new Set([...Object.keys(params), ...CLOSE_ERROR_HINTS])]
+      .filter((hint) => details.includes(hint));
     throw new SyncError(
       "close_api_error",
       `Close API ${result.status} for ${path}: ${details}`,
-      { closeStatus: result.status, closePath: path, rejectedParams },
+      { closeStatus: result.status, closePath: path, hints },
     );
   }
   return await result.json() as T;
