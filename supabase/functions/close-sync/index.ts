@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
+  ACTIVITY_TYPES,
   CLOSE_USERS,
   CUSTOM_FIELDS,
   MAPPING_VERSION,
@@ -151,9 +152,27 @@ async function closeList<T>(apiKey: string, path: string, params: Record<string,
     records.push(...page.data);
     if (!page.has_more) return records;
     if (records.length >= MAX_RECORDS_PER_RESOURCE || page.data.length === 0) {
-      throw new Error(`Close API safety limit reached for ${path}`);
+      throw new SyncError(
+        "close_safety_limit",
+        `Close API safety limit reached for ${path}`,
+        { closePath: path },
+      );
     }
     skip += page.data.length;
+  }
+}
+
+// Collect a rejection instead of propagating it, so one run can report every
+// Close resource that failed rather than only the first one to reject.
+async function settle<T>(request: Promise<T[]>): Promise<{ value: T[]; failure: SyncError | null }> {
+  try {
+    return { value: await request, failure: null };
+  } catch (error) {
+    const failure = error instanceof SyncError ? error : new SyncError(
+      "close_fetch_failed",
+      error instanceof Error ? error.message : String(error),
+    );
+    return { value: [], failure };
   }
 }
 
@@ -298,19 +317,43 @@ Deno.serve(async (request) => {
       syncRunId = data.id;
     }
 
-    const [rawCalls, rawCustomActivities, opportunities] = await Promise.all([
-      closeList<JsonRecord>(closeApiKey, "/activity/call/", {
-        user_id: TARGET_USER_IDS.join(","), activity_at__gte: startTimestamp, activity_at__lt: endTimestamp,
-      }),
-      closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
-        user_id: TARGET_USER_IDS.join(","), activity_at__gte: startTimestamp, activity_at__lt: endTimestamp,
-      }),
-      closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
+    const activityWindow = {
+      user_id: TARGET_USER_IDS.join(","),
+      activity_at__gte: startTimestamp,
+      activity_at__lt: endTimestamp,
+    };
+    // Close rejects an unfiltered custom activity listing, so ask for one type
+    // at a time. The mapper discards every unmapped type anyway, so asking only
+    // for the mapped ones loses nothing and fetches less.
+    const [callResult, opportunityResult, customResults] = await Promise.all([
+      settle(closeList<JsonRecord>(closeApiKey, "/activity/call/", activityWindow)),
+      settle(closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
         status_id__in: [...SALES_PIPELINE.wonStatusIds].join(","),
         date_won__gte: startDate,
         date_won__lt: nextDate,
-      }),
+      })),
+      Promise.all(Object.values(ACTIVITY_TYPES).map((customActivityTypeId) =>
+        settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
+          ...activityWindow,
+          custom_activity_type_id: customActivityTypeId,
+        }))
+      )),
     ]);
+
+    const failures = [callResult, opportunityResult, ...customResults]
+      .map((result) => result.failure)
+      .filter((failure): failure is SyncError => failure !== null);
+    if (failures.length > 0) {
+      throw new SyncError(
+        "close_fetch_failed",
+        failures.map((failure) => failure.message).join(" | "),
+        { failed: failures.map((failure) => ({ category: failure.category, ...failure.safeDetail })) },
+      );
+    }
+
+    const rawCalls = callResult.value;
+    const opportunities = opportunityResult.value;
+    const rawCustomActivities = customResults.flatMap((result) => result.value);
 
     const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
     const customFacts = rawCustomActivities.map(normalizeCustomActivity).map(mapCustomActivity)
