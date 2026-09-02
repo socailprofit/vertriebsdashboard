@@ -131,10 +131,14 @@ async function closeRequest<T>(apiKey: string, path: string, params: Record<stri
   });
   if (!result.ok) {
     const details = (await result.text()).slice(0, 500);
+    // Name the parameters Close objected to without echoing its response text.
+    // Only keys we constructed ourselves are reported, so nothing from Close
+    // can reach the caller's public log.
+    const rejectedParams = Object.keys(params).filter((name) => details.includes(name));
     throw new SyncError(
       "close_api_error",
       `Close API ${result.status} for ${path}: ${details}`,
-      { closeStatus: result.status, closePath: path },
+      { closeStatus: result.status, closePath: path, rejectedParams },
     );
   }
   return await result.json() as T;
