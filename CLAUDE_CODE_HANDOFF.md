@@ -4,7 +4,8 @@
 
 - GitHub, Supabase und die serverseitige Close-Sync-Function sind verbunden; der Live-Healthcheck ist erfolgreich.
 - `CLOSE_SYNC_SECRET` ist in GitHub und Supabase hinterlegt und stimmt seit 2026-09-02 auf beiden Seiten überein. Der Close-API-Key wird aus dem Supabase-Secret `Close_API_Key` gelesen.
-- Der nächste sichere Schritt ist ein manueller `dry-run` über den GitHub-Workflow. Noch wurden keine Close-Daten nach Supabase geschrieben.
+- Der manuelle `dry-run` über den GitHub-Workflow ist am 2026-09-02 erfolgreich gelaufen (Run `33638744316`, Zeitraum 2026-09-01): `ok: true`, `mode: dry-run`, `wroteData: false`, 32 Calls und 13 Custom Activities im Berichtsfenster, 45 gemappte Aktivitäten, 2 Personen. Noch wurden keine Close-Daten nach Supabase geschrieben.
+- Der nächste Schritt ist der begrenzte Ein-Tages-Schreibimport. Er ist noch nicht freigegeben.
 - Das UI ist ein funktionierender statischer Prototyp mit Demo-Daten; eine produktive Frontend-Anbindung existiert noch nicht.
 
 ## Missing Context
@@ -23,7 +24,7 @@
 
 ## Timeline
 
-1. Dry Run ausführen und Ergebnis prüfen.
+1. ~~Dry Run ausführen und Ergebnis prüfen.~~ Am 2026-09-02 erledigt.
 2. Nach ausdrücklicher Freigabe einen begrenzten Ein-Tages-Import schreiben und gegen Close abgleichen.
 3. Frontend von Demo- auf Supabase-Daten umstellen.
 4. Auth/Rollen fertigstellen, danach stündliche Automation und GitHub Pages aktivieren.
@@ -74,6 +75,8 @@ Der Screenshot vom 2026-09-02 zeigt beide Supabase-Secrets. Werte sind absichtli
 - Mapping-Tests lokal: **5/5 bestanden** mit `node --test tests/close-mapping.test.ts`.
 - GitHub Push und Supabase-Integration: erfolgreich.
 - Live-Function-Healthcheck: erfolgreiches `GET` liefert `manual-test-ready` und Mapping-Version `2026-09-02.v1`.
+- Vollständiger Dry Run über GitHub Actions: GitHub Secret → Supabase Function → Supabase Secret → Close API → Mapping nachweislich durchgängig.
+- Abrufregeln gegen die Close-Doku geprüft: Die Typ-Endpunkte sortieren fest nach `date_created`, kennen kein `_order_by` und lehnen `activity_at`-Filter ab; `custom_activity_type_id` erfordert ein einzelnes `lead_id`. Der Sync ruft deshalb nach Erstellungszeit mit zwei Tagen Puffer ab und bestimmt den Berichtstag selbst über `activity_at`. Details in `docs/close-mapping.md`.
 - Ungeschützter `POST` auf die Function liefert korrekt `401 unauthorized`.
 - Close per MCP read-only geprüft: aktive Benutzer, Custom Activities und Pipelines stimmen mit dem Mapping überein.
 - Die relevanten Close-Nutzer sind Michael, Felix und Antony. Die Nutzer-IDs und Activity-/Field-IDs liegen im versionierten Mapping; niemals neu raten.

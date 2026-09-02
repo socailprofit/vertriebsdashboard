@@ -8,6 +8,7 @@
 - Close bleibt die einzige Quelle für Calls, Aktivitäten, Termine, Abschlüsse und Umsatz.
 - Das verbindliche Close-Mapping liegt versioniert unter `docs/close-mapping.md` und im serverseitigen Mapping-Modul.
 - Supabase speichert Benutzerrollen, Ziele, Rohaktivitäten, Tageskennzahlen und Sync-Protokolle.
+- Der schreibfreie End-to-End-Sync-Test ist am 2026-09-02 erfolgreich gelaufen; ein Schreibimport hat noch nicht stattgefunden.
 - KPIs und Quoten werden deterministisch berechnet; KI formuliert später nur die Zusammenfassung.
 - Der erste sichtbare KPI-Umfang ist auf Brutto-/Netto-Calls, beste Anrufzeiten, Vorzimmer, Durchstellungen, direkte und gesamte Entscheiderkontakte, Termine, Terminquote und Newsletter begrenzt.
 - Michael wird blau und Felix orange dargestellt; Leistungsfarben richten sich später nach den von Antony gesetzten Zielen.
