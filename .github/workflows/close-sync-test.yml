@@ -47,14 +47,30 @@ jobs:
             --arg endDate "$end_date" \
             '{mode: $mode, startDate: $startDate, endDate: $endDate}')"
 
-          response="$(curl --silent --show-error --fail-with-body --max-time 90 \
+          # Keep status and body separate so a failed call is diagnosable from
+          # this log alone. The secret is only ever passed as a header value.
+          status="$(curl --silent --show-error --max-time 90 \
+            --output response.json --write-out '%{http_code}' \
             --request POST \
             --header 'content-type: application/json' \
             --header "x-sync-secret: $CLOSE_SYNC_SECRET" \
             --data "$payload" \
             "$FUNCTION_URL")"
 
-          echo "$response" | jq '{ok, mode, wroteData, range, mappingVersion, fetched, mapped, people, warnings}'
-          test "$(echo "$response" | jq -r '.ok')" = "true"
-          test "$(echo "$response" | jq -r '.mode')" = "dry-run"
-          test "$(echo "$response" | jq -r '.wroteData')" = "false"
+          echo "HTTP status: $status"
+
+          if [ "$status" != "200" ]; then
+            echo "Function call failed." >&2
+            jq '.' response.json >&2 2>/dev/null || cat response.json >&2
+            exit 1
+          fi
+
+          # This repository is public, so Actions logs are public. Print only
+          # non-personal totals; named per-person KPIs stay out of the log.
+          jq '{ok, mode, wroteData, scheduled, range, mappingVersion, fetched, mapped, warnings,
+               peopleSummarised: (.people | keys | length),
+               peopleMetricKeys: (.people | to_entries | map(.value | keys | length) | add)}' response.json
+
+          test "$(jq -r '.ok' response.json)" = "true"
+          test "$(jq -r '.mode' response.json)" = "dry-run"
+          test "$(jq -r '.wroteData' response.json)" = "false"
