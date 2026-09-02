@@ -7,14 +7,19 @@
 - Der manuelle `dry-run` über den GitHub-Workflow ist am 2026-09-02 erfolgreich gelaufen (Run `33638744316`, Zeitraum 2026-09-01): `ok: true`, `mode: dry-run`, `wroteData: false`, 32 Calls und 13 Custom Activities im Berichtsfenster, 45 gemappte Aktivitäten, 2 Personen. Noch wurden keine Close-Daten nach Supabase geschrieben.
 - Der begrenzte Ein-Tages-Schreibimport für 2026-09-01 ist am 2026-09-02 erfolgreich gelaufen (Workflow `Close sync write`, Run `33640131990`, `syncRunId` `e8e8302c-04b8-4800-aa70-1a55294e4252`): `wroteData: true`, dieselben Zahlen wie im Dry Run.
 - Der nächste Schritt ist der manuelle Abgleich dieser Daten gegen Close. Die Abfragen dafür stehen in `docs/verification-queries.sql`. Vorher wird **kein** stündlicher Zeitplan aktiviert.
-- Das UI ist ein funktionierender statischer Prototyp mit Demo-Daten; eine produktive Frontend-Anbindung existiert noch nicht.
+- Das Frontend liest seit 2026-09-02 ausschließlich aus Supabase. `demoData`, die erfundenen Stundenwerte und die Projekttabelle sind entfernt; an deren Stelle steht die Drei-Monats-Trendansicht. Anmeldung, Rollen, Zieleditor und Realtime sind verdrahtet.
+- **Das Frontend ist noch nicht im Browser gegen echte Daten geprüft.** Dafür fehlen zwei Dinge: der Publishable Key in `config.js` und mindestens ein Supabase-Auth-Konto. Ohne Anmeldung liefert jede Abfrage leer, weil die RLS-Policies nur `authenticated` erlauben.
 
 ## Missing Context
 
+- **Publishable Key** aus Project Settings → API Keys für `config.js`. Öffentlich by design, gehört ins Repo; der Service-Role-Key niemals.
+- **Mindestens ein Supabase-Auth-Konto** samt Zeile in `profiles`, die es mit einem Eintrag aus `sales_people` und einer Rolle verknüpft. Ohne Sitzung zeigt das Dashboard nichts.
 - Definition/Quelle der Newsletter-KPI.
 - Behandlung von `monthly`/`annual` Opportunity-Werten (Vertragswert, MRR oder ARR).
 - Die drei finalen Supabase-Auth-Konten und die Zuordnung zu Michael, Felix und Antony.
-- Auswahl der wichtigsten vier bis sechs KPIs für die kompakte Drei-Monats-Trendansicht.
+- ~~Auswahl der wichtigsten KPIs für die Trendansicht.~~ Am 2026-09-02 festgelegt: Netto-Anrufe, Vorzimmer, Durchstellungen, Durchstellquote, Entscheider, Termine, Terminquote.
+- Repo öffentlich lassen oder auf privat umstellen. Zu klären vor GitHub Pages, weil Pages aus einem privaten Repo einen kostenpflichtigen Plan braucht.
+- Der Abgleich des importierten 01.09. gegen Close ist offen. Die Abfragen stehen in `docs/verification-queries.sql`; besonders Abfrage 7 prüft, ob das Mapping alle Auswahlwerte kennt, die Close liefert. Zwei Stichproben stimmen bereits: 32 Anrufe (Michael 25 + Felix 7) und 0 gewonnene Opportunities.
 
 ## Sources
 
@@ -27,8 +32,10 @@
 
 1. ~~Dry Run ausführen und Ergebnis prüfen.~~ Am 2026-09-02 erledigt.
 2. ~~Nach ausdrücklicher Freigabe einen begrenzten Ein-Tages-Import schreiben~~ am 2026-09-02 erledigt; der Abgleich gegen Close steht noch aus.
-3. Frontend von Demo- auf Supabase-Daten umstellen.
-4. Auth/Rollen fertigstellen, danach stündliche Automation und GitHub Pages aktivieren.
+3. ~~Frontend von Demo- auf Supabase-Daten umstellen.~~ Am 2026-09-02 gebaut, im Browser noch ungeprüft.
+4. Publishable Key eintragen, ein Konto anlegen, Anzeige gegen die importierten Zahlen des 01.09. prüfen.
+5. Mapping-Abfrage laufen lassen, danach stündliche Automation aktivieren.
+6. Auth/Rollen für alle drei fertigstellen, dann GitHub Pages.
 
 ## Auftrag und Arbeitsentscheidung
 
