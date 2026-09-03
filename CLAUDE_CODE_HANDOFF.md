@@ -6,7 +6,9 @@
 - `CLOSE_SYNC_SECRET` ist in GitHub und Supabase hinterlegt und stimmt seit 2026-09-02 auf beiden Seiten überein. Der Close-API-Key wird aus dem Supabase-Secret `Close_API_Key` gelesen.
 - Der manuelle `dry-run` über den GitHub-Workflow ist am 2026-09-02 erfolgreich gelaufen (Run `33638744316`, Zeitraum 2026-09-01): `ok: true`, `mode: dry-run`, `wroteData: false`, 32 Calls und 13 Custom Activities im Berichtsfenster, 45 gemappte Aktivitäten, 2 Personen. Noch wurden keine Close-Daten nach Supabase geschrieben.
 - Der begrenzte Ein-Tages-Schreibimport für 2026-09-01 ist am 2026-09-02 erfolgreich gelaufen (Workflow `Close sync write`, Run `33640131990`, `syncRunId` `e8e8302c-04b8-4800-aa70-1a55294e4252`): `wroteData: true`, dieselben Zahlen wie im Dry Run.
-- Der nächste Schritt ist der manuelle Abgleich dieser Daten gegen Close. Die Abfragen dafür stehen in `docs/verification-queries.sql`. Vorher wird **kein** stündlicher Zeitplan aktiviert.
+- Das Mapping ist am 2026-09-03 gegen die realen Close-Werte geprüft und bestätigt: Feld-IDs, Gatekeeper-Werte und `4: ✅ Termin vereinbart` stimmen exakt; fünf Kennzahlen wurden gegen die Rohdaten gegengerechnet.
+- Die letzten 14 Tage sind importiert, und `close-sync-scheduled.yml` hält die Zahlen alle 15 Minuten aktuell.
+- Die Fertigstellung übernimmt Codex. Siehe `CODEX_HANDOFF.md`.
 - Das Frontend liest seit 2026-09-02 ausschließlich aus Supabase. `demoData`, die erfundenen Stundenwerte und die Projekttabelle sind entfernt; an deren Stelle steht die Drei-Monats-Trendansicht. Anmeldung, Rollen, Zieleditor und Realtime sind verdrahtet.
 - **Das Frontend ist noch nicht im Browser gegen echte Daten geprüft.** Dafür fehlen zwei Dinge: der Publishable Key in `config.js` und mindestens ein Supabase-Auth-Konto. Ohne Anmeldung liefert jede Abfrage leer, weil die RLS-Policies nur `authenticated` erlauben.
 - Die Gestaltung folgt seit 2026-09-03 der Plecto-Optik: Bannerzeile je Person, Kachelraster statt Zeilentabelle, Hufeisen-Gauges mit Wert und Ziel, Ampelfarben auf der Zahl selbst, Leaderboard mit Rangringen. Drei Blöcke nebeneinander: Michael, Felix und Team.
