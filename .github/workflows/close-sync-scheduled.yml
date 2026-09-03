@@ -1,0 +1,77 @@
+name: Close sync scheduled
+
+# Holt gestern und heute nach, alle 15 Minuten. Gestern bleibt im Fenster, weil
+# Protokolle laut Team gelegentlich verspätet erfasst werden — allerdings immer
+# am selben Tag. Ohne das Vortagsfenster fiele ein Nachtrag von 23:50 Uhr durch.
+#
+# 15 Minuten sind das praktisch Dichteste über GitHub Actions: Der Zeitplan
+# garantiert keine Pünktlichkeit und wird bei Auslastung verschoben. Wer echte
+# Sekundenaktualität will, braucht Close-Webhooks statt eines Zeitplans.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Ein verzögerter Lauf soll den nächsten nicht überholen. Die Upserts wären
+# zwar unschädlich, aber zwei gleichzeitige Läufe verdoppeln nur die Last.
+concurrency:
+  group: close-sync-scheduled
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Import into Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Invoke protected Supabase function in write mode
+        env:
+          CLOSE_SYNC_SECRET: ${{ secrets.CLOSE_SYNC_SECRET }}
+          FUNCTION_URL: https://pdobcvffnzqxtmkkpfnn.supabase.co/functions/v1/close-sync
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "$CLOSE_SYNC_SECRET" || {
+            echo "Missing GitHub secret: CLOSE_SYNC_SECRET" >&2
+            exit 1
+          }
+
+          # Berichtszeitzone, nicht die des Runners: Um 00:30 Berliner Zeit ist
+          # in UTC noch der Vortag, und der Lauf träfe das falsche Fenster.
+          end_date="$(TZ=Europe/Berlin date +%F)"
+          start_date="$(TZ=Europe/Berlin date -d 'yesterday' +%F)"
+          echo "Syncing $start_date to $end_date"
+
+          payload="$(jq -n \
+            --arg mode "write" \
+            --arg startDate "$start_date" \
+            --arg endDate "$end_date" \
+            '{mode: $mode, startDate: $startDate, endDate: $endDate}')"
+
+          status="$(curl --silent --show-error --max-time 300 \
+            --output response.json --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "x-sync-secret: $CLOSE_SYNC_SECRET" \
+            --data "$payload" \
+            "$FUNCTION_URL")"
+
+          echo "HTTP status: $status"
+
+          if [ "$status" != "200" ]; then
+            echo "Sync failed." >&2
+            jq '.' response.json >&2 2>/dev/null || cat response.json >&2
+            exit 1
+          fi
+
+          # Das Repository ist öffentlich, Actions-Logs sind es damit auch. Nur
+          # unpersonalisierte Summen ausgeben, keine Zahlen je Person.
+          jq '{ok, mode, wroteData, range, mappingVersion, fetched, inWindow, mapped, warnings, syncRunId}' response.json
+
+          test "$(jq -r '.ok' response.json)" = "true"
+          test "$(jq -r '.wroteData' response.json)" = "true"
