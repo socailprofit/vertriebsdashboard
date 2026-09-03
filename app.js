@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03e";
+import * as data from "./data.js?v=2026-09-03f";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -636,6 +636,16 @@ async function refresh() {
   }
 }
 
+// Scheitert der Start nach erfolgreicher Anmeldung, ist die Anmeldemaske der
+// einzige Ort, an dem die Meldung ankommt — die Anwendung selbst ist dann noch
+// nicht sichtbar.
+function reportStartupFailure(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  document.querySelector("#login-status").textContent = `Anmeldung erfolgreich, aber das Laden schlug fehl: ${message}`;
+  showApp(false);
+  showError(message);
+}
+
 function showApp(visible) {
   document.querySelector(".app-shell").hidden = !visible;
   document.querySelector("#login-screen").hidden = visible;
@@ -825,12 +835,12 @@ function boot() {
   }
 
   data.onAuthChange((session) => {
-    if (session) startSession(); else endSession();
+    if (session) startSession().catch(reportStartupFailure); else endSession();
   });
 
   data.currentSession()
-    .then((session) => { if (session) startSession(); else showApp(false); })
-    .catch((error) => showError(error.message));
+    .then((session) => { if (session) return startSession(); showApp(false); })
+    .catch(reportStartupFailure);
 }
 
 boot();
