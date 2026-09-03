@@ -4,13 +4,18 @@ name: Close sync scheduled
 # Protokolle laut Team gelegentlich verspätet erfasst werden — allerdings immer
 # am selben Tag. Ohne das Vortagsfenster fiele ein Nachtrag von 23:50 Uhr durch.
 #
-# 15 Minuten sind das praktisch Dichteste über GitHub Actions: Der Zeitplan
-# garantiert keine Pünktlichkeit und wird bei Auslastung verschoben. Wer echte
-# Sekundenaktualität will, braucht Close-Webhooks statt eines Zeitplans.
+# Alle 15 Minuten, aber bewusst nicht zur vollen, viertel, halben und
+# dreiviertel Stunde: Genau dort stauen sich die Zeitpläne aller Repositories,
+# und GitHub verschiebt oder überspringt Läufe bei Auslastung. Am 2026-09-03
+# blieben drei aufeinanderfolgende `*/15`-Läufe aus. Die krummen Minuten sind
+# deutlich ruhiger.
+#
+# Der Zeitplan bleibt trotzdem eine Zusage ohne Garantie. Wer verlässliche
+# Sekundenaktualität braucht, kommt an Close-Webhooks nicht vorbei.
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:

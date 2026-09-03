@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03k";
+import * as data from "./data.js?v=2026-09-03l";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -673,13 +673,17 @@ function renderManager() {
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
 }
 
-// Der Zeitplan feuert zur vollen, viertel, halben und dreiviertel Stunde. Die
-// Angabe ist deshalb eine Schätzung: GitHub garantiert keine Pünktlichkeit und
-// verschiebt Läufe bei Auslastung. Das steht so auch im Titel des Elements.
+// Muss mit dem Zeitplan in close-sync-scheduled.yml übereinstimmen. Die krummen
+// Minuten sind Absicht: Zur vollen und halben Stunde staut sich der Zeitplan
+// aller Repositories, und GitHub verschiebt dann Läufe. Die Angabe bleibt eine
+// Schätzung — das steht auch im Titel des Elements.
+const SYNC_MINUTEN = [7, 22, 37, 52];
+
 function minutesToNextSync() {
   const jetzt = new Date();
-  const verbleibend = (15 - (jetzt.getMinutes() % 15)) * 60 - jetzt.getSeconds();
-  return Math.max(0, Math.ceil(verbleibend / 60));
+  const vergangen = jetzt.getMinutes() * 60 + jetzt.getSeconds();
+  const naechste = SYNC_MINUTEN.find((minute) => minute * 60 > vergangen) ?? (SYNC_MINUTEN[0] + 60);
+  return Math.max(0, Math.ceil((naechste * 60 - vergangen) / 60));
 }
 
 function minutesSince(isoTimestamp) {
@@ -706,7 +710,7 @@ function renderSyncBadge() {
   }
 
   const titel = state.status === "live"
-    ? "Der Sync läuft alle 15 Minuten. GitHub garantiert keine Pünktlichkeit, der Lauf kann sich verschieben."
+    ? "Der Sync läuft alle 15 Minuten. GitHub garantiert keine Pünktlichkeit — Läufe können sich verschieben oder ausfallen."
     : "";
 
   document.querySelector(".sync-status").innerHTML =
