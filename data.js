@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03c";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03d";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -152,33 +152,6 @@ export async function loadLatestSummary() {
       .limit(1),
   );
   return rows[0] ?? null;
-}
-
-// --- Führungskennzahlen ------------------------------------------------------
-
-// Die Funktion prüft die Rolle selbst und antwortet sonst mit einem Fehler.
-// Das Frontend blendet den Bereich zusätzlich aus, aber verlassen kann man sich
-// nur auf die Datenbank.
-export async function loadExecutiveMetrics(period, referenceDate) {
-  return run(
-    "Führungskennzahlen laden",
-    requireClient().rpc("get_executive_metrics", {
-      p_period: period,
-      p_reference_date: referenceDate,
-    }),
-  );
-}
-
-// Erneute Passwortabfrage vor dem Führungsbereich. Sie erweitert keine Rechte —
-// die hat die Sitzung ohnehin — sondern bestätigt, dass noch dieselbe Person am
-// Gerät sitzt. Gedacht gegen den offenen Bildschirm und gegen geteilte Screens.
-export async function confirmPassword(password) {
-  const client = requireClient();
-  const { data } = await client.auth.getSession();
-  const email = data.session?.user?.email;
-  if (!email) throw new Error("Keine aktive Sitzung.");
-  const { error } = await client.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
 }
 
 // --- Live-Aktualisierung -----------------------------------------------------

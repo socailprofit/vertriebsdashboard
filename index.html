@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-03c" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-03d" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -95,6 +95,17 @@
           <div class="funnel" id="funnel"></div>
         </section>
 
+        <section class="analysis-panel" aria-labelledby="weakness-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Wo es hakt</p>
+              <h2 id="weakness-title">Quoten unter Ziel</h2>
+            </div>
+            <p class="section-note">Nur Quoten mit hinterlegtem Ziel</p>
+          </div>
+          <div class="weakness-list" id="weakness-list"></div>
+        </section>
+
         <section class="analysis-panel" aria-labelledby="time-title">
           <div class="section-heading">
             <div>
@@ -152,30 +163,6 @@
           </div>
         </section>
 
-        <section class="manager-section" id="executive-section" aria-labelledby="executive-title" hidden>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Geschäftsführung</p>
-              <h2 id="executive-title">Umsatz, Prognose und Schwachstellen</h2>
-            </div>
-            <p class="section-note">Nur für die Geschäftsführung sichtbar</p>
-          </div>
-
-          <form class="lock-gate" id="executive-gate">
-            <p>Zur Bestätigung bitte das eigene Passwort erneut eingeben. Das schützt die Zahlen, wenn der Bildschirm offen steht oder geteilt wird.</p>
-            <label for="executive-password">Passwort</label>
-            <input id="executive-password" name="password" type="password" autocomplete="current-password" required />
-            <button class="primary-button" type="submit">Bereich öffnen</button>
-            <p class="form-status" id="executive-status" aria-live="polite"></p>
-          </form>
-
-          <div id="executive-content" hidden>
-            <div class="metric-grid" id="executive-cards"></div>
-            <div class="weakness-list" id="executive-weakness"></div>
-            <p class="summary-footnote">Prognose: bisheriger Umsatz geteilt durch die verstrichenen Arbeitstage, hochgerechnet auf alle Arbeitstage des Zeitraums. Unterstellt gleichmäßige Verteilung und ist am Monatsanfang entsprechend grob.</p>
-          </div>
-        </section>
-
         <section class="manager-section" id="operations-section" aria-labelledby="operations-title" hidden>
           <div class="section-heading">
             <div>
@@ -201,6 +188,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-03c"></script>
+    <script type="module" src="./app.js?v=2026-09-03d"></script>
   </body>
 </html>
