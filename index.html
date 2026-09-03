@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-03b" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-03c" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -149,15 +149,49 @@
               <p class="form-status" id="goal-status" aria-live="polite"></p>
             </form>
 
-            <article class="ai-summary">
-              <div class="editor-heading">
-                <h3>Letzter Sync</h3>
-                <span>Close → Supabase</span>
-              </div>
-              <div class="summary-facts" id="sync-detail"></div>
-              <p class="summary-footnote">Der stündliche Lauf ist noch nicht aktiviert. Die tägliche KI-Zusammenfassung folgt später aus bereits berechneten Kennzahlen — nicht aus Rohdaten.</p>
-            </article>
           </div>
+        </section>
+
+        <section class="manager-section" id="executive-section" aria-labelledby="executive-title" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Geschäftsführung</p>
+              <h2 id="executive-title">Umsatz, Prognose und Schwachstellen</h2>
+            </div>
+            <p class="section-note">Nur für die Geschäftsführung sichtbar</p>
+          </div>
+
+          <form class="lock-gate" id="executive-gate">
+            <p>Zur Bestätigung bitte das eigene Passwort erneut eingeben. Das schützt die Zahlen, wenn der Bildschirm offen steht oder geteilt wird.</p>
+            <label for="executive-password">Passwort</label>
+            <input id="executive-password" name="password" type="password" autocomplete="current-password" required />
+            <button class="primary-button" type="submit">Bereich öffnen</button>
+            <p class="form-status" id="executive-status" aria-live="polite"></p>
+          </form>
+
+          <div id="executive-content" hidden>
+            <div class="metric-grid" id="executive-cards"></div>
+            <div class="weakness-list" id="executive-weakness"></div>
+            <p class="summary-footnote">Prognose: bisheriger Umsatz geteilt durch die verstrichenen Arbeitstage, hochgerechnet auf alle Arbeitstage des Zeitraums. Unterstellt gleichmäßige Verteilung und ist am Monatsanfang entsprechend grob.</p>
+          </div>
+        </section>
+
+        <section class="manager-section" id="operations-section" aria-labelledby="operations-title" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Betrieb</p>
+              <h2 id="operations-title">Sync-Status</h2>
+            </div>
+            <p class="section-note">Zeigt an, wie aktuell die Zahlen sind</p>
+          </div>
+          <article class="ai-summary">
+            <div class="editor-heading">
+              <h3>Letzter Lauf</h3>
+              <span>Close → Supabase</span>
+            </div>
+            <div class="summary-facts" id="sync-detail"></div>
+            <p class="summary-footnote">Der stündliche Lauf ist noch nicht aktiviert. Schlägt ein Lauf fehl, zeigt das Dashboard weiterhin die zuletzt importierten Zahlen — diese Anzeige macht das sichtbar.</p>
+          </article>
         </section>
       </main>
 
@@ -167,6 +201,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-03b"></script>
+    <script type="module" src="./app.js?v=2026-09-03c"></script>
   </body>
 </html>

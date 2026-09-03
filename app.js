@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03b";
+import * as data from "./data.js?v=2026-09-03c";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -34,7 +34,9 @@ const targetFields = [
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  chef: ["Chefansicht", "Vertrieb steuern", "Einzelwerte, Teamleistung, Ziele und Sync-Status."],
+  chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
+  gf: ["Geschäftsführung", "Umsatz und Schwachstellen", "Zusätzliche Zahlen für die Geschäftsführung, getrennt vom gemeinsamen Dashboard."],
+  betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
 
 const state = {
@@ -50,6 +52,8 @@ const state = {
   profile: { displayName: null, role: "sales", salesPersonId: null },
   syncRun: null,
   heatmapRate: "connection",
+  executive: [],
+  executiveUnlocked: false,
   status: "start",
   error: null,
   unsubscribe: null,
@@ -76,6 +80,11 @@ function count(value) {
 function minutes(value) {
   const total = Math.round(value || 0);
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
+}
+
+function currency(cents) {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+    .format((Number(cents) || 0) / 100);
 }
 
 function percent(value) {
@@ -147,7 +156,10 @@ async function loadAll() {
     : { start: state.referenceDate, end: state.referenceDate };
 
   state.targets = await data.loadTargets(state.periodRange.start, state.periodRange.end);
-  state.syncRun = state.profile.role === "manager" ? await data.loadLatestSyncRun() : null;
+  state.syncRun = state.profile.role === "operator" ? await data.loadLatestSyncRun() : null;
+  state.executive = state.executiveUnlocked
+    ? await data.loadExecutiveMetrics(state.period, state.referenceDate)
+    : [];
 }
 
 // --- Ziele -------------------------------------------------------------------
@@ -235,8 +247,13 @@ function renderNav() {
   state.people.forEach((person) => {
     buttons.push(`<button class="nav-button" data-view="${person.slug}">${firstName(person.display_name)}</button>`);
   });
-  if (state.profile.role === "manager") {
-    buttons.push(`<button class="nav-button" data-view="chef">Chef</button>`);
+  const role = state.profile.role;
+  if (role === "manager" || role === "operator") {
+    buttons.push(`<button class="nav-button" data-view="chef">Ziele</button>`);
+    buttons.push(`<button class="nav-button" data-view="gf">Geschäftsführung</button>`);
+  }
+  if (role === "operator") {
+    buttons.push(`<button class="nav-button" data-view="betrieb">Betrieb</button>`);
   }
   document.querySelector(".view-nav").innerHTML = buttons.join("");
 }
@@ -259,7 +276,11 @@ function renderHeader() {
   document.querySelector("#view-kicker").textContent = copy[0];
   document.querySelector("#page-title").textContent = copy[1];
   document.querySelector("#view-description").textContent = copy[2];
-  document.querySelector("#manager-section").hidden = state.view !== "chef" || state.profile.role !== "manager";
+  const role = state.profile.role;
+  const leads = role === "manager" || role === "operator";
+  document.querySelector("#manager-section").hidden = state.view !== "chef" || !leads;
+  document.querySelector("#executive-section").hidden = state.view !== "gf" || !leads;
+  document.querySelector("#operations-section").hidden = state.view !== "betrieb" || role !== "operator";
   document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${periodCaption()}`;
 }
 
@@ -499,8 +520,82 @@ function renderTrends() {
   document.querySelector("#trend-rows").innerHTML = rows || `<tr><td colspan="9">Noch keine Monatsdaten vorhanden.</td></tr>`;
 }
 
+// Quotenschwächen: welche Quote liegt am weitesten unter ihrem Ziel. Ohne
+// hinterlegtes Ziel gibt es keine Aussage — dann bleibt die Liste leer, statt
+// eine Schwäche zu behaupten, die niemand definiert hat.
+function weaknesses() {
+  const checks = [
+    ["Durchstellquote", "connection_rate", "transfer_rate_target"],
+    ["Terminquote", "appointment_rate", "appointment_rate_target"],
+  ];
+  const found = [];
+  state.executive.forEach((row) => {
+    const person = state.people.find((entry) => entry.slug === row.slug);
+    if (!person) return;
+    checks.forEach(([label, valueKey, targetColumn]) => {
+      const target = targetFor(person.id, targetColumn);
+      if (target === null) return;
+      const actual = Number(row[valueKey]);
+      if (actual >= target) return;
+      found.push({ person: firstName(person.display_name), label, actual, target, gap: target - actual });
+    });
+  });
+  return found.sort((a, b) => b.gap - a.gap);
+}
+
+function renderExecutive() {
+  const gate = document.querySelector("#executive-gate");
+  const content = document.querySelector("#executive-content");
+  gate.hidden = state.executiveUnlocked;
+  content.hidden = !state.executiveUnlocked;
+  if (!state.executiveUnlocked) return;
+
+  const caption = periodCaption();
+  const cards = state.executive.flatMap((row) => {
+    const color = row.color;
+    return [
+      ["Umsatz", currency(row.revenue_cents), `${row.deals_won} Abschlüsse`],
+      ["Prognose", currency(row.revenue_forecast_cents), `${row.elapsed_workdays} von ${row.total_workdays} Arbeitstagen`],
+      ["Abschlussquote", percent(Number(row.win_rate)), `aus ${row.appointments} Terminen`],
+    ].map(([label, value, hint]) => `
+      <article class="metric-card is-neutral">
+        <h3>${label}</h3>
+        <span class="card-period" style="color:${color}">${firstName(row.display_name)} · ${caption}</span>
+        <div class="big-value">${value}</div>
+        <span class="card-hint">${hint}</span>
+      </article>`);
+  }).join("");
+
+  const totalRevenue = state.executive.reduce((sum, row) => sum + Number(row.revenue_cents), 0);
+  const totalForecast = state.executive.reduce((sum, row) => sum + Number(row.revenue_forecast_cents), 0);
+  const teamCards = `
+    <article class="metric-card is-neutral">
+      <h3>Umsatz Team</h3>
+      <span class="card-period">${caption}</span>
+      <div class="big-value">${currency(totalRevenue)}</div>
+      <span class="card-hint">Summe beider Vertriebler</span>
+    </article>
+    <article class="metric-card is-neutral">
+      <h3>Prognose Team</h3>
+      <span class="card-period">${caption}</span>
+      <div class="big-value">${currency(totalForecast)}</div>
+      <span class="card-hint">linear auf Arbeitstage hochgerechnet</span>
+    </article>`;
+
+  document.querySelector("#executive-cards").innerHTML = cards + teamCards;
+
+  const list = weaknesses();
+  document.querySelector("#executive-weakness").innerHTML = list.length === 0
+    ? `<p class="empty-note">Keine Quote liegt unter ihrem Ziel — oder es sind noch keine Quotenziele hinterlegt.</p>`
+    : list.map((entry) => `
+        <div class="weakness">
+          <span><strong>${entry.person}: ${entry.label}</strong><br><small>Ist ${percent(entry.actual)} gegenüber Ziel ${percent(entry.target)}</small></span>
+          <span class="gap">${Math.round(entry.gap)} Punkte darunter</span>
+        </div>`).join("");
+}
+
 function renderManager() {
-  if (state.profile.role !== "manager") return;
+  if (state.profile.role !== "manager" && state.profile.role !== "operator") return;
 
   const startField = document.querySelector("#target-period-start");
   const endField = document.querySelector("#target-period-end");
@@ -517,6 +612,7 @@ function renderManager() {
   }).join("");
 
   const sync = state.syncRun;
+  if (state.profile.role !== "operator") return;
   document.querySelector("#sync-detail").innerHTML = sync
     ? `<span>Status: <strong>${sync.status}</strong></span><span>${sync.completed_at ? germanDate(sync.completed_at.slice(0, 10)) : "läuft"}</span><span>${number(sync.fetched_records ?? 0)} gelesen</span><span>${number(sync.upserted_records ?? 0)} gespeichert</span>`
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
@@ -550,6 +646,7 @@ function render() {
   renderHeatmap();
   renderTrends();
   renderManager();
+  renderExecutive();
   renderSyncBadge();
   updateUrl();
 }
@@ -661,6 +758,22 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
 
 document.querySelector("#sign-out").addEventListener("click", () => data.signOut());
 
+document.querySelector("#executive-gate").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const status = document.querySelector("#executive-status");
+  const password = String(new FormData(event.currentTarget).get("password"));
+  status.textContent = "Wird geprüft …";
+  try {
+    await data.confirmPassword(password);
+    state.executiveUnlocked = true;
+    event.currentTarget.reset();
+    status.textContent = "";
+    await refresh();
+  } catch (error) {
+    status.textContent = `Bestätigung fehlgeschlagen: ${error.message}`;
+  }
+});
+
 // Ziele schreiben darf ausschließlich der Manager. Die Policy setzt das
 // serverseitig durch, das Formular erscheint nur passend dazu.
 document.querySelector("#goal-editor").addEventListener("submit", async (event) => {
@@ -742,8 +855,18 @@ function samplePreview() {
       appointments: 58 - index * 37 - monthIndex * 4,
       appointment_rate: 35.2 - index * 13.1 - monthIndex,
     })));
-  state.profile = { displayName: "Vorschau", role: "manager", salesPersonId: null };
-  state.view = "team";
+  state.profile = { displayName: "Vorschau", role: "operator", salesPersonId: null };
+  state.executiveUnlocked = true;
+  state.executive = people.map((person, index) => ({
+    slug: person.slug, display_name: person.display_name, color: person.color,
+    deals_won: 7 - index * 4, revenue_cents: 4200000 - index * 2600000,
+    appointments: 58 - index * 37, win_rate: 12.1 - index * 2.4,
+    connection_rate: 65.1 - index * 20.4, decision_maker_rate: 52.9 - index * 12.1,
+    appointment_rate: 35.2 - index * 13.1,
+    total_workdays: 22, elapsed_workdays: 3,
+    revenue_forecast_cents: 30800000 - index * 19000000,
+  }));
+  state.syncRun = { status: "success", started_at: "2026-09-02T14:08:43Z", completed_at: "2026-09-02T14:08:47Z", fetched_records: 45, upserted_records: 90 };
   state.status = "preview";
 }
 

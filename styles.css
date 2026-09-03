@@ -445,3 +445,29 @@ tbody td:first-child { font-weight: 620; }
 @media (prefers-reduced-motion: reduce) {
   .gauge .fill { transition: none; }
 }
+
+/* --- Führungsbereich ---------------------------------------------------- */
+
+.lock-gate { display: grid; gap: 8px; max-width: 420px; padding: clamp(16px, 2vw, 22px); background: var(--bg); border-radius: 12px; }
+.lock-gate p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.lock-gate label { font-size: 0.78rem; color: var(--muted-2); }
+.lock-gate input { padding: 11px 13px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+
+.weakness-list { display: grid; gap: 8px; margin-top: 14px; }
+
+.weakness {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 13px 16px;
+  background: var(--bg);
+  border-left: 3px solid var(--weak-color, var(--bad));
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.weakness strong { font-size: 1.05rem; }
+.weakness .gap { color: var(--weak-color, var(--bad)); font-weight: 700; }
+.weakness small { color: var(--muted-2); font-size: 0.76rem; }
