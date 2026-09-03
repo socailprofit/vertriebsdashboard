@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-03f" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-03g" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -25,7 +25,7 @@
     </section>
 
     <div class="app-shell" hidden>
-      <header class="topbar">
+      <header class="topbar" id="topbar">
         <a class="brand" href="?view=team&period=month" aria-label="Zur Teamansicht">
           <span class="brand-mark" aria-hidden="true">SP</span>
           <span>
@@ -48,11 +48,11 @@
         </p>
         <p class="load-error" id="load-error" role="alert" hidden></p>
 
-        <section class="workspace-header" aria-labelledby="page-title">
+        <section class="workspace-header" id="workspace-header" aria-labelledby="page-title">
           <div>
             <p class="eyebrow" id="view-kicker">Gemeinsamer Wettbewerb</p>
             <h1 id="page-title">Michael gegen Felix</h1>
-            <p id="view-description">Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt.</p>
+            <p id="view-description">Die vier Kernwerte im Vergleich, alles Weitere darunter.</p>
           </div>
 
           <div class="period-controls">
@@ -68,59 +68,66 @@
           </div>
         </section>
 
-        <section class="metrics-section" aria-labelledby="leader-title">
+        <section class="panel" id="widget-kernwerte" data-widget="kernwerte" aria-labelledby="core-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Rangliste</p>
-              <h2 id="leader-title">Top-Anrufer</h2>
+              <p class="eyebrow">Kernwerte</p>
+              <h2 id="core-title">Worauf es ankommt</h2>
             </div>
-            <p class="section-note">Netto-Anrufe im gewählten Zeitraum</p>
+            <p class="section-note" id="core-note"></p>
           </div>
-          <div class="leaderboard" id="leaderboard"></div>
+          <div class="core-grid" id="core-grid"></div>
         </section>
 
-        <section class="board" id="board" aria-label="Kennzahlen je Person"></section>
-
-        <section class="funnel-section" aria-labelledby="funnel-title">
+        <section class="panel" id="widget-verlauf" data-widget="verlauf" aria-labelledby="series-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Conversion</p>
-              <h2 id="funnel-title">Vom Anruf zum Termin</h2>
+              <p class="eyebrow">Verlauf</p>
+              <h2 id="series-title">Entwicklung im Zeitraum</h2>
             </div>
-            <div class="person-legend" aria-label="Farblegende">
-              <span><i class="legend-dot michael"></i>Michael</span>
-              <span><i class="legend-dot felix"></i>Felix</span>
-            </div>
+            <div class="person-legend" id="series-legend"></div>
           </div>
-          <div class="funnel" id="funnel"></div>
+          <div class="chart-row" id="series-charts"></div>
         </section>
 
-        <section class="analysis-panel" aria-labelledby="weakness-title">
+        <div class="panel-row">
+          <section class="panel" id="widget-trichter" data-widget="trichter" aria-labelledby="funnel-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Conversion</p>
+                <h2 id="funnel-title">Vom Anruf zum Termin</h2>
+              </div>
+            </div>
+            <div class="funnel" id="funnel"></div>
+          </section>
+
+          <section class="panel" id="widget-stunden" data-widget="stunden" aria-labelledby="hours-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Nach Uhrzeit</p>
+                <h2 id="hours-title">Beste Anrufzeiten</h2>
+              </div>
+              <div class="rate-switch" role="group" aria-label="Quote auswählen">
+                <button data-rate="connection" class="active" type="button">Durchstellquote</button>
+                <button data-rate="reach" type="button">Nettoquote</button>
+              </div>
+            </div>
+            <div id="hours-chart" class="hours-chart"></div>
+          </section>
+        </div>
+
+        <section class="panel" id="widget-details" data-widget="details" aria-labelledby="details-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Wo es hakt</p>
-              <h2 id="weakness-title">Quoten unter Ziel</h2>
+              <p class="eyebrow">Alle Kennzahlen</p>
+              <h2 id="details-title">Details</h2>
             </div>
-            <p class="section-note">Nur Quoten mit hinterlegtem Ziel</p>
+            <p class="section-note">Zum Aufklappen — die vollständigen Werte je Person</p>
           </div>
-          <div class="weakness-list" id="weakness-list"></div>
+          <div class="details-row" id="details-row"></div>
         </section>
 
-        <section class="analysis-panel" aria-labelledby="time-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Nach Uhrzeit</p>
-              <h2 id="time-title">Beste Anrufzeiten</h2>
-            </div>
-            <div class="rate-switch" role="group" aria-label="Quote auswählen">
-              <button data-rate="connection" class="active" type="button">Durchstellquote</button>
-              <button data-rate="reach" type="button">Nettoquote</button>
-            </div>
-          </div>
-          <div id="heatmap" class="heatmap"></div>
-        </section>
-
-        <section class="projects-section" aria-labelledby="trend-title">
+        <section class="panel" id="widget-trend" data-widget="trend" aria-labelledby="trend-title">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Drei Monate</p>
@@ -136,34 +143,27 @@
           </div>
         </section>
 
-        <section class="manager-section" id="manager-section" aria-labelledby="manager-title" hidden>
+        <section class="panel" id="manager-section" aria-labelledby="manager-title" hidden>
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Chefbereich</p>
-              <h2 id="manager-title">Ziele und Sync-Status</h2>
+              <p class="eyebrow">Steuerung</p>
+              <h2 id="manager-title">Ziele</h2>
             </div>
             <p class="section-note">Ziele bestimmen die Farben der Kennzahlen</p>
           </div>
-          <div class="manager-grid">
-            <form class="goal-editor" id="goal-editor">
-              <div class="editor-heading">
-                <h3>Ziele</h3>
-                <span>je Zeitraum</span>
-              </div>
-              <div class="goal-period">
-                <label>Von<input id="target-period-start" name="period_start" type="date" required /></label>
-                <label>Bis<input id="target-period-end" name="period_end" type="date" required /></label>
-              </div>
-              <p class="goal-hint">Leer gelassene Quotenziele bleiben ohne Farbe. Zählwerte werden auf kürzere Zeiträume anteilig umgerechnet.</p>
-              <div id="goal-fields"></div>
-              <button class="primary-button" type="submit">Ziele speichern</button>
-              <p class="form-status" id="goal-status" aria-live="polite"></p>
-            </form>
-
-          </div>
+          <form class="goal-editor" id="goal-editor">
+            <div class="goal-period">
+              <label>Von<input id="target-period-start" name="period_start" type="date" required /></label>
+              <label>Bis<input id="target-period-end" name="period_end" type="date" required /></label>
+            </div>
+            <p class="goal-hint">Leer gelassene Quotenziele bleiben ohne Farbe. Zählwerte werden auf kürzere Zeiträume anteilig umgerechnet.</p>
+            <div id="goal-fields"></div>
+            <button class="primary-button" type="submit">Ziele speichern</button>
+            <p class="form-status" id="goal-status" aria-live="polite"></p>
+          </form>
         </section>
 
-        <section class="manager-section" id="operations-section" aria-labelledby="operations-title" hidden>
+        <section class="panel" id="operations-section" aria-labelledby="operations-title" hidden>
           <div class="section-heading">
             <div>
               <p class="eyebrow">Betrieb</p>
@@ -171,23 +171,16 @@
             </div>
             <p class="section-note">Zeigt an, wie aktuell die Zahlen sind</p>
           </div>
-          <article class="ai-summary">
-            <div class="editor-heading">
-              <h3>Letzter Lauf</h3>
-              <span>Close → Supabase</span>
-            </div>
-            <div class="summary-facts" id="sync-detail"></div>
-            <p class="summary-footnote">Der stündliche Lauf ist noch nicht aktiviert. Schlägt ein Lauf fehl, zeigt das Dashboard weiterhin die zuletzt importierten Zahlen — diese Anzeige macht das sichtbar.</p>
-          </article>
+          <div class="summary-facts" id="sync-detail"></div>
         </section>
       </main>
 
-      <footer>
+      <footer id="footer">
         <span>Intern · Daten aus Close, Stand des letzten Syncs</span>
         <span id="footer-context"></span>
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-03f"></script>
+    <script type="module" src="./app.js?v=2026-09-03g"></script>
   </body>
 </html>

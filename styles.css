@@ -471,3 +471,111 @@ tbody td:first-child { font-weight: 620; }
 .weakness strong { font-size: 1.05rem; }
 .weakness .gap { color: var(--weak-color, var(--bad)); font-weight: 700; }
 .weakness small { color: var(--muted-2); font-size: 0.76rem; }
+
+/* --- Kompakte Ansicht --------------------------------------------------- */
+
+.panel {
+  padding: clamp(16px, 2vw, 24px);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.panel-row { display: grid; gap: clamp(16px, 2vw, 24px); grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+
+/* Kernwerte: eine breite Zeile je Person, vier Werte nebeneinander. */
+.core-grid { display: grid; gap: 12px; }
+
+.core-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) 1fr;
+  align-items: center;
+  gap: clamp(12px, 2vw, 28px);
+  padding: clamp(14px, 1.6vw, 20px);
+  background: var(--bg);
+  border-left: 4px solid var(--person-color);
+  border-radius: 12px;
+}
+
+.core-card.is-dimmed { opacity: 0.42; }
+.core-card header { display: grid; gap: 2px; }
+.core-name { font-size: clamp(1.3rem, 2.2vw, 1.9rem); font-weight: 700; letter-spacing: -0.02em; }
+.core-score { font-size: 0.85rem; font-weight: 650; color: var(--perf, var(--muted-2)); }
+
+.core-values { display: grid; gap: clamp(10px, 2vw, 24px); grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.core-value { display: grid; gap: 1px; --perf: var(--text); }
+.core-value.is-strong { --perf: var(--good); }
+.core-value.is-ok { --perf: var(--mid); }
+.core-value.is-weak { --perf: var(--bad); }
+.core-value.is-neutral { --perf: var(--text); }
+.core-label { color: var(--muted-2); font-size: 0.74rem; }
+.core-value strong { font-size: clamp(1.6rem, 2.8vw, 2.4rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; color: var(--perf); }
+.core-value small { color: var(--muted-2); font-size: 0.7rem; }
+
+.core-card.is-strong .core-score { color: var(--good); }
+.core-card.is-weak .core-score { color: var(--bad); }
+
+/* Verlauf: vier kleine Liniendiagramme nebeneinander. */
+.chart-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+
+.chart-card { display: grid; gap: 6px; padding: 14px; background: var(--bg); border-radius: 12px; }
+.chart-card h3 { font-size: 0.86rem; font-weight: 620; color: var(--muted); }
+.chart-card small { color: var(--muted-2); font-size: 0.68rem; }
+.chart-body svg { width: 100%; height: 96px; display: block; overflow: visible; }
+.series-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+
+/* Trichter querliegend: Stufe links, Anteile als Balken, Summe rechts. */
+.funnel { display: grid; gap: 9px; }
+
+.funnel-row { display: grid; grid-template-columns: 118px 1fr 54px; align-items: center; gap: 12px; }
+.funnel-label { color: var(--muted); font-size: 0.82rem; }
+.funnel-bar { display: flex; gap: 2px; height: 22px; background: var(--bg); border-radius: 6px; overflow: hidden; }
+.funnel-bar i { display: block; height: 100%; border-radius: 4px; min-width: 2px; }
+.funnel-total { text-align: right; font-size: 0.95rem; font-weight: 700; }
+
+/* Stundenprofil als liegende Balken statt Kachelgitter. */
+.hours-chart { display: grid; gap: 6px; }
+.hour-row { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 10px; }
+.hour-label { color: var(--muted-2); font-size: 0.74rem; }
+.hour-bars { display: grid; gap: 3px; }
+
+.hour-bars i {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 15px;
+  padding-right: 6px;
+  border-radius: 4px;
+  min-width: 30px;
+}
+
+.hour-bars i b { color: #061020; font-size: 0.66rem; font-weight: 700; }
+.hour-bars i.is-empty { background: var(--bg); min-width: 0; width: 100%; }
+
+/* Details: aufgeklappt nur, wenn jemand sie sehen will. */
+.details-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+.detail-block { background: var(--bg); border-radius: 12px; border-left: 3px solid var(--person-color); }
+.detail-block summary { padding: 14px 16px; font-size: 1rem; font-weight: 650; cursor: pointer; }
+.detail-block summary::marker { color: var(--muted-2); }
+.detail-lines { display: grid; gap: 2px; padding: 0 16px 14px; }
+
+.detail-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  --perf: var(--text);
+}
+
+.detail-line.is-strong { --perf: var(--good); }
+.detail-line.is-ok { --perf: var(--mid); }
+.detail-line.is-weak { --perf: var(--bad); }
+.detail-line span { color: var(--muted); font-size: 0.84rem; }
+.detail-line strong { font-size: 1rem; font-weight: 700; color: var(--perf); }
+.detail-line small { grid-column: 2; color: var(--muted-2); font-size: 0.68rem; text-align: right; }
+
+/* Widget: ein Abschnitt allein, ohne Rahmen der Anwendung. */
+body.is-widget main { padding: 0; gap: 0; }
+body.is-widget .panel { border-radius: 0; min-height: 100vh; }

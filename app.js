@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03f";
+import * as data from "./data.js?v=2026-09-03g";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -56,6 +56,8 @@ const state = {
   profile: { displayName: null, role: "sales", salesPersonId: null },
   syncRun: null,
   heatmapRate: "connection",
+  series: [],
+  widget: null,
   status: "start",
   error: null,
   unsubscribe: null,
@@ -142,17 +144,35 @@ function toPerson(row) {
   };
 }
 
+function seriesStart() {
+  if (state.period === "day") return addDaysIso(state.referenceDate, -13);
+  return state.periodRange.start ?? addDaysIso(state.referenceDate, -30);
+}
+
+function seriesEnd() {
+  if (state.period === "day") return state.referenceDate;
+  return state.periodRange.end ?? state.referenceDate;
+}
+
+function addDaysIso(iso, days) {
+  const value = new Date(`${iso}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 async function loadAll() {
-  const [people, metricRows, hourRows, trends] = await Promise.all([
+  const [people, metricRows, hourRows, trends, series] = await Promise.all([
     data.loadPeople(),
     data.loadMetrics(state.period, state.referenceDate),
     data.loadHourPerformance(state.period, state.referenceDate),
     data.loadTrends(),
+    data.loadDailySeries(seriesStart(), seriesEnd()),
   ]);
 
   state.people = people;
   state.hours = hourRows;
   state.trends = trends;
+  state.series = series;
   state.metrics = {};
   metricRows.forEach((row) => { state.metrics[row.slug] = toPerson(row); });
 
@@ -228,6 +248,18 @@ function performanceClass(score) {
 
 // --- Rendern -----------------------------------------------------------------
 
+// Vier Werte tragen die erste Ebene. Alles andere ist eine Ebene tiefer
+// erreichbar, statt gleichzeitig um Aufmerksamkeit zu konkurrieren.
+const CORE_KEYS = ["callsNet", "connectionRate", "appointments", "appointmentRate"];
+
+function coreMetrics() {
+  return CORE_KEYS.map((key) => metricDefinitions.find((metric) => metric.key === key));
+}
+
+function detailMetrics() {
+  return metricDefinitions.filter((metric) => !CORE_KEYS.includes(metric.key));
+}
+
 function orderedPeople() {
   return state.people.filter((person) => state.metrics[person.slug]);
 }
@@ -278,16 +310,17 @@ function renderHeader() {
   document.querySelector("#view-kicker").textContent = copy[0];
   document.querySelector("#page-title").textContent = copy[1];
   document.querySelector("#view-description").textContent = copy[2];
+  document.querySelector("#core-note").textContent = periodCaption();
+  document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${periodCaption()}`;
+
+  if (state.widget) return;
   const role = state.profile.role;
   const leads = role === "manager" || role === "operator";
   document.querySelector("#manager-section").hidden = state.view !== "chef" || !leads;
   document.querySelector("#operations-section").hidden = state.view !== "betrieb" || role !== "operator";
-  document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${periodCaption()}`;
 }
 
-// Gewichtet aus den sichtbaren Kennzahlen. Umsatz fließt nicht ein, solange er
-// nicht angezeigt wird — eine Zahl, die niemand sieht, soll die Rangfolge nicht
-// bestimmen. Ohne Ziele gibt es keine Zielerreichung.
+// Gewichtet aus den Kernwerten. Ohne Ziele gibt es keine Zielerreichung.
 function weightedScore(metrics, salesPersonId) {
   const parts = [
     ["callsNet", "calls_net", 0.35],
@@ -305,138 +338,128 @@ function weightedScore(metrics, salesPersonId) {
   return weightUsed === 0 ? null : Math.round((score / weightUsed / 1.2) * 100);
 }
 
-// Hufeisen über 270 Grad, Radius 45 um den Mittelpunkt (60|60). Die Bogenlänge
-// ist die Grundlage für stroke-dasharray, damit sich der Bogen anteilig füllt.
-const GAUGE_PATH = "M28.18 91.82 A45 45 0 1 1 91.82 91.82";
-const GAUGE_LENGTH = 212.06;
-
-function gaugeMarkup(fraction, color, valueText, targetText) {
-  const filled = Math.max(0, Math.min(1, fraction));
-  return `
-    <div class="gauge">
-      <svg viewBox="0 0 120 104" role="img" aria-label="${valueText} von ${targetText}" style="--gauge-color:${color}">
-        <path class="track" d="${GAUGE_PATH}" />
-        <path class="fill" d="${GAUGE_PATH}" stroke-dasharray="${GAUGE_LENGTH}" stroke-dashoffset="${GAUGE_LENGTH * (1 - filled)}" />
-        <text class="value-text" x="60" y="64" text-anchor="middle">${valueText}</text>
-        <text class="target-text" x="60" y="84" text-anchor="middle">${targetText}</text>
-      </svg>
-    </div>`;
-}
-
-// Kachel mit Ziel wird zur Anzeige mit Bogen, Kachel ohne Ziel zur großen Zahl.
-// So ist auf einen Blick erkennbar, wo überhaupt ein Ziel gepflegt ist.
-function metricCard(metric, entry) {
-  const value = entry.metrics[metric.key];
-  const target = metric.noTarget ? null : metricTarget(metric, entry.targetId);
-  const score = value === null || target === null ? null : attainment(value, target);
-  const caption = periodCaption();
-
-  if (target !== null && value !== null) {
-    return `
-      <article class="metric-card ${performanceClass(score)}">
-        <h3>${metric.label}</h3>
-        <span class="card-period">${caption}</span>
-        ${gaugeMarkup(value / target, entry.color, metric.format(value), metric.format(target))}
-      </article>`;
-  }
-
-  return `
-    <article class="metric-card ${performanceClass(null)}">
-      <h3>${metric.label}</h3>
-      <span class="card-period">${caption}</span>
-      <div class="big-value">${metric.format(value)}</div>
-      <span class="card-hint">${metric.noTarget ? metric.detail : "kein Ziel hinterlegt"}</span>
-    </article>`;
-}
-
-// Michael, Felix und die Summe als eigener Block. Die Quoten des Teams werden
-// aus den Summen gebildet, nicht aus dem Mittel der Einzelquoten — sonst zählte
-// ein Vertriebler mit wenigen Gesprächen genauso schwer wie einer mit vielen.
-function boardEntries() {
+function teamEntry() {
   const people = orderedPeople();
-  const entries = people.map((person) => ({
+  if (people.length < 2) return null;
+  const sum = (key) => people.reduce((total, person) => total + (state.metrics[person.slug][key] ?? 0), 0);
+  const metrics = {
+    callsGross: sum("callsGross"), callsNet: sum("callsNet"), talkMinutes: sum("talkMinutes"),
+    gatekeeper: sum("gatekeeper"), connected: sum("connected"),
+    directDecisionMakers: sum("directDecisionMakers"), decisionMakers: sum("decisionMakers"),
+    appointments: sum("appointments"), dealsWon: sum("dealsWon"), revenue: sum("revenue"),
+    newsletters: people.every((person) => state.metrics[person.slug].newsletters === null) ? null : sum("newsletters"),
+  };
+  // Team-Quoten aus den Summen, nicht als Mittel der Einzelquoten — sonst zählte
+  // jemand mit wenigen Gesprächen genauso schwer wie jemand mit vielen.
+  metrics.connectionRate = safeRate(metrics.connected, metrics.gatekeeper);
+  metrics.appointmentRate = safeRate(metrics.appointments, metrics.decisionMakers);
+  metrics.winRate = safeRate(metrics.dealsWon, metrics.appointments);
+  return { slug: "team", label: "Team", color: "#9fb4d0", targetId: people.map((p) => p.id), metrics };
+}
+
+function boardEntries() {
+  const entries = orderedPeople().map((person) => ({
     slug: person.slug,
     label: firstName(person.display_name),
     color: person.color,
     targetId: person.id,
     metrics: state.metrics[person.slug],
-    score: weightedScore(state.metrics[person.slug], person.id),
   }));
-
-  if (people.length < 2) return entries;
-
-  const sum = (key) => people.reduce((total, person) => total + (state.metrics[person.slug][key] ?? 0), 0);
-  const teamMetrics = {
-    callsGross: sum("callsGross"),
-    callsNet: sum("callsNet"),
-    talkMinutes: sum("talkMinutes"),
-    gatekeeper: sum("gatekeeper"),
-    connected: sum("connected"),
-    directDecisionMakers: sum("directDecisionMakers"),
-    decisionMakers: sum("decisionMakers"),
-    appointments: sum("appointments"),
-    dealsWon: sum("dealsWon"),
-    revenue: sum("revenue"),
-    newsletters: people.every((person) => state.metrics[person.slug].newsletters === null) ? null : sum("newsletters"),
-  };
-  teamMetrics.connectionRate = safeRate(teamMetrics.connected, teamMetrics.gatekeeper);
-  teamMetrics.appointmentRate = safeRate(teamMetrics.appointments, teamMetrics.decisionMakers);
-  teamMetrics.winRate = safeRate(teamMetrics.dealsWon, teamMetrics.appointments);
-
-  entries.push({
-    slug: "team",
-    label: "Team",
-    color: "#9fb4d0",
-    targetId: people.map((person) => person.id),
-    metrics: teamMetrics,
-    score: null,
-  });
+  const team = teamEntry();
+  if (team) entries.push(team);
   return entries;
 }
 
-function renderBoard() {
-  document.querySelector("#board").innerHTML = boardEntries().map((entry) => {
-    const attainmentCard = entry.score === null
-      ? `<article class="metric-card is-neutral">
-           <h3>Zielerreichung</h3>
-           <span class="card-period">${periodCaption()}</span>
-           <div class="big-value">—</div>
-           <span class="card-hint">kein Ziel hinterlegt</span>
-         </article>`
-      : `<article class="metric-card ${performanceClass(entry.score)}">
-           <h3>Zielerreichung</h3>
-           <span class="card-period">gewichtet</span>
-           ${gaugeMarkup(entry.score / 100, entry.color, `${entry.score}%`, "100%")}
-         </article>`;
+// --- Kernwerte ---------------------------------------------------------------
 
-    const cards = metricDefinitions.map((metric) => metricCard(metric, entry)).join("");
+function renderCore() {
+  document.querySelector("#core-grid").innerHTML = boardEntries().map((entry) => {
+    const score = entry.slug === "team" ? null : weightedScore(entry.metrics, entry.targetId);
+    const values = coreMetrics().map((metric) => {
+      const value = entry.metrics[metric.key];
+      const target = metric.rateTarget ? targetFor(entry.targetId, metric.rateTarget) : targetFor(entry.targetId, metric.target);
+      const rating = value === null || target === null ? null : attainment(value, target);
+      return `
+        <div class="core-value ${performanceClass(rating)}">
+          <span class="core-label">${metric.label}</span>
+          <strong>${metric.format(value)}</strong>
+          <small>${target === null ? "kein Ziel" : `Ziel ${metric.format(target)}`}</small>
+        </div>`;
+    }).join("");
+
     return `
-      <div class="person-block ${focusClass(entry.slug)}">
-        <h2 class="banner" style="--banner-color:${entry.color}">${entry.label}</h2>
-        <div class="metric-grid">${attainmentCard}${cards}</div>
-      </div>`;
+      <article class="core-card ${focusClass(entry.slug)}" style="--person-color:${entry.color}">
+        <header>
+          <span class="core-name">${entry.label}</span>
+          <span class="core-score ${performanceClass(score)}">${score === null ? "" : `${score}%`}</span>
+        </header>
+        <div class="core-values">${values}</div>
+      </article>`;
   }).join("");
 }
 
-const RANK_COLORS = ["#f7c948", "#c9d6e6", "#d08a52"];
+// --- Diagramme ---------------------------------------------------------------
 
-function renderLeaderboard() {
-  const ranked = [...orderedPeople()].sort((a, b) => state.metrics[b.slug].callsNet - state.metrics[a.slug].callsNet);
-  document.querySelector("#leaderboard").innerHTML = ranked.map((person, index) => {
-    const metrics = state.metrics[person.slug];
+// Ein Liniendiagramm ohne Bibliothek. Das ist Voraussetzung dafür, dass ein
+// Abschnitt später als eigenständiges Widget in einer fremden Seite läuft.
+function lineChart(days, seriesByPerson, format) {
+  if (days.length < 2) {
+    return `<p class="empty-note">Ein einzelner Tag ergibt keinen Verlauf.</p>`;
+  }
+
+  const width = 320;
+  const height = 96;
+  const padX = 6;
+  const padY = 10;
+  const values = Object.values(seriesByPerson).flat().filter((value) => Number.isFinite(value));
+  const max = Math.max(1, ...values);
+  const stepX = (width - padX * 2) / (days.length - 1);
+  const y = (value) => height - padY - ((value || 0) / max) * (height - padY * 2);
+
+  const lines = Object.entries(seriesByPerson).map(([slug, points]) => {
+    const person = state.people.find((entry) => entry.slug === slug);
+    const d = points.map((value, index) => `${index === 0 ? "M" : "L"}${(padX + index * stepX).toFixed(1)} ${y(value).toFixed(1)}`).join(" ");
+    const last = points[points.length - 1];
+    return `<path class="series-line" d="${d}" style="stroke:${person?.color ?? "#8fa3bf"}" />
+            <circle cx="${(padX + (points.length - 1) * stepX).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3" style="fill:${person?.color ?? "#8fa3bf"}" />`;
+  }).join("");
+
+  return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"
+            aria-label="Verlauf über ${days.length} Tage, Höchstwert ${format(max)}">${lines}</svg>`;
+}
+
+function renderSeries() {
+  const legend = orderedPeople().map((person) => `
+    <span><i class="legend-dot" style="background:${person.color}"></i>${firstName(person.display_name)}</span>`).join("");
+  document.querySelector("#series-legend").innerHTML = legend;
+
+  const days = [...new Set(state.series.map((row) => row.metric_date))].sort();
+  const columns = {
+    callsNet: "calls_net",
+    connectionRate: "connection_rate",
+    appointments: "appointments",
+    appointmentRate: "appointment_rate",
+  };
+
+  document.querySelector("#series-charts").innerHTML = coreMetrics().map((metric) => {
+    const column = columns[metric.key];
+    const seriesByPerson = {};
+    orderedPeople().forEach((person) => {
+      seriesByPerson[person.slug] = days.map((day) => {
+        const row = state.series.find((entry) => entry.metric_date === day && entry.slug === person.slug);
+        return row ? Number(row[column]) : 0;
+      });
+    });
     return `
-      <div class="leader">
-        <span class="leader-avatar" style="--leader-color:${person.color}">
-          ${initials(person.display_name)}
-          <span class="leader-rank" style="--rank-color:${RANK_COLORS[index] ?? RANK_COLORS[2]}">${index + 1}</span>
-        </span>
-        <span class="leader-name">${person.display_name}</span>
-        <span class="leader-value">${number(metrics.callsNet)}</span>
-        <span class="leader-note">${minutes(metrics.talkMinutes)} Gespräch</span>
-      </div>`;
+      <article class="chart-card">
+        <h3>${metric.label}</h3>
+        <div class="chart-body">${lineChart(days, seriesByPerson, metric.format)}</div>
+        <small>${days.length > 1 ? `${germanDate(days[0])} – ${germanDate(days[days.length - 1])}` : ""}</small>
+      </article>`;
   }).join("");
 }
 
+// Querliegender Trichter: eine Zeile je Stufe, Anteile als Balken.
 function renderFunnel() {
   const steps = [
     ["Netto-Anrufe", "callsNet"],
@@ -446,65 +469,77 @@ function renderFunnel() {
     ["Termine", "appointments"],
   ];
   const people = orderedPeople();
+  const totals = steps.map(([, key]) => people.reduce((sum, person) => sum + state.metrics[person.slug][key], 0));
+  const widest = Math.max(1, ...totals);
 
-  document.querySelector("#funnel").innerHTML = steps.map(([label, key]) => {
-    const total = Math.max(1, people.reduce((sum, person) => sum + state.metrics[person.slug][key], 0));
-    const values = people.map((person) => `
-      <div class="funnel-person ${focusClass(person.slug)}">
-        <strong style="color:${person.color}">${number(state.metrics[person.slug][key])}</strong>
-        <span>${firstName(person.display_name)}</span>
-      </div>`).join("");
+  document.querySelector("#funnel").innerHTML = steps.map(([label, key], index) => {
     const bars = people.map((person) => {
-      const share = (state.metrics[person.slug][key] / total) * 100;
-      return `<i style="width:${share}%;background:${person.color}"></i>`;
+      const value = state.metrics[person.slug][key];
+      return `<i style="width:${(value / widest) * 100}%;background:${person.color}" title="${firstName(person.display_name)}: ${number(value)}"></i>`;
     }).join("");
     return `
-      <div class="funnel-step">
-        <small>${label}</small>
-        <div class="funnel-values">${values}</div>
-        <div class="funnel-line">${bars}</div>
+      <div class="funnel-row ${focusClass("")}">
+        <span class="funnel-label">${label}</span>
+        <span class="funnel-bar">${bars}</span>
+        <span class="funnel-total">${number(totals[index])}</span>
       </div>`;
   }).join("");
 }
 
-// Beide Stundenquoten liegen vor. Angezeigt wird die gewählte, damit die
-// Tabelle lesbar bleibt. Stunden ohne Grundlage entfallen ganz.
-function renderHeatmap() {
-  const container = document.querySelector("#heatmap");
+// Stundenprofil als liegendes Balkendiagramm statt Kachelgitter.
+function renderHours() {
+  const container = document.querySelector("#hours-chart");
   const useConnection = state.heatmapRate === "connection";
   const valueKey = useConnection ? "transfer_rate" : "reach_rate";
   const baseKey = useConnection ? "gatekeeper_contacts" : "calls_gross";
 
-  const activeHours = [...new Set(state.hours.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
+  const hours = [...new Set(state.hours.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
     .sort((a, b) => a - b);
 
-  if (activeHours.length === 0) {
+  if (hours.length === 0) {
     container.innerHTML = `<p class="empty-note">Für diesen Zeitraum liegen keine ${useConnection ? "Vorzimmer-Kontakte" : "Anrufe"} vor.</p>`;
     return;
   }
 
-  container.style.setProperty("--hours", activeHours.length);
-  const header = `<div class="heat-row header"><span>Person</span>${activeHours.map((hour) => `<span>${String(hour).padStart(2, "0")}:00</span>`).join("")}</div>`;
-  const rows = orderedPeople().map((person) => {
-    const cells = activeHours.map((hour) => {
+  const people = orderedPeople();
+  container.innerHTML = hours.map((hour) => {
+    const bars = people.map((person) => {
       const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
       const base = row ? Number(row[baseKey]) : 0;
       const value = row ? Number(row[valueKey]) : 0;
-      if (base === 0) return `<span class="heat-cell is-empty" title="${firstName(person.display_name)}, ${hour}:00 Uhr: keine Daten">–</span>`;
-      return `<span class="heat-cell" style="--heat-color:${person.color};--heat-strength:${Math.max(12, value)}%" title="${firstName(person.display_name)}, ${hour}:00 Uhr: ${Math.round(value)} % aus ${base}">${Math.round(value)}%</span>`;
+      if (base === 0) return `<i class="is-empty" title="${firstName(person.display_name)}: keine Daten"></i>`;
+      return `<i style="width:${Math.max(2, value)}%;background:${person.color}" title="${firstName(person.display_name)}, ${hour}:00 Uhr: ${Math.round(value)} % aus ${base}"><b>${Math.round(value)}%</b></i>`;
     }).join("");
-    return `<div class="heat-row"><span class="heat-person" style="color:${person.color}">${firstName(person.display_name)}</span>${cells}</div>`;
+    return `<div class="hour-row"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span><span class="hour-bars">${bars}</span></div>`;
   }).join("");
-
-  container.innerHTML = header + rows;
 }
 
-// Aktueller Monat und die zwei Vormonate, in den Kennzahlen, die sichtbar sind.
+// --- Details -----------------------------------------------------------------
+
+function renderDetails() {
+  document.querySelector("#details-row").innerHTML = boardEntries().map((entry) => {
+    const rows = detailMetrics().map((metric) => {
+      const value = entry.metrics[metric.key];
+      const target = metric.noTarget ? null : (metric.rateTarget ? targetFor(entry.targetId, metric.rateTarget) : targetFor(entry.targetId, metric.target));
+      const rating = value === null || target === null ? null : attainment(value, target);
+      return `
+        <div class="detail-line ${performanceClass(rating)}">
+          <span>${metric.label}</span>
+          <strong>${metric.format(value)}</strong>
+          <small>${target === null ? "—" : `Ziel ${metric.format(target)}`}</small>
+        </div>`;
+    }).join("");
+    return `
+      <details class="detail-block" style="--person-color:${entry.color}">
+        <summary>${entry.label}</summary>
+        <div class="detail-lines">${rows}</div>
+      </details>`;
+  }).join("");
+}
+
 function renderTrends() {
   const columns = [
     ["calls_net", "Netto-Anrufe", number],
-    ["gatekeeper_contacts", "Vorzimmer", number],
-    ["connected_calls", "Durchstellungen", number],
     ["connection_rate", "Durchstellquote", percent],
     ["decision_maker_contacts", "Entscheider", number],
     ["appointments", "Termine", number],
@@ -521,37 +556,7 @@ function renderTrends() {
 
   document.querySelector("#trend-head").innerHTML =
     `<tr><th>Monat</th><th>Person</th>${columns.map(([, label]) => `<th>${label}</th>`).join("")}</tr>`;
-  document.querySelector("#trend-rows").innerHTML = rows || `<tr><td colspan="9">Noch keine Monatsdaten vorhanden.</td></tr>`;
-}
-
-// Wo hakt es: welche Quote liegt am weitesten unter ihrem Ziel. Ohne
-// hinterlegtes Ziel gibt es keine Aussage — dann bleibt die Liste leer, statt
-// eine Schwäche zu behaupten, die niemand definiert hat.
-function renderWeaknesses() {
-  const checks = [
-    ["Durchstellquote", "connectionRate", "transfer_rate_target"],
-    ["Terminquote", "appointmentRate", "appointment_rate_target"],
-  ];
-  const found = [];
-  orderedPeople().forEach((person) => {
-    const metrics = state.metrics[person.slug];
-    checks.forEach(([label, key, targetColumn]) => {
-      const target = targetFor(person.id, targetColumn);
-      if (target === null) return;
-      const actual = Number(metrics[key]);
-      if (actual >= target) return;
-      found.push({ person: firstName(person.display_name), color: person.color, label, actual, target, gap: target - actual });
-    });
-  });
-  found.sort((a, b) => b.gap - a.gap);
-
-  document.querySelector("#weakness-list").innerHTML = found.length === 0
-    ? `<p class="empty-note">Keine Quote liegt unter ihrem Ziel — oder es sind noch keine Quotenziele hinterlegt.</p>`
-    : found.map((entry) => `
-        <div class="weakness" style="--weak-color:${entry.color}">
-          <span><strong>${entry.person}: ${entry.label}</strong><br><small>Ist ${percent(entry.actual)} gegenüber Ziel ${percent(entry.target)}</small></span>
-          <span class="gap">${Math.round(entry.gap)} Punkte darunter</span>
-        </div>`).join("");
+  document.querySelector("#trend-rows").innerHTML = rows || `<tr><td colspan="7">Noch keine Monatsdaten vorhanden.</td></tr>`;
 }
 
 function renderManager() {
@@ -571,8 +576,8 @@ function renderManager() {
     return `<div class="goal-field"><label for="goal-${state.people[0]?.slug}-${column}">${label}</label>${inputs}</div>`;
   }).join("");
 
-  const sync = state.syncRun;
   if (state.profile.role !== "operator") return;
+  const sync = state.syncRun;
   document.querySelector("#sync-detail").innerHTML = sync
     ? `<span>Status: <strong>${sync.status}</strong></span><span>${sync.completed_at ? germanDate(sync.completed_at.slice(0, 10)) : "läuft"}</span><span>${number(sync.fetched_records ?? 0)} gelesen</span><span>${number(sync.upserted_records ?? 0)} gespeichert</span>`
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
@@ -590,6 +595,7 @@ function renderSyncBadge() {
 }
 
 function updateUrl() {
+  if (state.widget) return;
   const url = new URL(window.location.href);
   url.searchParams.set("view", state.view);
   url.searchParams.set("period", state.period);
@@ -600,12 +606,12 @@ function updateUrl() {
 function render() {
   renderNav();
   renderHeader();
-  renderLeaderboard();
-  renderBoard();
+  renderCore();
+  renderSeries();
   renderFunnel();
-  renderHeatmap();
+  renderHours();
+  renderDetails();
   renderTrends();
-  renderWeaknesses();
   renderManager();
   renderSyncBadge();
   updateUrl();
@@ -810,15 +816,49 @@ function samplePreview() {
       appointment_rate: 35.2 - index * 13.1 - monthIndex,
     })));
   state.profile = { displayName: "Vorschau", role: "operator", salesPersonId: null };
+  state.series = [];
+  for (let day = 1; day <= 14; day += 1) {
+    const datum = `2026-09-${String(day).padStart(2, "0")}`;
+    const welle = Math.sin(day / 2.2);
+    people.forEach((person, index) => {
+      state.series.push({
+        metric_date: datum,
+        slug: person.slug,
+        calls_net: Math.round(26 - index * 9 + welle * 7),
+        connection_rate: Math.round(62 - index * 19 + welle * 9),
+        appointments: Math.max(0, Math.round(4 - index * 2 + welle * 2)),
+        appointment_rate: Math.round(34 - index * 12 + welle * 6),
+      });
+    });
+  }
   state.syncRun = { status: "success", started_at: "2026-09-02T14:08:43Z", completed_at: "2026-09-02T14:08:47Z", fetched_records: 45, upserted_records: 90 };
   state.status = "preview";
+}
+
+// Ein Abschnitt für sich, ohne Kopfzeile, Navigation und Fußzeile — damit sich
+// jeder Block später per iframe einbetten lässt, ohne den Code zu spalten.
+function applyWidgetMode(name) {
+  state.widget = name;
+  document.body.classList.add("is-widget");
+  document.querySelectorAll("[data-widget]").forEach((section) => {
+    section.hidden = section.dataset.widget !== name;
+  });
+  document.querySelector("#topbar").hidden = true;
+  document.querySelector("#workspace-header").hidden = true;
+  document.querySelector("#footer").hidden = true;
+  document.querySelector("#manager-section").hidden = true;
+  document.querySelector("#operations-section").hidden = true;
 }
 
 function boot() {
   readInitialState();
   document.querySelector("#reference-date").value = state.referenceDate;
 
-  if (new URLSearchParams(window.location.search).get("preview") === "1") {
+  const params = new URLSearchParams(window.location.search);
+  const widget = params.get("widget");
+  if (widget) applyWidgetMode(widget);
+
+  if (params.get("preview") === "1") {
     document.querySelector("#preview-banner").hidden = false;
     samplePreview();
     showApp(true);
