@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03p";
+import * as data from "./data.js?v=2026-09-03q";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -43,6 +43,10 @@ const state = {
   view: "team",
   period: "month",
   referenceDate: berlinToday(),
+  // Ohne bewusst gewählten historischen Stichtag folgt die Ansicht automatisch
+  // dem Berliner Kalendertag — auch wenn das Dashboard über Mitternacht offen
+  // bleibt. Nur ein ausdrücklich gesetzter Rückblick bleibt fest stehen.
+  datePinned: false,
   people: [],
   metrics: {},
   hours: [],
@@ -808,7 +812,16 @@ function updateUrl() {
   const url = new URL(window.location.href);
   url.searchParams.set("view", state.view);
   url.searchParams.set("period", state.period);
-  url.searchParams.set("date", state.referenceDate);
+  if (state.datePinned) {
+    url.searchParams.set("date", state.referenceDate);
+    url.searchParams.set("historisch", "1");
+  } else {
+    // Alte Links enthielten immer ein Datum, obwohl es nur der damalige
+    // Standardtag war. Ohne historisch=1 darf ein Link deshalb nicht morgen
+    // auf gestern stehen bleiben.
+    url.searchParams.delete("date");
+    url.searchParams.delete("historisch");
+  }
   window.history.replaceState({}, "", url);
 }
 
@@ -898,7 +911,10 @@ function readInitialState() {
   const date = params.get("date");
   if (view) state.view = view;
   if (period && periodLabels[period]) state.period = period;
-  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) state.referenceDate = date;
+  if (date && params.get("historisch") === "1" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    state.referenceDate = date;
+    state.datePinned = true;
+  }
 }
 
 document.addEventListener("click", (event) => {
@@ -935,7 +951,9 @@ document.addEventListener("click", (event) => {
 });
 
 document.querySelector("#reference-date").addEventListener("change", (event) => {
-  state.referenceDate = event.target.value || berlinToday();
+  const selectedDate = event.target.value || berlinToday();
+  state.referenceDate = selectedDate;
+  state.datePinned = selectedDate !== berlinToday();
   refresh();
 });
 
@@ -1077,10 +1095,19 @@ function applyWidgetMode(name) {
 
 function boot() {
   readInitialState();
-  // Nur das Abzeichen auffrischen, nicht das ganze Dashboard: Der Countdown
-  // ändert sich jede Minute, die Zahlen tun das nicht.
+  // Das Abzeichen ändert sich laufend. Beim Tageswechsel folgt die
+  // Standardansicht dem neuen Berliner Datum und fragt die neuen Tageswerte
+  // nach; ein bewusst gewählter historischer Stichtag bleibt unverändert.
   setInterval(() => {
-    if (state.status === "live") renderSyncBadge();
+    if (state.status !== "live") return;
+    const today = berlinToday();
+    if (!state.datePinned && state.referenceDate !== today) {
+      state.referenceDate = today;
+      document.querySelector("#reference-date").value = today;
+      refresh();
+      return;
+    }
+    renderSyncBadge();
   }, 20000);
   document.querySelector("#reference-date").value = state.referenceDate;
 

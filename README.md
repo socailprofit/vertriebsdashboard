@@ -12,7 +12,7 @@
 - KPIs und Quoten werden deterministisch berechnet; KI formuliert später nur die Zusammenfassung.
 - Der erste sichtbare KPI-Umfang ist auf Brutto-/Netto-Calls, beste Anrufzeiten, Vorzimmer, Durchstellungen, direkte und gesamte Entscheiderkontakte, Termine, Terminquote und Newsletter-Abschlüsse begrenzt.
 - Michael wird blau und Felix orange dargestellt; Leistungsfarben richten sich später nach den von Antony gesetzten Zielen.
-- Tag, ISO-Woche von Montag bis Sonntag und Kalendermonat werden in der Zeitzone Europe/Berlin abgegrenzt.
+- Tag zeigt exakt den Berliner Kalendertag. Woche zeigt Montag bis Stichtag (am Wochenende bis Freitag), Monat den 1. bis Stichtag. Ohne bewusst gewählten historischen Stichtag folgt die Ansicht automatisch dem neuen Berliner Tag.
 - Die Trendansicht zeigt den aktuellen Monat und die zwei Vormonate mit den wichtigsten KPIs.
 - Es gilt ein rollierendes Drei-Monats-Fenster: aktueller Monat plus zwei Vormonate.
 - Beim Monatswechsel werden Rohaktivitäten, Tageswerte, Zusammenfassungen, Ziele und Sync-Protokolle vor diesem Fenster gelöscht.
