@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03o";
+import * as data from "./data.js?v=2026-09-03p";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -136,42 +136,22 @@ function toPerson(row) {
   };
 }
 
-function seriesStart() {
-  if (state.period === "day") return addDaysIso(state.referenceDate, -13);
-  return state.periodRange.start ?? addDaysIso(state.referenceDate, -30);
-}
-
-function seriesEnd() {
-  if (state.period === "day") return state.referenceDate;
-  return state.periodRange.end ?? state.referenceDate;
-}
-
-function addDaysIso(iso, days) {
-  const value = new Date(`${iso}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().slice(0, 10);
-}
-
 async function loadAll() {
-  const [people, metricRows, hourRows, trends, series, trendHours] = await Promise.all([
+  // Erst die Kennzahlen laden: Sie sind die einzige verbindliche Quelle für
+  // den Zeitraum. Die Tagesreihen dürfen nicht noch den Bereich der vorher
+  // geöffneten Ansicht verwenden, wenn man Tag, Woche oder Monat umschaltet.
+  const [people, metricRows, hourRows, trends, trendHours] = await Promise.all([
     data.loadPeople(),
     data.loadMetrics(state.period, state.referenceDate),
     data.loadHourPerformance(state.period, state.referenceDate),
     data.loadTrends(),
-    data.loadDailySeries(seriesStart(), seriesEnd()),
     data.loadHourPerformance("trend", state.referenceDate),
   ]);
 
   state.people = people;
   state.hours = hourRows;
   state.trends = trends;
-  state.series = series;
   state.trendHours = trendHours;
-  // Wann die Kennzahlen zuletzt gerechnet wurden, steht in den Daten selbst.
-  // Der Sync-Lauf wäre die genauere Quelle, ist aber der Betriebsrolle
-  // vorbehalten — diese Angabe sieht jeder.
-  const zeitstempel = series.map((row) => row.calculated_at).filter(Boolean).sort();
-  state.lastCalculated = zeitstempel.length > 0 ? zeitstempel[zeitstempel.length - 1] : null;
   state.metrics = {};
   metricRows.forEach((row) => { state.metrics[row.slug] = toPerson(row); });
 
@@ -180,7 +160,19 @@ async function loadAll() {
     ? { start: first.period_start, end: first.period_end }
     : { start: state.referenceDate, end: state.referenceDate };
 
-  state.targets = await data.loadTargets(state.periodRange.start, state.periodRange.end);
+  const [series, targets] = await Promise.all([
+    // Tag bleibt ein einzelner Tag. Woche und Monat verwenden die gerade von
+    // der Datenbank bestätigten Grenzen, nicht einen 14-Tage-Ersatzbereich.
+    data.loadDailySeries(state.periodRange.start, state.periodRange.end),
+    data.loadTargets(state.periodRange.start, state.periodRange.end),
+  ]);
+  state.series = series;
+  state.targets = targets;
+  // Wann die Kennzahlen zuletzt gerechnet wurden, steht in den Daten selbst.
+  // Der Sync-Lauf wäre die genauere Quelle, ist aber der Betriebsrolle
+  // vorbehalten — diese Angabe sieht jeder.
+  const zeitstempel = series.map((row) => row.calculated_at).filter(Boolean).sort();
+  state.lastCalculated = zeitstempel.length > 0 ? zeitstempel[zeitstempel.length - 1] : null;
   state.syncRun = state.profile.role === "operator" ? await data.loadLatestSyncRun() : null;
 }
 
@@ -469,9 +461,9 @@ function renderGoals() {
 
 // Ein Liniendiagramm ohne Bibliothek. Das ist Voraussetzung dafür, dass ein
 // Abschnitt später als eigenständiges Widget in einer fremden Seite läuft.
-function lineChart(days, seriesByPerson, format) {
-  if (days.length < 2) {
-    return `<p class="empty-note">Ein einzelner Tag ergibt keinen Verlauf.</p>`;
+function lineChart(points, seriesByPerson, format, pointLabel = "Tage") {
+  if (points.length < 2) {
+    return `<p class="empty-note">Zu wenig Werte für einen Verlauf.</p>`;
   }
 
   const width = 320;
@@ -480,7 +472,7 @@ function lineChart(days, seriesByPerson, format) {
   const padY = 10;
   const values = Object.values(seriesByPerson).flat().filter((value) => Number.isFinite(value));
   const max = Math.max(1, ...values);
-  const stepX = (width - padX * 2) / (days.length - 1);
+  const stepX = (width - padX * 2) / (points.length - 1);
   const y = (value) => height - padY - ((value || 0) / max) * (height - padY * 2);
 
   const lines = Object.entries(seriesByPerson).map(([slug, points]) => {
@@ -492,20 +484,51 @@ function lineChart(days, seriesByPerson, format) {
   }).join("");
 
   return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"
-            aria-label="Verlauf über ${days.length} Tage, Höchstwert ${format(max)}">${lines}</svg>`;
+            aria-label="Verlauf über ${points.length} ${pointLabel}, Höchstwert ${format(max)}">${lines}</svg>`;
 }
 
 function renderSeries() {
+  const title = document.querySelector("#series-title");
   const legend = orderedPeople().map((person) => `
     <span><i class="legend-dot" style="background:${person.color}"></i>${firstName(person.display_name)}</span>`).join("");
   document.querySelector("#series-legend").innerHTML = legend;
 
+  // Ein Tag ist kein 14-Tage-Rückblick. Die großen Diagramme zeigen deshalb
+  // die Anrufaktivität dieses einen Tages stündlich und getrennt je Person.
+  if (state.period === "day") {
+    title.textContent = "Aktivität am Tag";
+    const hours = Array.from({ length: 10 }, (_, index) => index + 8);
+    document.querySelector("#series-note").textContent =
+      `Erfasste Aktivität am ${germanDate(state.periodRange.start)} nach Uhrzeit (08:00–17:00).`;
+    const metrics = [
+      ["Anrufe brutto", "calls_gross"],
+      ["Anrufe netto", "calls_net"],
+    ];
+    document.querySelector("#series-charts").innerHTML = metrics.map(([label, key]) => {
+      const seriesByPerson = {};
+      orderedPeople().forEach((person) => {
+        seriesByPerson[person.slug] = hours.map((hour) => {
+          const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
+          return Number(row?.[key] ?? 0);
+        });
+      });
+      return `
+        <article class="chart-card">
+          <h3>${label}</h3>
+          <div class="chart-body">${lineChart(hours, seriesByPerson, number, "Stunden")}</div>
+          <div class="hour-axis" aria-hidden="true">${hours.map((hour) => `<span>${hour}</span>`).join("")}</div>
+          <small>08–17 Uhr · je Linie eine Person</small>
+        </article>`;
+    }).join("");
+    return;
+  }
+
+  title.textContent = "Entwicklung im Zeitraum";
+
   const days = [...new Set(state.series.map((row) => row.metric_date))].sort();
   document.querySelector("#series-note").textContent = days.length === 0
     ? "Für diesen Zeitraum liegen keine Tageswerte vor."
-    : state.period === "day"
-      ? `Letzte Tage bis zum Stichtag — ein einzelner Tag ergäbe keinen Verlauf. ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`
-      : `Tageswerte im gewählten Zeitraum: ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`;
+    : `Tageswerte im gewählten Zeitraum: ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`;
   // Die Verlaufsdiagramme zeigen Mengen. Quoten stehen in den Kernwerten,
   // weil sie dort stets aus der richtigen Grundgesamtheit berechnet werden.
   const columns = {
