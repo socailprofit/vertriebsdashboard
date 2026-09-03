@@ -1,4 +1,7 @@
-import * as data from "./data.js";
+// Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
+// nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
+// index.html, hier und in data.js und wird bei jedem Release erhöht.
+import * as data from "./data.js?v=2026-09-03a";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -9,11 +12,11 @@ const metricDefinitions = [
   { key: "gatekeeper", label: "Vorzimmer", detail: "Gatekeeper erreicht", format: number, target: "gatekeeper_contacts" },
   { key: "connected", label: "Durchstellungen", detail: "Vom Vorzimmer durchgestellt", format: number, target: "connected_calls" },
   { key: "connectionRate", label: "Durchstellquote", detail: "Durchstellungen ÷ Vorzimmer", format: percent, rateTarget: "transfer_rate_target", ratio: ["connected", "gatekeeper"] },
-  { key: "directDecisionMakers", label: "Entscheider direkt", detail: "Ohne Vorzimmer erreicht", format: number },
+  { key: "directDecisionMakers", label: "Entscheider direkt", detail: "Ohne Vorzimmer erreicht", format: number, noTarget: true },
   { key: "decisionMakers", label: "Entscheider gesamt", detail: "Direkt und durchgestellt", format: number, target: "decision_maker_contacts" },
   { key: "appointments", label: "Termine", detail: "Termin vereinbart", format: number, target: "appointments" },
   { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, rateTarget: "appointment_rate_target", ratio: ["appointments", "decisionMakers"] },
-  { key: "newsletters", label: "Newsletter", detail: "Quelle in Close noch offen", format: count },
+  { key: "newsletters", label: "Newsletter", detail: "Quelle in Close noch offen", format: count, noTarget: true },
 ];
 
 // Zielspalten, die der Chef pflegen kann. Die Reihenfolge bestimmt das Formular.
@@ -160,16 +163,21 @@ function daysBetween(startIso, endIso) {
 // Anrufen entspricht an einem Tag rund 20. Quotenziele werden nicht skaliert,
 // eine Quote ist von der Dauer unabhängig.
 function targetFor(personId, column) {
+  const ids = Array.isArray(personId) ? personId : [personId];
   const isRate = column.endsWith("_target");
+  const rates = [];
   let total = 0;
   let found = false;
 
   for (const target of state.targets) {
-    if (target.sales_person_id !== personId) continue;
+    if (!ids.includes(target.sales_person_id)) continue;
     const value = target[column];
     if (value === null || value === undefined) continue;
 
-    if (isRate) return Number(value);
+    if (isRate) {
+      rates.push(Number(value));
+      continue;
+    }
 
     const overlapStart = target.period_start > state.periodRange.start ? target.period_start : state.periodRange.start;
     const overlapEnd = target.period_end < state.periodRange.end ? target.period_end : state.periodRange.end;
@@ -179,6 +187,7 @@ function targetFor(personId, column) {
     found = true;
   }
 
+  if (isRate) return rates.length === 0 ? null : rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
   return found ? Math.max(1, Math.round(total)) : null;
 }
 
@@ -213,6 +222,14 @@ function focusClass(slug) {
   return state.view === slug ? "is-focused" : "is-dimmed";
 }
 
+function periodCaption() {
+  const { start, end } = state.periodRange;
+  if (!start) return "";
+  if (state.period === "day") return germanDate(start);
+  if (state.period === "month") return monthLabel(start);
+  return `${germanDate(start)} – ${germanDate(end)}`;
+}
+
 function renderNav() {
   const buttons = [`<button class="nav-button" data-view="team">Team</button>`];
   state.people.forEach((person) => {
@@ -243,11 +260,7 @@ function renderHeader() {
   document.querySelector("#page-title").textContent = copy[1];
   document.querySelector("#view-description").textContent = copy[2];
   document.querySelector("#manager-section").hidden = state.view !== "chef" || state.profile.role !== "manager";
-
-  const range = state.periodRange.start === state.periodRange.end
-    ? germanDate(state.periodRange.start)
-    : `${germanDate(state.periodRange.start)} – ${germanDate(state.periodRange.end)}`;
-  document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${range}`;
+  document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${periodCaption()}`;
 }
 
 // Gewichtet aus den sichtbaren Kennzahlen. Umsatz fließt nicht ein, solange er
@@ -270,77 +283,131 @@ function weightedScore(metrics, salesPersonId) {
   return weightUsed === 0 ? null : Math.round((score / weightUsed / 1.2) * 100);
 }
 
-function renderRace() {
-  const entries = orderedPeople().map((person) => {
-    const metrics = state.metrics[person.slug];
-    return { person, metrics, score: weightedScore(metrics, person.id) };
-  });
+// Hufeisen über 270 Grad, Radius 45 um den Mittelpunkt (60|60). Die Bogenlänge
+// ist die Grundlage für stroke-dasharray, damit sich der Bogen anteilig füllt.
+const GAUGE_PATH = "M28.18 91.82 A45 45 0 1 1 91.82 91.82";
+const GAUGE_LENGTH = 212.06;
 
-  const hasScores = entries.some((entry) => entry.score !== null);
-  entries.sort((a, b) => hasScores
-    ? (b.score ?? -1) - (a.score ?? -1)
-    : b.metrics.appointments - a.metrics.appointments);
+function gaugeMarkup(fraction, color, valueText, targetText) {
+  const filled = Math.max(0, Math.min(1, fraction));
+  return `
+    <div class="gauge">
+      <svg viewBox="0 0 120 104" role="img" aria-label="${valueText} von ${targetText}" style="--gauge-color:${color}">
+        <path class="track" d="${GAUGE_PATH}" />
+        <path class="fill" d="${GAUGE_PATH}" stroke-dasharray="${GAUGE_LENGTH}" stroke-dashoffset="${GAUGE_LENGTH * (1 - filled)}" />
+        <text class="value-text" x="60" y="64" text-anchor="middle">${valueText}</text>
+        <text class="target-text" x="60" y="84" text-anchor="middle">${targetText}</text>
+      </svg>
+    </div>`;
+}
 
-  document.querySelector("#race-board").innerHTML = entries.map(({ person, metrics, score }, index) => {
-    const headline = score === null ? "—" : `${score}%`;
-    const note = score === null
-      ? "kein Ziel hinterlegt"
-      : score >= 80 ? "auf Kurs" : score >= 55 ? "im Rennen" : "Potenzial";
+// Kachel mit Ziel wird zur Anzeige mit Bogen, Kachel ohne Ziel zur großen Zahl.
+// So ist auf einen Blick erkennbar, wo überhaupt ein Ziel gepflegt ist.
+function metricCard(metric, entry) {
+  const value = entry.metrics[metric.key];
+  const target = metric.noTarget ? null : metricTarget(metric, entry.targetId);
+  const score = value === null || target === null ? null : attainment(value, target);
+  const caption = periodCaption();
+
+  if (target !== null && value !== null) {
     return `
-      <article class="racer ${focusClass(person.slug)} ${performanceClass(score)}" style="--racer-color:${person.color};--racer-soft:${person.color}22">
-        <div class="racer-topline">
-          <div class="person-id">
-            <span class="avatar">${initials(person.display_name)}</span>
-            <span><strong>${firstName(person.display_name)}</strong><small>${hasScores ? `Aktuell auf Platz ${index + 1}` : "Zielerreichung offen"}</small></span>
-          </div>
-          <small>${periodLabels[state.period]}</small>
-        </div>
-        <div class="racer-result"><strong>${headline}</strong><span>${note}</span></div>
-        <div class="progress-track"><div class="progress-fill" data-width="${Math.min(score ?? 0, 100)}" style="--progress-color:${person.color}"></div></div>
-        <div class="racer-stats">
-          <span><b>${number(metrics.callsNet)}</b> Netto-Calls</span>
-          <span><b>${number(metrics.appointments)}</b> Termine</span>
-          <span><b>${percent(metrics.connectionRate)}</b> Durchstellquote</span>
-        </div>
+      <article class="metric-card ${performanceClass(score)}">
+        <h3>${metric.label}</h3>
+        <span class="card-period">${caption}</span>
+        ${gaugeMarkup(value / target, entry.color, metric.format(value), metric.format(target))}
       </article>`;
+  }
+
+  return `
+    <article class="metric-card ${performanceClass(null)}">
+      <h3>${metric.label}</h3>
+      <span class="card-period">${caption}</span>
+      <div class="big-value">${metric.format(value)}</div>
+      <span class="card-hint">${metric.noTarget ? metric.detail : "kein Ziel hinterlegt"}</span>
+    </article>`;
+}
+
+// Michael, Felix und die Summe als eigener Block. Die Quoten des Teams werden
+// aus den Summen gebildet, nicht aus dem Mittel der Einzelquoten — sonst zählte
+// ein Vertriebler mit wenigen Gesprächen genauso schwer wie einer mit vielen.
+function boardEntries() {
+  const people = orderedPeople();
+  const entries = people.map((person) => ({
+    slug: person.slug,
+    label: firstName(person.display_name),
+    color: person.color,
+    targetId: person.id,
+    metrics: state.metrics[person.slug],
+    score: weightedScore(state.metrics[person.slug], person.id),
+  }));
+
+  if (people.length < 2) return entries;
+
+  const sum = (key) => people.reduce((total, person) => total + (state.metrics[person.slug][key] ?? 0), 0);
+  const teamMetrics = {
+    callsGross: sum("callsGross"),
+    callsNet: sum("callsNet"),
+    talkMinutes: sum("talkMinutes"),
+    gatekeeper: sum("gatekeeper"),
+    connected: sum("connected"),
+    directDecisionMakers: sum("directDecisionMakers"),
+    decisionMakers: sum("decisionMakers"),
+    appointments: sum("appointments"),
+    newsletters: people.every((person) => state.metrics[person.slug].newsletters === null) ? null : sum("newsletters"),
+  };
+  teamMetrics.connectionRate = safeRate(teamMetrics.connected, teamMetrics.gatekeeper);
+  teamMetrics.appointmentRate = safeRate(teamMetrics.appointments, teamMetrics.decisionMakers);
+
+  entries.push({
+    slug: "team",
+    label: "Team",
+    color: "#9fb4d0",
+    targetId: people.map((person) => person.id),
+    metrics: teamMetrics,
+    score: null,
+  });
+  return entries;
+}
+
+function renderBoard() {
+  document.querySelector("#board").innerHTML = boardEntries().map((entry) => {
+    const attainmentCard = entry.score === null
+      ? `<article class="metric-card is-neutral">
+           <h3>Zielerreichung</h3>
+           <span class="card-period">${periodCaption()}</span>
+           <div class="big-value">—</div>
+           <span class="card-hint">kein Ziel hinterlegt</span>
+         </article>`
+      : `<article class="metric-card ${performanceClass(entry.score)}">
+           <h3>Zielerreichung</h3>
+           <span class="card-period">gewichtet</span>
+           ${gaugeMarkup(entry.score / 100, entry.color, `${entry.score}%`, "100%")}
+         </article>`;
+
+    const cards = metricDefinitions.map((metric) => metricCard(metric, entry)).join("");
+    return `
+      <div class="person-block ${focusClass(entry.slug)}">
+        <h2 class="banner" style="--banner-color:${entry.color}">${entry.label}</h2>
+        <div class="metric-grid">${attainmentCard}${cards}</div>
+      </div>`;
   }).join("");
 }
 
-function teamValue(metric) {
-  const people = orderedPeople();
-  if (metric.ratio) {
-    const [numeratorKey, denominatorKey] = metric.ratio;
-    const numerator = people.reduce((sum, person) => sum + state.metrics[person.slug][numeratorKey], 0);
-    const denominator = people.reduce((sum, person) => sum + state.metrics[person.slug][denominatorKey], 0);
-    return safeRate(numerator, denominator);
-  }
-  const values = people.map((person) => state.metrics[person.slug][metric.key]);
-  if (values.length > 0 && values.every((value) => value === null)) return null;
-  return values.reduce((sum, value) => sum + (value ?? 0), 0);
-}
+const RANK_COLORS = ["#f7c948", "#c9d6e6", "#d08a52"];
 
-function renderMetrics() {
-  const people = orderedPeople();
-  document.querySelector("#metric-table").innerHTML = metricDefinitions.map((metric) => {
-    const cells = people.map((person) => {
-      const value = state.metrics[person.slug][metric.key];
-      const target = metricTarget(metric, person.id);
-      const score = value === null ? null : attainment(value, target);
-      return `
-        <div class="metric-person ${focusClass(person.slug)} ${performanceClass(score)}">
-          <span class="metric-value" style="color:${person.color}">${metric.format(value)}</span>
-          <div class="metric-progress">
-            <div class="progress-track"><div class="progress-fill" data-width="${Math.min(score ?? 0, 100)}" style="--progress-color:${person.color}"></div></div>
-            <small>${target === null ? "kein Ziel hinterlegt" : `${Math.round(score)}% vom Ziel ${metric.format(target)}`}</small>
-          </div>
-        </div>`;
-    }).join("");
-
+function renderLeaderboard() {
+  const ranked = [...orderedPeople()].sort((a, b) => state.metrics[b.slug].callsNet - state.metrics[a.slug].callsNet);
+  document.querySelector("#leaderboard").innerHTML = ranked.map((person, index) => {
+    const metrics = state.metrics[person.slug];
     return `
-      <div class="metric-line">
-        <div class="metric-name"><strong>${metric.label}</strong><small>${metric.detail}</small></div>
-        ${cells}
-        <div class="metric-team"><small>Team</small><strong>${metric.format(teamValue(metric))}</strong></div>
+      <div class="leader">
+        <span class="leader-avatar" style="--leader-color:${person.color}">
+          ${initials(person.display_name)}
+          <span class="leader-rank" style="--rank-color:${RANK_COLORS[index] ?? RANK_COLORS[2]}">${index + 1}</span>
+        </span>
+        <span class="leader-name">${person.display_name}</span>
+        <span class="leader-value">${number(metrics.callsNet)}</span>
+        <span class="leader-note">${minutes(metrics.talkMinutes)} Gespräch</span>
       </div>`;
   }).join("");
 }
@@ -391,6 +458,7 @@ function renderHeatmap() {
     return;
   }
 
+  container.style.setProperty("--hours", activeHours.length);
   const header = `<div class="heat-row header"><span>Person</span>${activeHours.map((hour) => `<span>${String(hour).padStart(2, "0")}:00</span>`).join("")}</div>`;
   const rows = orderedPeople().map((person) => {
     const cells = activeHours.map((hour) => {
@@ -404,20 +472,6 @@ function renderHeatmap() {
   }).join("");
 
   container.innerHTML = header + rows;
-}
-
-function renderRanking() {
-  const ranked = [...orderedPeople()].sort((a, b) => state.metrics[b.slug].callsNet - state.metrics[a.slug].callsNet);
-  document.querySelector("#caller-ranking").innerHTML = ranked.map((person, index) => {
-    const metrics = state.metrics[person.slug];
-    return `
-      <div class="ranking-person" style="--rank-color:${person.color};--rank-soft:${person.color}22">
-        <span class="rank-number">0${index + 1}</span>
-        <span class="rank-avatar">${initials(person.display_name)}</span>
-        <span class="rank-copy"><strong>${person.display_name}</strong><small>${minutes(metrics.talkMinutes)} Gespräch</small></span>
-        <span class="rank-value">${number(metrics.callsNet)}</span>
-      </div>`;
-  }).join("");
 }
 
 // Aktueller Monat und die zwei Vormonate, in den Kennzahlen, die sichtbar sind.
@@ -469,18 +523,14 @@ function renderManager() {
 }
 
 function renderSyncBadge() {
-  const label = state.status === "live" ? "Live-Daten" : state.status === "loading" ? "Lädt" : "Getrennt";
-  const note = state.status === "live" ? "Supabase, aktualisiert automatisch" : state.error ?? "Verbindung wird aufgebaut";
+  const label = state.status === "live" ? "Live-Daten"
+    : state.status === "preview" ? "Designvorschau"
+    : state.status === "loading" ? "Lädt" : "Getrennt";
+  const note = state.status === "live" ? "Supabase, aktualisiert automatisch"
+    : state.status === "preview" ? "Beispielzahlen, nicht aus Close"
+    : state.error ?? "Verbindung wird aufgebaut";
   document.querySelector(".sync-status").innerHTML =
     `<span class="sync-dot ${state.status === "live" ? "is-live" : ""}" aria-hidden="true"></span><span><strong>${label}</strong><small>${note}</small></span>`;
-}
-
-function animateProgress() {
-  requestAnimationFrame(() => {
-    document.querySelectorAll(".progress-fill[data-width]").forEach((bar) => {
-      bar.style.width = `${bar.dataset.width}%`;
-    });
-  });
 }
 
 function updateUrl() {
@@ -494,15 +544,13 @@ function updateUrl() {
 function render() {
   renderNav();
   renderHeader();
-  renderRace();
-  renderMetrics();
+  renderLeaderboard();
+  renderBoard();
   renderFunnel();
   renderHeatmap();
-  renderRanking();
   renderTrends();
   renderManager();
   renderSyncBadge();
-  animateProgress();
   updateUrl();
 }
 
@@ -654,9 +702,62 @@ document.querySelector("#goal-editor").addEventListener("submit", async (event) 
   setTimeout(() => { status.textContent = ""; }, 4000);
 });
 
+function samplePreview() {
+  const people = [
+    { id: "p1", slug: "michael", display_name: "Michael Giesbrecht", color: "#3b9dff", sort_order: 10 },
+    { id: "p2", slug: "felix", display_name: "Felix Wenk", color: "#f5a524", sort_order: 20 },
+  ];
+  state.people = people;
+  state.metrics = {
+    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, newsletters: null },
+    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, newsletters: null },
+  };
+  state.periodRange = { start: "2026-09-01", end: "2026-09-30" };
+  state.targets = [
+    { sales_person_id: "p1", period_start: "2026-09-01", period_end: "2026-09-30", calls_gross: 500, calls_net: 300, gatekeeper_contacts: 180, connected_calls: 110, decision_maker_contacts: 150, appointments: 50, transfer_rate_target: 60, appointment_rate_target: 33 },
+    { sales_person_id: "p2", period_start: "2026-09-01", period_end: "2026-09-30", calls_gross: 500, calls_net: 300, gatekeeper_contacts: 180, connected_calls: 110, decision_maker_contacts: 150, appointments: 50, transfer_rate_target: 60, appointment_rate_target: 33 },
+  ];
+  state.hours = [];
+  for (let hour = 8; hour <= 17; hour += 1) {
+    const shape = [38, 52, 61, 57, 34, 41, 66, 72, 59, 44][hour - 8];
+    people.forEach((person, index) => {
+      state.hours.push({
+        slug: person.slug, metric_hour: hour,
+        calls_gross: 40 - index * 12, calls_net: 24 - index * 8,
+        reach_rate: shape - 6 + index * 3,
+        gatekeeper_contacts: 18 - index * 5, connected_calls: 10 - index * 3,
+        transfer_rate: shape - index * 11,
+      });
+    });
+  }
+  state.trends = ["2026-09-01", "2026-08-01", "2026-07-01"].flatMap((month, monthIndex) =>
+    people.map((person, index) => ({
+      month_start: month, slug: person.slug, display_name: person.display_name, color: person.color,
+      calls_gross: 479 - index * 71 - monthIndex * 40,
+      calls_net: 312 - index * 79 - monthIndex * 25,
+      gatekeeper_contacts: 186 - index * 34 - monthIndex * 15,
+      connected_calls: 121 - index * 53 - monthIndex * 9,
+      connection_rate: 65.1 - index * 20.4 - monthIndex * 2,
+      decision_maker_contacts: 165 - index * 70 - monthIndex * 12,
+      appointments: 58 - index * 37 - monthIndex * 4,
+      appointment_rate: 35.2 - index * 13.1 - monthIndex,
+    })));
+  state.profile = { displayName: "Vorschau", role: "manager", salesPersonId: null };
+  state.view = "team";
+  state.status = "preview";
+}
+
 function boot() {
   readInitialState();
   document.querySelector("#reference-date").value = state.referenceDate;
+
+  if (new URLSearchParams(window.location.search).get("preview") === "1") {
+    document.querySelector("#preview-banner").hidden = false;
+    samplePreview();
+    showApp(true);
+    render();
+    return;
+  }
 
   if (!data.isConfigured) {
     showApp(false);

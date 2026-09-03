@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
-    <title>Social Profit · Sales Dashboard</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <title>Social Profit · Sales Pulse</title>
+    <link rel="stylesheet" href="./styles.css?v=2026-09-03a" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -43,6 +43,9 @@
       </header>
 
       <main>
+        <p class="preview-banner" id="preview-banner" hidden>
+          Designvorschau mit Beispielzahlen. Diese Werte stammen nicht aus Close.
+        </p>
         <p class="load-error" id="load-error" role="alert" hidden></p>
 
         <section class="workspace-header" aria-labelledby="page-title">
@@ -65,27 +68,18 @@
           </div>
         </section>
 
-        <section class="race-section" aria-labelledby="race-title">
+        <section class="metrics-section" aria-labelledby="leader-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Rennen</p>
-              <h2 id="race-title">Zielerreichung</h2>
+              <p class="eyebrow">Rangliste</p>
+              <h2 id="leader-title">Top-Anrufer</h2>
             </div>
-            <p class="section-note">Gewichtet aus Netto-Anrufen, Entscheiderkontakten und Terminen</p>
+            <p class="section-note">Netto-Anrufe im gewählten Zeitraum</p>
           </div>
-          <div class="race-board" id="race-board"></div>
+          <div class="leaderboard" id="leaderboard"></div>
         </section>
 
-        <section class="metrics-section" aria-labelledby="metrics-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Leistungsstrecke</p>
-              <h2 id="metrics-title">Einzelwerte und Team</h2>
-            </div>
-            <p class="section-note">Alle Werte und Quoten aus Close, berechnet in der Datenbank</p>
-          </div>
-          <div class="metric-table" id="metric-table"></div>
-        </section>
+        <section class="board" id="board" aria-label="Kennzahlen je Person"></section>
 
         <section class="funnel-section" aria-labelledby="funnel-title">
           <div class="section-heading">
@@ -101,32 +95,19 @@
           <div class="funnel" id="funnel"></div>
         </section>
 
-        <div class="analysis-grid">
-          <section class="analysis-panel" aria-labelledby="time-title">
-            <div class="section-heading compact">
-              <div>
-                <p class="eyebrow">Nach Uhrzeit</p>
-                <h2 id="time-title">Beste Anrufzeiten</h2>
-              </div>
-              <div class="rate-switch" role="group" aria-label="Quote auswählen">
-                <button data-rate="connection" class="active" type="button">Durchstellquote</button>
-                <button data-rate="reach" type="button">Nettoquote</button>
-              </div>
+        <section class="analysis-panel" aria-labelledby="time-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Nach Uhrzeit</p>
+              <h2 id="time-title">Beste Anrufzeiten</h2>
             </div>
-            <div id="heatmap" class="heatmap"></div>
-          </section>
-
-          <section class="analysis-panel" aria-labelledby="caller-title">
-            <div class="section-heading compact">
-              <div>
-                <p class="eyebrow">Rangliste</p>
-                <h2 id="caller-title">Netto-Anrufe</h2>
-              </div>
-              <p class="section-note">mit Gesprächszeit</p>
+            <div class="rate-switch" role="group" aria-label="Quote auswählen">
+              <button data-rate="connection" class="active" type="button">Durchstellquote</button>
+              <button data-rate="reach" type="button">Nettoquote</button>
             </div>
-            <div id="caller-ranking" class="caller-ranking"></div>
-          </section>
-        </div>
+          </div>
+          <div id="heatmap" class="heatmap"></div>
+        </section>
 
         <section class="projects-section" aria-labelledby="trend-title">
           <div class="section-heading">
@@ -186,6 +167,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=2026-09-03a"></script>
   </body>
 </html>

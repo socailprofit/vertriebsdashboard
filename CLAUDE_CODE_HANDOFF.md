@@ -9,6 +9,9 @@
 - Der nächste Schritt ist der manuelle Abgleich dieser Daten gegen Close. Die Abfragen dafür stehen in `docs/verification-queries.sql`. Vorher wird **kein** stündlicher Zeitplan aktiviert.
 - Das Frontend liest seit 2026-09-02 ausschließlich aus Supabase. `demoData`, die erfundenen Stundenwerte und die Projekttabelle sind entfernt; an deren Stelle steht die Drei-Monats-Trendansicht. Anmeldung, Rollen, Zieleditor und Realtime sind verdrahtet.
 - **Das Frontend ist noch nicht im Browser gegen echte Daten geprüft.** Dafür fehlen zwei Dinge: der Publishable Key in `config.js` und mindestens ein Supabase-Auth-Konto. Ohne Anmeldung liefert jede Abfrage leer, weil die RLS-Policies nur `authenticated` erlauben.
+- Die Gestaltung folgt seit 2026-09-03 der Plecto-Optik: Bannerzeile je Person, Kachelraster statt Zeilentabelle, Hufeisen-Gauges mit Wert und Ziel, Ampelfarben auf der Zahl selbst, Leaderboard mit Rangringen. Drei Blöcke nebeneinander: Michael, Felix und Team.
+- `?preview=1` zeigt das Dashboard mit **Beispielzahlen** ohne Anmeldung, gekennzeichnet durch einen orangen Balken. Nur zur Beurteilung der Gestaltung gedacht, die Werte stammen nicht aus Close.
+- Alle Datei-Verweise tragen eine Versionskennung (`?v=…` in `index.html` sowie an den Importen in `app.js` und `data.js`). **Bei jeder Veröffentlichung erhöhen**, sonst liefert der Browser nach einem Deploy weiter die alte Datei aus. Genau das ist beim Bauen aufgetreten: Ein zwischengespeichertes Stylesheet ließ die Gauges als schwarze Flächen erscheinen.
 
 ## Missing Context
 
