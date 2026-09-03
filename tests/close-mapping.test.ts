@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   ACTIVITY_TYPES,
   CUSTOM_FIELDS,
+  NEWSLETTER_WORKFLOW,
   SALES_PIPELINE,
   mapCall,
   mapCustomActivity,
+  mapNewsletterCompletion,
   mapWonOpportunity,
 } from "../supabase/functions/_shared/close-mapping.ts";
 
@@ -99,4 +101,26 @@ test("won deal is credited to the lead opener", () => {
   assert.equal(deal.openerCloseUserId, "user_opener");
   assert.equal(deal.valueCents, 250000);
   assert.equal(deal.wonAt, "2026-09-01T12:00:00.000Z");
+});
+
+test("newsletter counts only a completed subscription in the approved workflow", () => {
+  const completion = mapNewsletterCompletion({
+    id: "sub_1",
+    sequence_id: NEWSLETTER_WORKFLOW.id,
+    created_by_id: "user_1",
+    date_created: "2026-09-01T08:00:00Z",
+    date_updated: "2026-09-03T10:15:00Z",
+    status: "goal",
+  });
+  assert.ok(completion);
+  assert.equal(completion.closeUserId, "user_1");
+  assert.equal(completion.completedAt, "2026-09-03T10:15:00Z");
+
+  assert.equal(mapNewsletterCompletion({
+    id: "sub_2",
+    sequence_id: NEWSLETTER_WORKFLOW.id,
+    date_created: "2026-09-01T08:00:00Z",
+    date_updated: "2026-09-03T10:15:00Z",
+    status: "active",
+  }), null);
 });

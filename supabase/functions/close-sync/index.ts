@@ -3,21 +3,25 @@ import {
   CLOSE_USERS,
   CUSTOM_FIELDS,
   MAPPING_VERSION,
+  NEWSLETTER_WORKFLOW,
   REPORTING_TIMEZONE,
   SALES_PIPELINE,
   leadAttribution,
   mapCall,
   mapCustomActivity,
+  mapNewsletterCompletion,
   mapWonOpportunity,
   type ActivityFact,
   type CloseCall,
   type CloseCustomActivity,
   type CloseOpportunity,
+  type CloseSequenceSubscription,
 } from "../_shared/close-mapping.ts";
 
 const CLOSE_API_BASE = "https://api.close.com/api/v1";
 const TARGET_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
 const MAX_RANGE_DAYS = 31;
+const RETENTION_MONTHS = 3;
 // /activity/call/ and /activity/custom/ sort by date_created and expose no
 // _order_by, so an activity_at filter is refused. Fetch a wider creation-time
 // window and pick the reporting day from activity_at below. Logging happens on
@@ -95,6 +99,13 @@ function addDays(date: string, days: number) {
   const value = new Date(`${date}T12:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+function rollingRetentionStart(date: string) {
+  const [year, month] = date.split("-").map(Number);
+  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
+  firstOfMonth.setUTCMonth(firstOfMonth.getUTCMonth() - (RETENTION_MONTHS - 1));
+  return firstOfMonth.toISOString().slice(0, 10);
 }
 
 function berlinMidnightUtc(date: string) {
@@ -270,6 +281,19 @@ function activityFactRow(fact: ActivityFact) {
   };
 }
 
+function newsletterSubscriptionRow(record: CloseSequenceSubscription) {
+  return {
+    close_subscription_id: record.id,
+    workflow_id: record.sequence_id,
+    created_by_close_user_id: record.created_by_id ?? null,
+    subscription_created_at: record.date_created,
+    subscription_updated_at: record.date_updated,
+    status: record.status,
+    mapping_version: MAPPING_VERSION,
+    payload: record,
+  };
+}
+
 async function upsertBatches(
   supabase: ReturnType<typeof createClient>, table: string, rows: JsonRecord[], onConflict: string,
 ) {
@@ -279,11 +303,23 @@ async function upsertBatches(
   }
 }
 
-function summarize(facts: ActivityFact[], deals: Array<NonNullable<ReturnType<typeof mapWonOpportunity>>>) {
+function summarize(
+  facts: ActivityFact[],
+  deals: Array<NonNullable<ReturnType<typeof mapWonOpportunity>>>,
+  newsletterCompletions: Array<NonNullable<ReturnType<typeof mapNewsletterCompletion>>>,
+  startTimestamp: string,
+  endTimestamp: string,
+) {
   const result: Record<string, Record<string, number | null>> = {};
   for (const [slug, userId] of Object.entries({ michael: CLOSE_USERS.michael, felix: CLOSE_USERS.felix })) {
     const ownFacts = facts.filter((fact) => fact.closeUserId === userId);
     const ownDeals = deals.filter((deal) => deal.openerCloseUserId === userId);
+    const ownNewsletterCompletions = newsletterCompletions.filter((completion) => {
+      const completedAt = Date.parse(completion.completedAt);
+      return completion.closeUserId === userId
+        && completedAt >= Date.parse(startTimestamp)
+        && completedAt < Date.parse(endTimestamp);
+    });
     const sum = (key: keyof ActivityFact) => ownFacts.reduce((total, fact) => total + Number(fact[key] ?? 0), 0);
     result[slug] = {
       callsGross: sum("callsGross"),
@@ -294,7 +330,7 @@ function summarize(facts: ActivityFact[], deals: Array<NonNullable<ReturnType<ty
       decisionMakerContacts: sum("decisionMakerContacts"),
       appointments: sum("appointments"),
       dealsWon: ownDeals.length,
-      newsletters: null,
+      newsletters: ownNewsletterCompletions.length,
     };
   }
   return result;
@@ -368,7 +404,11 @@ Deno.serve(async (request) => {
     // custom_activity_type filter together with a single lead_id, which a daily
     // export across all leads cannot supply. mapCustomActivity drops the types
     // it does not know, so the type selection happens during mapping instead.
-    const [callResult, customResult, opportunityResult] = await Promise.all([
+    // Der Workflow-Report zählt nur abgeschlossene Kontakte. Die Close-API
+    // liefert deren aktuellen Status am Sequence-Subscription-Endpunkt; weil
+    // ein Workflow klein ist, lesen wir die eine freigegebene Sequenz vollständig
+    // und schreiben sie idempotent. So werden Statuswechsel mitgenommen.
+    const [callResult, customResult, opportunityResult, newsletterResult] = await Promise.all([
       settle(closeList<JsonRecord>(closeApiKey, "/activity/call/", activityWindow)),
       settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", activityWindow)),
       settle(closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
@@ -376,9 +416,12 @@ Deno.serve(async (request) => {
         date_won__gte: startDate,
         date_won__lt: nextDate,
       })),
+      settle(closeList<CloseSequenceSubscription>(closeApiKey, "/sequence_subscription/", {
+        sequence_id: NEWSLETTER_WORKFLOW.id,
+      })),
     ]);
 
-    const failures = [callResult, customResult, opportunityResult]
+    const failures = [callResult, customResult, opportunityResult, newsletterResult]
       .map((result) => result.failure)
       .filter((failure): failure is SyncError => failure !== null);
     if (failures.length > 0) {
@@ -406,6 +449,19 @@ Deno.serve(async (request) => {
     const rawCalls = callResult.value.filter(withinReportingWindow);
     const rawCustomActivities = customResult.value.filter(withinReportingWindow);
     const opportunities = opportunityResult.value;
+    const retentionStart = rollingRetentionStart(endDate);
+    let invalidNewsletterSubscriptions = 0;
+    const newsletterSubscriptions = newsletterResult.value.filter((subscription) => {
+      const updatedAt = Date.parse(subscription.date_updated);
+      if (Number.isNaN(updatedAt) || Number.isNaN(Date.parse(subscription.date_created))) {
+        invalidNewsletterSubscriptions += 1;
+        return false;
+      }
+      return dateInBerlin(new Date(updatedAt)) >= retentionStart;
+    });
+    const newsletterCompletions = newsletterSubscriptions
+      .map(mapNewsletterCompletion)
+      .filter((completion): completion is NonNullable<typeof completion> => completion !== null);
 
     const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
     const customFacts = rawCustomActivities.map(normalizeCustomActivity).map(mapCustomActivity)
@@ -436,7 +492,9 @@ Deno.serve(async (request) => {
     if (activitiesWithoutTimestamp > 0) {
       warnings.push(`${activitiesWithoutTimestamp} activities were skipped because activity_at could not be read.`);
     }
-    warnings.push("Newsletter has no verified Close source and remains null.");
+    if (invalidNewsletterSubscriptions > 0) {
+      warnings.push(`${invalidNewsletterSubscriptions} newsletter subscriptions were skipped because Close timestamps could not be read.`);
+    }
 
     if (mode === "write" && supabase) {
       const rawRows = [
@@ -444,6 +502,7 @@ Deno.serve(async (request) => {
         ...rawCustomActivities.map((record) => rawActivityRow(record, "custom_activity")),
       ];
       const factRows = activityFacts.map(activityFactRow);
+      const newsletterRows = newsletterSubscriptions.map(newsletterSubscriptionRow);
       const opportunityRows = deals.map((deal) => {
         const source = opportunities.find((opportunity) => opportunity.id === deal.opportunityId);
         return {
@@ -464,8 +523,16 @@ Deno.serve(async (request) => {
       await upsertBatches(supabase, "close_raw_activities", rawRows, "close_activity_id");
       await upsertBatches(supabase, "close_activity_facts", factRows, "source_activity_id");
       await upsertBatches(supabase, "close_opportunity_facts", opportunityRows, "opportunity_id");
+      await upsertBatches(supabase, "close_newsletter_subscriptions", newsletterRows, "close_subscription_id");
+      const newsletterMetricDates = newsletterCompletions
+        .map((completion) => metricTime(completion.completedAt).metricDate)
+        .filter((metricDate) => metricDate >= retentionStart && metricDate <= endDate);
+      const metricsStartDate = newsletterMetricDates.reduce(
+        (earliest, metricDate) => metricDate < earliest ? metricDate : earliest,
+        startDate,
+      );
       const { error: recalculateError } = await supabase.rpc("recalculate_daily_sales_metrics", {
-        p_start_date: startDate, p_end_date: endDate,
+        p_start_date: metricsStartDate, p_end_date: endDate,
       });
       if (recalculateError) throw supabaseError("rpc recalculate_daily_sales_metrics", recalculateError);
       const { error: cleanupError } = await supabase.rpc("cleanup_dashboard_history");
@@ -473,8 +540,8 @@ Deno.serve(async (request) => {
       const { error: runError } = await supabase.from("sync_runs").update({
         status: "success",
         completed_at: new Date().toISOString(),
-        fetched_records: rawCalls.length + rawCustomActivities.length + opportunities.length,
-        upserted_records: rawRows.length + factRows.length + opportunityRows.length,
+        fetched_records: rawCalls.length + rawCustomActivities.length + opportunities.length + newsletterResult.value.length,
+        upserted_records: rawRows.length + factRows.length + opportunityRows.length + newsletterRows.length,
         metadata: { mode, mappingVersion: MAPPING_VERSION, trigger, scheduled, warnings },
       }).eq("id", syncRunId);
       if (runError) throw supabaseError("update sync_runs", runError);
@@ -492,10 +559,15 @@ Deno.serve(async (request) => {
         calls: callResult.value.length,
         customActivities: customResult.value.length,
         wonOpportunities: opportunities.length,
+        newsletterSubscriptions: newsletterResult.value.length,
       },
-      inWindow: { calls: rawCalls.length, customActivities: rawCustomActivities.length },
-      mapped: { activities: activityFacts.length, deals: deals.length },
-      people: summarize(activityFacts, deals),
+      inWindow: {
+        calls: rawCalls.length,
+        customActivities: rawCustomActivities.length,
+        newsletterSubscriptions: newsletterSubscriptions.length,
+      },
+      mapped: { activities: activityFacts.length, deals: deals.length, newsletterCompletions: newsletterCompletions.length },
+      people: summarize(activityFacts, deals, newsletterCompletions, startTimestamp, endTimestamp),
       warnings,
       syncRunId,
     });

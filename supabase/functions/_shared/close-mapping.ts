@@ -1,4 +1,4 @@
-export const MAPPING_VERSION = "2026-09-02.v1";
+export const MAPPING_VERSION = "2026-09-03.v2";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
 export const CLOSE_USERS = {
@@ -38,6 +38,19 @@ export const SALES_PIPELINE = {
     "stat_JogyhmNFRLb0ucUfEXPYRJTpVeRXJFix9GB0aVoBfz0",
   ]),
 } as const;
+
+// Diese Workflow-ID ist die konkrete, vom Team freigegebene Newsletter-
+// Sequenz. Andere Sequenzen dürfen niemals in die Newsletter-KPI einfließen.
+export const NEWSLETTER_WORKFLOW = {
+  id: "seq_1CghCZOXaNSlwDSOIpljTy",
+  name: "Newsletter",
+} as const;
+
+// Close beschreibt diese beiden Zustände im Workflow-Report als abgeschlossen:
+// Der Kontakt hat entweder das Ziel erreicht (z. B. geantwortet) oder die
+// Sequenz vollständig durchlaufen. Aktive, pausierte und fehlerhafte Kontakte
+// zählen ausdrücklich nicht.
+const COMPLETED_NEWSLETTER_STATUSES = new Set(["goal", "finished"]);
 
 const FINAL_CALL_STATUSES = new Set(["completed", "no-answer", "busy", "failed", "timeout"]);
 const APPOINTMENT_RESULTS = new Set([
@@ -82,6 +95,23 @@ export type CloseOpportunity = {
   date_won?: string | null;
   value?: number | null;
   value_period: "one_time" | "monthly" | "annual";
+};
+
+export type CloseSequenceSubscription = {
+  id: string;
+  sequence_id: string;
+  created_by_id?: string | null;
+  date_created: string;
+  date_updated: string;
+  status: string;
+};
+
+export type NewsletterCompletion = {
+  subscriptionId: string;
+  closeUserId: string | null;
+  completedAt: string;
+  status: "goal" | "finished";
+  mappingVersion: string;
 };
 
 export type LeadAttribution = {
@@ -249,6 +279,22 @@ export function mapWonOpportunity(opportunity: CloseOpportunity, attribution: Le
       : opportunity.date_won,
     valueCents: Math.max(0, opportunity.value ?? 0),
     valuePeriod: opportunity.value_period,
+    mappingVersion: MAPPING_VERSION,
+  };
+}
+
+export function mapNewsletterCompletion(
+  subscription: CloseSequenceSubscription,
+): NewsletterCompletion | null {
+  if (subscription.sequence_id !== NEWSLETTER_WORKFLOW.id) return null;
+  if (!COMPLETED_NEWSLETTER_STATUSES.has(subscription.status)) return null;
+  if (Number.isNaN(Date.parse(subscription.date_updated))) return null;
+
+  return {
+    subscriptionId: subscription.id,
+    closeUserId: subscription.created_by_id ?? null,
+    completedAt: subscription.date_updated,
+    status: subscription.status as NewsletterCompletion["status"],
     mappingVersion: MAPPING_VERSION,
   };
 }

@@ -16,7 +16,7 @@ const metricDefinitions = [
   { key: "decisionMakers", label: "Entscheider gesamt", detail: "Direkt und durchgestellt", format: number, target: "decision_maker_contacts" },
   { key: "appointments", label: "Termine", detail: "Termin vereinbart", format: number, target: "appointments" },
   { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, rateTarget: "appointment_rate_target", ratio: ["appointments", "decisionMakers"] },
-  { key: "newsletters", label: "Newsletter", detail: "Quelle in Close noch offen", format: count, noTarget: true },
+  { key: "newsletters", label: "Newsletter-Abschlüsse", detail: "Close-Workflow: Ziel erreicht oder beendet", format: count, noTarget: true },
 ];
 
 // Zielspalten, die der Chef pflegen kann. Die Reihenfolge bestimmt das Formular.
@@ -73,8 +73,6 @@ function number(value) {
   return new Intl.NumberFormat("de-DE").format(Math.round(value || 0));
 }
 
-// Newsletter hat bewusst keinen Wert, solange die Close-Quelle offen ist. Eine
-// Null würde behaupten, es habe keine gegeben.
 function count(value) {
   return value === null || value === undefined ? "—" : number(value);
 }

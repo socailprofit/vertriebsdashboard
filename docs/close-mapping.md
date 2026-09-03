@@ -37,11 +37,19 @@ Im ersten produktiven Stand werden nur folgende Werte sichtbar gemacht:
 5. Durchstellungen und Durchstellquote
 6. Entscheiderkontakte, zusätzlich getrennt nach direkt erreicht und durchgestellt
 7. Termine und Terminquote
-8. Newsletter, sobald eine belastbare Close-Quelle feststeht
+8. Newsletter-Abschlüsse
 
 Am 2026-09-02 festgelegt: Beide Stundenquoten werden gezeigt, weil sie verschiedene Fragen beantworten — die Nettoquote sagt, wann überhaupt abgenommen wird, die Durchstellquote, wann man am Vorzimmer vorbeikommt.
 
 Deals und Umsatz werden weiterhin importiert und in Supabase vorgehalten, aber **nicht angezeigt**. Die offene Frage nach Vertragswert, MRR oder ARR bei `monthly`/`annual` bleibt damit vertagt, bis der Umsatz sichtbar werden soll.
+
+### Newsletter-Abschlüsse
+
+- Quelle ist ausschließlich der Close-Workflow `Newsletter` (`seq_1CghCZOXaNSlwDSOIpljTy`).
+- Ein Abschluss zählt nur, wenn der Status im Close-Report `goal` (Ziel erreicht, etwa eine Antwort) oder `finished` (Workflow vollständig durchlaufen) ist.
+- Der KPI-Tag ist `date_updated`, also der Zeitpunkt des Abschluss-Statuswechsels, in `Europe/Berlin`.
+- Die Zuordnung erfolgt über `created_by_id`: Wer den Kontakt in den Newsletter-Workflow aufgenommen hat, erhält den Abschluss.
+- Einträge von Antony oder anderen Personen bleiben für den technischen Abgleich gespeichert, zählen aber nicht zu Michael oder Felix, solange keine entsprechende `sales_people`-Zuordnung existiert.
 
 Leistungsfarben stützen sich auf `sales_targets`. Die Tabelle wurde um `calls_gross`, `gatekeeper_contacts`, `transfer_rate_target` und `appointment_rate_target` erweitert, damit jede sichtbare Zahl ein eigenes Ziel bekommen kann. Die beiden Quotenziele sind nullable: kein Ziel ist etwas anderes als ein Ziel von null Prozent. Ohne gesetztes Ziel bleibt eine Zahl neutral eingefärbt statt rot.
 
@@ -106,14 +114,14 @@ Der Puffer von zwei Tagen ist am 2026-09-02 festgelegt worden, weil Protokolle g
 1. `close_raw_activities`: gekürzte Close-Rohantwort zur Nachprüfung.
 2. `close_activity_facts`: pro Aktivität normalisierte KPI-Flags mit Mapping-Version.
 3. `close_opportunity_facts`: gewonnene Opportunity mit Opener-/Setter-/Closer-Zuordnung.
-4. `daily_sales_metrics`: verdichtete Tageswerte pro Vertriebler.
-5. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
+4. `close_newsletter_subscriptions`: Status des freigegebenen Newsletter-Workflows, ausschließlich serverseitig lesbar.
+5. `daily_sales_metrics`: verdichtete Tageswerte pro Vertriebler.
+6. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
 
 Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormonaten.
 
 ## Missing Context
 
-- Für `Newsletter` existiert in den aktiven Custom-Activity-Typen keine belastbare Quelle. Supabase speichert deshalb `NULL`, und die Oberfläche zeigt `—` statt `0`.
 - Falls künftig Opportunities mit `monthly` oder `annual` auftreten, muss festgelegt werden, ob das Dashboard Vertragswert, MRR oder ARR zeigt.
 - Brutto-/Netto-Regel und Opportunity-Zuordnung müssen anhand eines vollständigen manuellen Testtags bestätigt werden.
 
@@ -124,6 +132,8 @@ Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormona
 - Close Plugin: aktive Custom-Activity-Typen und konkrete veröffentlichte Beispiele.
 - Close Plugin: Pipeline `Sales`, Won-Status und gewonnene Opportunities.
 - Close Plugin: Lead-Felder `3.01 Opener`, `3.02 Setter` und `3.03 Closer` auf gewonnenen Leads.
+- Close Workflow-Report `Newsletter` (`seq_1CghCZOXaNSlwDSOIpljTy`), am 2026-09-03 read-only geprüft: „Completed“ umfasst Ziel erreicht oder Workflow beendet.
+- [Close API: Sequence Subscriptions](https://developer.close.com/api/resources/sequences/list-subscriptions).
 
 ## Timeline
 
@@ -131,4 +141,5 @@ Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormona
 - 2026-09-02: Wettbewerbszuordnung über `3.01 Opener` festgelegt.
 - 2026-09-02: Mapping-Version `2026-09-02.v1` lokal angelegt.
 - 2026-09-02: Sichtbaren MVP-Umfang auf Brutto, Netto, Anrufzeiten, Vorzimmer, Entscheider, Termine und Newsletter begrenzt.
+- 2026-09-03: Newsletter-Quelle auf den freigegebenen Close-Workflow festgelegt; Abschlussstatus `goal` und `finished` werden Michael/Felix über den Ersteller der Anmeldung zugerechnet.
 - Nächster Schritt: Mapping in den manuellen Close-Sync einbauen und einen vollständigen Testtag gegen Close zählen.
