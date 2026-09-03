@@ -125,9 +125,16 @@ Der Puffer von zwei Tagen ist am 2026-09-02 festgelegt worden, weil Protokolle g
 3. `close_opportunity_facts`: gewonnene Opportunity mit Opener-/Setter-/Closer-Zuordnung.
 4. `close_newsletter_subscriptions`: Status des freigegebenen Newsletter-Workflows, ausschließlich serverseitig lesbar.
 5. `daily_sales_metrics`: verdichtete Tageswerte pro Vertriebler.
-6. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
+6. `monthly_kpi_snapshots`: unveränderlicher Monatsabschluss mit acht relevanten Roh-KPIs pro Vertriebler.
+7. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
 
 Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormonaten.
+
+### Monatsabschlüsse
+
+Die operative Tabelle `daily_sales_metrics` wird nach drei Monaten bereinigt. Unabhängig davon wird einmal je abgeschlossenem Monat ein fester Datensatz in `monthly_kpi_snapshots` angelegt. Er enthält: Brutto-Anrufe, Netto-Anrufe, Vorzimmer-Kontakte, Durchstellungen, direkte Entscheider, Entscheider gesamt, Termine und Newsletter-Abschlüsse. Netto-, Durchstell- und Terminquote bleiben daraus stets exakt berechenbar.
+
+Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es in `Europe/Berlin` der erste Kalendertag ist. So wird der vollständige Vormonat nach dem letzten stündlichen Close-Sync gesichert. Bereits vorhandene abgeschlossene Monate werden bei Einführung einmalig nachgezogen; vorhandene Snapshots werden nicht überschrieben.
 
 ## Missing Context
 
@@ -152,4 +159,5 @@ Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormona
 - 2026-09-02: Sichtbaren MVP-Umfang auf Brutto, Netto, Anrufzeiten, Vorzimmer, Entscheider, Termine und Newsletter begrenzt.
 - 2026-09-03: Newsletter-Quelle auf den freigegebenen Close-Workflow festgelegt; Abschlussstatus `goal` und `finished` werden Michael/Felix über den Ersteller der Anmeldung zugerechnet.
 - 2026-09-03: KPI- und Zeitraumvertrag präzisiert: sechs Kernwerte, Nettoquote aus Brutto/Netto, Terminquote aus Entscheider/Termine, Wochenansicht Montag bis Freitag und Stundenanzeige 08:00 bis 17:00.
+- 2026-09-03: Dauerhafte Monatsabschlüsse als eigene, schlanke Tabelle festgelegt; der automatische Lauf sichert den Vormonat am ersten lokalen Kalendertag.
 - Nächster Schritt: Einen vollständigen Testtag gegen Close zählen und die erste produktive Stunden-Synchronisierung kontrollieren.
