@@ -13,4 +13,4 @@
 // Project Settings → API Keys → "Publishable key" (beginnt mit sb_publishable_)
 
 export const SUPABASE_URL = "https://pdobcvffnzqxtmkkpfnn.supabase.co";
-export const SUPABASE_PUBLISHABLE_KEY = "";
+export const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_nGUTKEdAuo_87z38unJZcA_nKnsQIHC";
