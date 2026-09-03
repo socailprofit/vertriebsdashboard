@@ -1,21 +1,11 @@
-name: Close sync scheduled
+name: Close sync manual fallback
 
-# Holt gestern und heute nach, alle 15 Minuten. Gestern bleibt im Fenster, weil
-# Protokolle laut Team gelegentlich verspätet erfasst werden — allerdings immer
-# am selben Tag. Ohne das Vortagsfenster fiele ein Nachtrag von 23:50 Uhr durch.
-#
-# Alle 15 Minuten, aber bewusst nicht zur vollen, viertel, halben und
-# dreiviertel Stunde: Genau dort stauen sich die Zeitpläne aller Repositories,
-# und GitHub verschiebt oder überspringt Läufe bei Auslastung. Am 2026-09-03
-# blieben drei aufeinanderfolgende `*/15`-Läufe aus. Die krummen Minuten sind
-# deutlich ruhiger.
-#
-# Der Zeitplan bleibt trotzdem eine Zusage ohne Garantie. Wer verlässliche
-# Sekundenaktualität braucht, kommt an Close-Webhooks nicht vorbei.
+# GitHub Actions bleibt ausschließlich ein manuell startbarer Notfallweg.
+# Den produktiven 15-Minuten-Takt übernimmt Supabase Cron in der Datenbank:
+# das vermeidet die nachweislich ausgebliebenen GitHub-Schedule-Events und
+# verhindert doppelte Imports aus zwei unabhängigen Zeitplänen.
 
 on:
-  schedule:
-    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -24,7 +14,7 @@ permissions:
 # Ein verzögerter Lauf soll den nächsten nicht überholen. Die Upserts wären
 # zwar unschädlich, aber zwei gleichzeitige Läufe verdoppeln nur die Last.
 concurrency:
-  group: close-sync-scheduled
+  group: close-sync-manual-fallback
   cancel-in-progress: false
 
 jobs:

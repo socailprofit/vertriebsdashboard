@@ -688,10 +688,9 @@ function renderManager() {
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
 }
 
-// Muss mit dem Zeitplan in close-sync-scheduled.yml übereinstimmen. Die krummen
-// Minuten sind Absicht: Zur vollen und halben Stunde staut sich der Zeitplan
-// aller Repositories, und GitHub verschiebt dann Läufe. Die Angabe bleibt eine
-// Schätzung — das steht auch im Titel des Elements.
+// Muss mit dem Supabase-Cron-Job übereinstimmen. Die krummen Minuten vermeiden
+// Lastspitzen und bleiben für die sichtbare "nächster Lauf"-Schätzung bewusst
+// konstant.
 const SYNC_MINUTEN = [7, 22, 37, 52];
 
 function minutesToNextSync() {
@@ -725,7 +724,7 @@ function renderSyncBadge() {
   }
 
   const titel = state.status === "live"
-    ? "Der Sync läuft alle 15 Minuten. GitHub garantiert keine Pünktlichkeit — Läufe können sich verschieben oder ausfallen."
+    ? "Der Sync läuft alle 15 Minuten über Supabase Cron. Der angezeigte nächste Lauf ist eine Schätzung."
     : "";
 
   document.querySelector(".sync-status").innerHTML =

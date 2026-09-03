@@ -36,6 +36,7 @@ const CLOSE_ERROR_HINTS = [
 
 type JsonRecord = Record<string, unknown>;
 type SyncMode = "dry-run" | "write";
+type SyncTrigger = "manual" | "supabase-cron";
 
 function response(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -125,6 +126,10 @@ function validateDate(value: unknown, fallback: string) {
     throw new SyncError("invalid_date", `Invalid date: ${date}`, { date });
   }
   return date;
+}
+
+function syncTrigger(value: unknown): SyncTrigger {
+  return value === "supabase-cron" ? "supabase-cron" : "manual";
 }
 
 function metricTime(occurredAt: string) {
@@ -300,9 +305,9 @@ Deno.serve(async (request) => {
     return response(200, {
       ok: true,
       service: "close-sync",
-      state: "manual-test-ready",
+      state: "ready",
       defaultMode: "dry-run",
-      scheduled: false,
+      scheduler: "external",
       mappingVersion: MAPPING_VERSION,
     });
   }
@@ -328,6 +333,8 @@ Deno.serve(async (request) => {
       return response(400, { ok: false, error: "invalid_range", maxDays: MAX_RANGE_DAYS });
     }
     const mode: SyncMode = body.mode === "write" ? "write" : "dry-run";
+    const trigger = syncTrigger(body.trigger);
+    const scheduled = trigger === "supabase-cron";
     const nextDate = addDays(endDate, 1);
     const startTimestamp = berlinMidnightUtc(startDate);
     const endTimestamp = berlinMidnightUtc(nextDate);
@@ -346,7 +353,7 @@ Deno.serve(async (request) => {
         status: "running",
         source_window_start: startTimestamp,
         source_window_end: endTimestamp,
-        metadata: { mode, mappingVersion: MAPPING_VERSION, scheduled: false },
+        metadata: { mode, mappingVersion: MAPPING_VERSION, trigger, scheduled },
       }).select("id").single();
       if (error) throw supabaseError("insert sync_runs", error);
       syncRunId = data.id;
@@ -468,7 +475,7 @@ Deno.serve(async (request) => {
         completed_at: new Date().toISOString(),
         fetched_records: rawCalls.length + rawCustomActivities.length + opportunities.length,
         upserted_records: rawRows.length + factRows.length + opportunityRows.length,
-        metadata: { mode, mappingVersion: MAPPING_VERSION, scheduled: false, warnings },
+        metadata: { mode, mappingVersion: MAPPING_VERSION, trigger, scheduled, warnings },
       }).eq("id", syncRunId);
       if (runError) throw supabaseError("update sync_runs", runError);
     }
@@ -477,7 +484,8 @@ Deno.serve(async (request) => {
       ok: true,
       mode,
       wroteData: mode === "write",
-      scheduled: false,
+      trigger,
+      scheduled,
       range: { startDate, endDate, timezone: REPORTING_TIMEZONE },
       mappingVersion: MAPPING_VERSION,
       fetched: {
