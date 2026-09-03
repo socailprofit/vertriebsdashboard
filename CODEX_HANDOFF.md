@@ -13,10 +13,24 @@ Bei der Übergabe existierten: ein statischer UI-Prototyp mit erfundenen Demo-Za
 ## 2. Was heute läuft
 
 - Die Kette **Close → Edge Function → Postgres → Dashboard** ist vollständig, verifiziert und automatisiert.
-- Der Sync läuft **alle 15 Minuten** (`close-sync-scheduled.yml`, Minuten 7, 22, 37, 52) und holt gestern und heute nach.
+- Der Sync läuft **alle 15 Minuten über Supabase Cron** (`close_sync_every_15_minutes`, Minuten 7, 22, 37, 52) und holt gestern und heute nach. GitHub Actions ist nur noch manueller Notfallweg — die GitHub-Schedule-Events blieben nachweislich aus.
+- Das Dashboard ist über **GitHub Pages** veröffentlicht: `https://socailprofit.github.io/vertriebsdashboard/`
 - In Supabase liegen 14 Tage ab 2026-08-21: **402 Anrufe, 123 Protokolle, 525 Aktivitäten**.
+- Sechs Kernwerte oben: Brutto, Netto, Nettoquote, Entscheider, Termine, Terminquote. Newsletter kommt aus dem Close-Workflow.
 - Das Frontend liest ausschließlich aus Supabase — mit Anmeldung, drei Rollen, Live-Aktualisierung und Ampelfarben gegen gepflegte Ziele.
 - **Das Mapping ist gegen die realen Close-Werte geprüft.** Nicht plausibilisiert, sondern gegengerechnet.
+
+## 2a. Vorfall vom 03.09. nachmittags — behoben
+
+Nach der Erweiterung auf sechs Kernwerte zeigte das Dashboard eine bestehende Anmeldung, aber keine einzige Zahl. Oben rechts stand „Getrennt". Es sah nach einem Verbindungs- oder Sync-Problem aus und war keins: **Supabase Cron lief durchgehend, die Anmeldung funktionierte, die Daten waren da.** Zwei unabhängige Fehler.
+
+**Fehler 1 — Cache-Kennung nicht erhöht.** `app.js`, `index.html` und `styles.css` wurden geändert, `?v=` blieb auf `2026-09-03m`. Browser paarten frisch geladenes Markup mit einer zwischengespeicherten alten `app.js`. Behoben durch Erhöhen der Kennung.
+
+**Fehler 2 — Absturz beim Aufbau der Kernwerte.** `renderCore` schlug Ziele direkt über `metric.target` nach. Das ging gut, solange oben ausschließlich Kennzahlen mit Ziel standen. Die **Nettoquote hat konstruktionsbedingt kein Ziel**, also kam `undefined` in `targetFor` an, `undefined.endsWith("_target")` warf, und der Aufbau brach ab, bevor eine Zahl gezeichnet wurde. Die Fehlermeldung `Cannot read properties of undefined (reading 'endsWith')` landete im Statusfeld und las sich wie ein Verbindungsabbruch.
+
+Behoben in `ac549f1`: `renderCore` nutzt jetzt `metricTarget()`, das die Detailansicht ohnehin schon verwendete und zielfreie Kennzahlen richtig behandelt. Zusätzlich gibt `targetFor` bei fehlender Spalte `null` zurück, damit dieselbe Falle bei der nächsten zielfreien Kennzahl nicht erneut zuschlägt.
+
+**Was daraus zu lernen ist:** Eine Kennzahl ohne Ziel in die Kernwerte zu heben ist eine völlig harmlose Änderung — sie hat trotzdem das ganze Dashboard lahmgelegt, weil eine Fundstelle die Prüfung hatte und die andere nicht. Wer eine Kennzahl verschiebt, prüft sinnvollerweise mit `?preview=1` nach: Die Vorschau durchläuft denselben Code-Pfad ohne Anmeldung und hätte den Absturz sofort gezeigt.
 
 ## 3. Chronologie
 
@@ -186,7 +200,13 @@ Jeder hat Stunden gekostet. Sie stehen als das hier, was passiert ist — nicht 
 
 **Close-API.** `custom_activity_type_id` verlangt ein einzelnes `lead_id`. Die Typ-Endpunkte sortieren fest nach `date_created`, kennen kein `_order_by`, und lehnen `activity_at`-Filter mit `400` ab.
 
-**Browser-Cache.** Alle Datei-Verweise tragen `?v=…` in `index.html` sowie an den Importen in `app.js` und `data.js`. **Bei jeder Veröffentlichung erhöhen.** Ein zwischengespeichertes Stylesheet ließ die Gauges als schwarze Flächen erscheinen; eine zwischengespeicherte `app.js` führte minutenlang zu falschen Schlüssen.
+**Browser-Cache.** Alle Datei-Verweise tragen `?v=…` in `index.html` sowie an den Importen in `app.js` und `data.js`. **Bei jeder Veröffentlichung erhöhen.**
+
+Diese Falle hat innerhalb von zwei Tagen **dreimal** zugeschlagen: ein zwischengespeichertes Stylesheet ließ die Gauges als schwarze Flächen erscheinen, eine zwischengespeicherte `app.js` führte minutenlang zu falschen Schlüssen, und am 03.09. sah ein nicht erhöhter Wert wie ein Verbindungsabbruch aus.
+
+Dreimal dieselbe Ursache ist genug Beleg dafür, dass sich die Kennung nicht zuverlässig von Hand pflegen lässt. **Empfehlung: aus dem Dateiinhalt ableiten statt manuell setzen** — etwa als Kurz-Hash beim Veröffentlichen. Dann kann sie nicht mehr vergessen werden. Nicht umgesetzt, weil es den Auslieferungsweg betrifft und mit dem Nutzer abgestimmt gehört.
+
+Zum Prüfen nach einer Veröffentlichung genügt: `curl -s https://socailprofit.github.io/vertriebsdashboard/ | grep -o 'v=[0-9-]*[a-z]'` — steht dort die alte Kennung, ist der Deploy noch nicht durch oder die Erhöhung wurde vergessen.
 
 **Stille Fehler.** `startSession()` lief aus dem Auth-Callback ohne `catch`. Die Anmeldung gelang, danach passierte nichts, und niemand erfuhr warum.
 
