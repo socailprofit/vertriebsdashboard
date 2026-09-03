@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03j";
+import * as data from "./data.js?v=2026-09-03k";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -53,6 +53,7 @@ const state = {
   heatmapRate: "connection",
   series: [],
   widget: null,
+  lastCalculated: null,
   status: "start",
   error: null,
   unsubscribe: null,
@@ -162,6 +163,11 @@ async function loadAll() {
   state.hours = hourRows;
   state.trends = trends;
   state.series = series;
+  // Wann die Kennzahlen zuletzt gerechnet wurden, steht in den Daten selbst.
+  // Der Sync-Lauf wäre die genauere Quelle, ist aber der Betriebsrolle
+  // vorbehalten — diese Angabe sieht jeder.
+  const zeitstempel = series.map((row) => row.calculated_at).filter(Boolean).sort();
+  state.lastCalculated = zeitstempel.length > 0 ? zeitstempel[zeitstempel.length - 1] : null;
   state.metrics = {};
   metricRows.forEach((row) => { state.metrics[row.slug] = toPerson(row); });
 
@@ -667,15 +673,45 @@ function renderManager() {
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
 }
 
+// Der Zeitplan feuert zur vollen, viertel, halben und dreiviertel Stunde. Die
+// Angabe ist deshalb eine Schätzung: GitHub garantiert keine Pünktlichkeit und
+// verschiebt Läufe bei Auslastung. Das steht so auch im Titel des Elements.
+function minutesToNextSync() {
+  const jetzt = new Date();
+  const verbleibend = (15 - (jetzt.getMinutes() % 15)) * 60 - jetzt.getSeconds();
+  return Math.max(0, Math.ceil(verbleibend / 60));
+}
+
+function minutesSince(isoTimestamp) {
+  if (!isoTimestamp) return null;
+  const differenz = Date.now() - Date.parse(isoTimestamp);
+  if (Number.isNaN(differenz)) return null;
+  return Math.max(0, Math.floor(differenz / 60000));
+}
+
 function renderSyncBadge() {
   const label = state.status === "live" ? "Live-Daten"
     : state.status === "preview" ? "Designvorschau"
     : state.status === "loading" ? "Lädt" : "Getrennt";
-  const note = state.status === "live" ? "Supabase, aktualisiert automatisch"
-    : state.status === "preview" ? "Beispielzahlen, nicht aus Close"
-    : state.error ?? "Verbindung wird aufgebaut";
+  let note;
+  if (state.status === "live") {
+    const her = minutesSince(state.lastCalculated);
+    const bis = minutesToNextSync();
+    const zuletzt = her === null ? "Stand unbekannt" : her < 1 ? "gerade aktualisiert" : `zuletzt vor ${her} Min`;
+    note = `${zuletzt} · nächster Lauf in ~${bis} Min`;
+  } else if (state.status === "preview") {
+    note = "Beispielzahlen, nicht aus Close";
+  } else {
+    note = state.error ?? "Verbindung wird aufgebaut";
+  }
+
+  const titel = state.status === "live"
+    ? "Der Sync läuft alle 15 Minuten. GitHub garantiert keine Pünktlichkeit, der Lauf kann sich verschieben."
+    : "";
+
   document.querySelector(".sync-status").innerHTML =
-    `<span class="sync-dot ${state.status === "live" ? "is-live" : ""}" aria-hidden="true"></span><span><strong>${label}</strong><small>${note}</small></span>`;
+    `<span class="sync-dot ${state.status === "live" ? "is-live" : ""}" aria-hidden="true"></span>
+     <span title="${titel}"><strong>${label}</strong><small>${note}</small></span>`;
 }
 
 function updateUrl() {
@@ -940,6 +976,11 @@ function applyWidgetMode(name) {
 
 function boot() {
   readInitialState();
+  // Nur das Abzeichen auffrischen, nicht das ganze Dashboard: Der Countdown
+  // ändert sich jede Minute, die Zahlen tun das nicht.
+  setInterval(() => {
+    if (state.status === "live") renderSyncBadge();
+  }, 20000);
   document.querySelector("#reference-date").value = state.referenceDate;
 
   const params = new URLSearchParams(window.location.search);

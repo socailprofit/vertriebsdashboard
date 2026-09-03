@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03j";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03k";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -118,7 +118,7 @@ export async function loadDailySeries(startDate, endDate) {
     "Verlauf laden",
     requireClient()
       .from("dashboard_daily_metrics")
-      .select("metric_date, slug, calls_gross, calls_net, decision_maker_contacts, appointments")
+      .select("metric_date, slug, calls_gross, calls_net, decision_maker_contacts, appointments, calculated_at")
       .gte("metric_date", startDate)
       .lte("metric_date", endDate)
       .order("metric_date"),
