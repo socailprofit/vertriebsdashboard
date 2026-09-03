@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03n";
+import * as data from "./data.js?v=2026-09-03o";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -203,6 +203,10 @@ function workdaysBetween(startIso, endIso) {
 // Anrufen entspricht an einem Tag rund 20. Quotenziele werden nicht skaliert,
 // eine Quote ist von der Dauer unabhängig.
 function targetFor(personId, column) {
+  // Eine Kennzahl ohne Ziel hat keine Zielspalte. Ohne diese Prüfung reicht
+  // eine einzige zielfreie Kennzahl in den Kernwerten, um das gesamte Laden
+  // abzubrechen — genau das ist am 2026-09-03 mit der Nettoquote passiert.
+  if (!column) return null;
   const ids = Array.isArray(personId) ? personId : [personId];
   const isRate = column.endsWith("_target");
   const rates = [];
@@ -401,7 +405,10 @@ function renderCore() {
     const score = entry.slug === "team" ? null : weightedScore(entry.metrics, entry.targetId);
     const values = coreMetrics().map((metric) => {
       const value = entry.metrics[metric.key];
-      const target = metric.rateTarget ? targetFor(entry.targetId, metric.rateTarget) : targetFor(entry.targetId, metric.target);
+      // metricTarget behandelt zielfreie Kennzahlen bereits richtig. Die
+      // Detailansicht nutzt es, die Kernwerte taten es nicht — deshalb brach
+      // hier alles ab, sobald eine Kennzahl ohne Ziel nach oben rückte.
+      const target = metricTarget(metric, entry.targetId);
       const rating = value === null || target === null ? null : attainment(value, target);
       return `
         <div class="core-value ${performanceClass(rating)}">
