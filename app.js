@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03m";
+import * as data from "./data.js?v=2026-09-03n";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
