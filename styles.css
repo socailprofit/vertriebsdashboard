@@ -479,6 +479,15 @@ tbody td:first-child { font-weight: 620; }
 .hour-track { height: 14px; background: var(--bg); border-radius: 5px; overflow: hidden; }
 .hour-track i { display: block; height: 100%; border-radius: 5px; }
 
+/* Tagesansicht: Mengen bleiben von Quoten getrennt. Netto liegt als klare
+   zweite Ebene auf dem Brutto-Balken; so ist sichtbar, wann gearbeitet und
+   wann tatsächlich abgenommen wurde. */
+.volume-hour-row { display: grid; grid-template-columns: 54px 1fr 158px; align-items: center; gap: 12px; }
+.volume-track { position: relative; display: block; height: 16px; overflow: hidden; background: var(--bg); border-radius: 5px; }
+.volume-track i { position: absolute; inset: 0 auto 0 0; display: block; border-radius: 5px; }
+.volume-gross { background: color-mix(in srgb, var(--muted-2) 45%, transparent); }
+.volume-net { background: var(--accent); min-width: 0; }
+
 /* Die Quote steht neben dem Balken statt darin — sonst ist sie genau bei
    schmalen Balken unlesbar, wo man sie am ehesten nachschlägt. */
 .hour-figure { display: flex; align-items: baseline; gap: 6px; font-size: 0.76rem; }
@@ -547,6 +556,11 @@ body.is-widget .panel { border-radius: 0; min-height: 100vh; }
 @media (max-width: 720px) {
   .goal-item { grid-template-columns: 1fr; gap: 4px; }
   .goal-figure { text-align: left; }
+}
+
+@media (max-width: 620px) {
+  .volume-hour-row { grid-template-columns: 46px 1fr; }
+  .volume-hour-row .hour-figure { grid-column: 2; }
 }
 
 .trend-hours-heading { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }

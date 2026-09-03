@@ -1,6 +1,23 @@
 export const MAPPING_VERSION = "2026-09-03.v2";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
+export function metricTimeInReportingTimezone(occurredAt: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: REPORTING_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(occurredAt)).map((part) => [part.type, part.value]),
+  );
+  return {
+    metricDate: `${parts.year}-${parts.month}-${parts.day}`,
+    metricHour: Number(parts.hour),
+  };
+}
+
 export const CLOSE_USERS = {
   michael: "user_PtDJ2ZbYSQx82Dht5CRc2QBLcDfRjvXKjQuOi1N5lzy",
   felix: "user_thRspTxlj3UlN5P4ALk2vGwdSh2KlFxPth8OldN3pq4",

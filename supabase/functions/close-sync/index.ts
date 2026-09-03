@@ -11,6 +11,7 @@ import {
   mapCustomActivity,
   mapNewsletterCompletion,
   mapWonOpportunity,
+  metricTimeInReportingTimezone,
   type ActivityFact,
   type CloseCall,
   type CloseCustomActivity,
@@ -143,23 +144,6 @@ function syncTrigger(value: unknown): SyncTrigger {
   return value === "supabase-cron" ? "supabase-cron" : "manual";
 }
 
-function metricTime(occurredAt: string) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: REPORTING_TIMEZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(occurredAt)).map((part) => [part.type, part.value]),
-  );
-  return {
-    metricDate: `${parts.year}-${parts.month}-${parts.day}`,
-    metricHour: Number(parts.hour),
-  };
-}
-
 function customFieldsFrom(record: JsonRecord) {
   return Object.entries(record)
     .filter(([key]) => key.startsWith("custom.cf_"))
@@ -251,7 +235,7 @@ function rawActivityRow(record: JsonRecord, type: "call" | "custom_activity") {
 }
 
 function activityFactRow(fact: ActivityFact) {
-  const time = metricTime(fact.occurredAt);
+  const time = metricTimeInReportingTimezone(fact.occurredAt);
   return {
     source_activity_id: fact.sourceActivityId,
     source_type: fact.sourceType,
@@ -525,7 +509,7 @@ Deno.serve(async (request) => {
       await upsertBatches(supabase, "close_opportunity_facts", opportunityRows, "opportunity_id");
       await upsertBatches(supabase, "close_newsletter_subscriptions", newsletterRows, "close_subscription_id");
       const newsletterMetricDates = newsletterCompletions
-        .map((completion) => metricTime(completion.completedAt).metricDate)
+        .map((completion) => metricTimeInReportingTimezone(completion.completedAt).metricDate)
         .filter((metricDate) => metricDate >= retentionStart && metricDate <= endDate);
       const metricsStartDate = newsletterMetricDates.reduce(
         (earliest, metricDate) => metricDate < earliest ? metricDate : earliest,

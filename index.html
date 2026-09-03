@@ -52,7 +52,7 @@
           <div>
             <p class="eyebrow" id="view-kicker">Gemeinsamer Wettbewerb</p>
             <h1 id="page-title">Michael gegen Felix</h1>
-            <p id="view-description">Die vier Kernwerte im Vergleich, alles Weitere darunter.</p>
+            <p id="view-description">Sechs logisch zusammenhängende Kernwerte im Vergleich, alles Weitere darunter.</p>
           </div>
 
           <div class="period-controls">
@@ -96,11 +96,12 @@
           <section class="panel" id="widget-trichter" data-widget="trichter" aria-labelledby="funnel-title">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Conversion</p>
+                <p class="eyebrow">Kontaktstufen</p>
                 <h2 id="funnel-title">Vom Anruf zum Termin</h2>
               </div>
             </div>
             <div class="funnel" id="funnel"></div>
+            <p class="chart-legend" id="funnel-note"></p>
           </section>
 
           <section class="panel" id="widget-stunden" data-widget="stunden" aria-labelledby="hours-title">
@@ -109,9 +110,9 @@
                 <p class="eyebrow">Nach Uhrzeit</p>
                 <h2 id="hours-title">Beste Anrufzeiten</h2>
               </div>
-              <div class="rate-switch" role="group" aria-label="Quote auswählen">
+              <div class="rate-switch" id="hours-rate-switch" role="group" aria-label="Quote auswählen">
                 <button data-rate="connection" class="active" type="button">Durchstellquote</button>
-                <button data-rate="reach" type="button">Nettoquote</button>
+                <button data-rate="net" type="button">Nettoquote</button>
               </div>
             </div>
             <div id="hours-chart" class="hours-chart"></div>
@@ -151,7 +152,7 @@
             </div>
             <div class="rate-switch" role="group" aria-label="Quote für den Dreimonatszeitraum auswählen">
               <button data-trend-rate="connection" class="active" type="button">Durchstellquote</button>
-              <button data-trend-rate="reach" type="button">Nettoquote</button>
+              <button data-trend-rate="net" type="button">Nettoquote</button>
             </div>
           </div>
           <div id="trend-hours" class="hours-chart"></div>

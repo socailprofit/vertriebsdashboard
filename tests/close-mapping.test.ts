@@ -9,6 +9,7 @@ import {
   mapCustomActivity,
   mapNewsletterCompletion,
   mapWonOpportunity,
+  metricTimeInReportingTimezone,
 } from "../supabase/functions/_shared/close-mapping.ts";
 
 test("answered outbound call counts as gross and net", () => {
@@ -123,4 +124,17 @@ test("newsletter counts only a completed subscription in the approved workflow",
     date_updated: "2026-09-03T10:15:00Z",
     status: "active",
   }), null);
+});
+
+test("hours are normalised from Close activity_at into Europe/Berlin", () => {
+  assert.deepEqual(metricTimeInReportingTimezone("2026-09-03T06:30:00Z"), {
+    metricDate: "2026-09-03",
+    metricHour: 8,
+  });
+  // Zeitumstellung: 01:30 UTC ist am Ende der Sommerzeit immer noch 02:30
+  // in Berlin. Die Kennzahl bleibt dem richtigen lokalen Tag und Zeitfenster.
+  assert.deepEqual(metricTimeInReportingTimezone("2026-10-25T01:30:00Z"), {
+    metricDate: "2026-10-25",
+    metricHour: 2,
+  });
 });

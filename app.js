@@ -9,6 +9,7 @@ import * as data from "./data.js?v=2026-09-03m";
 const metricDefinitions = [
   { key: "callsGross", label: "Anrufe brutto", detail: "Ausgehend, endgültiger Status", format: number, target: "calls_gross" },
   { key: "callsNet", label: "Anrufe netto", detail: "Abgeschlossen und angenommen", format: number, target: "calls_net" },
+  { key: "netRate", label: "Nettoquote", detail: "Netto-Anrufe ÷ Brutto-Anrufe", format: percent, noTarget: true },
   { key: "gatekeeper", label: "Vorzimmer", detail: "Gatekeeper erreicht", format: number, target: "gatekeeper_contacts" },
   { key: "connected", label: "Durchstellungen", detail: "Vom Vorzimmer durchgestellt", format: number, target: "connected_calls" },
   { key: "connectionRate", label: "Durchstellquote", detail: "Durchstellungen ÷ Vorzimmer", format: percent, rateTarget: "transfer_rate_target", ratio: ["connected", "gatekeeper"] },
@@ -119,6 +120,7 @@ function toPerson(row) {
     color: row.color,
     callsGross: Number(row.calls_gross),
     callsNet: Number(row.calls_net),
+    netRate: Number(row.net_rate),
     talkMinutes: Number(row.talk_seconds) / 60,
     gatekeeper: Number(row.gatekeeper_contacts),
     connected: Number(row.connected_calls),
@@ -259,7 +261,7 @@ function performanceClass(score) {
 
 // Vier Werte tragen die erste Ebene. Alles andere ist eine Ebene tiefer
 // erreichbar, statt gleichzeitig um Aufmerksamkeit zu konkurrieren.
-const CORE_KEYS = ["callsGross", "callsNet", "decisionMakers", "appointments"];
+const CORE_KEYS = ["callsGross", "callsNet", "netRate", "decisionMakers", "appointments", "appointmentRate"];
 
 function coreMetrics() {
   return CORE_KEYS.map((key) => metricDefinitions.find((metric) => metric.key === key));
@@ -267,7 +269,7 @@ function coreMetrics() {
 
 const DETAIL_ORDER = [
   "gatekeeper", "connected", "connectionRate", "directDecisionMakers",
-  "appointmentRate", "newsletters",
+  "newsletters",
 ];
 
 function detailMetrics() {
@@ -373,6 +375,7 @@ function teamEntry() {
   };
   // Team-Quoten aus den Summen, nicht als Mittel der Einzelquoten — sonst zählte
   // jemand mit wenigen Gesprächen genauso schwer wie jemand mit vielen.
+  metrics.netRate = safeRate(metrics.callsNet, metrics.callsGross);
   metrics.connectionRate = safeRate(metrics.connected, metrics.gatekeeper);
   metrics.appointmentRate = safeRate(metrics.appointments, metrics.decisionMakers);
   return { slug: "team", label: "Team", color: "#9fb4d0", targetId: people.map((p) => p.id), metrics };
@@ -496,6 +499,8 @@ function renderSeries() {
     : state.period === "day"
       ? `Letzte Tage bis zum Stichtag — ein einzelner Tag ergäbe keinen Verlauf. ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`
       : `Tageswerte im gewählten Zeitraum: ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`;
+  // Die Verlaufsdiagramme zeigen Mengen. Quoten stehen in den Kernwerten,
+  // weil sie dort stets aus der richtigen Grundgesamtheit berechnet werden.
   const columns = {
     callsGross: "calls_gross",
     callsNet: "calls_net",
@@ -503,7 +508,7 @@ function renderSeries() {
     appointments: "appointments",
   };
 
-  document.querySelector("#series-charts").innerHTML = coreMetrics().map((metric) => {
+  document.querySelector("#series-charts").innerHTML = coreMetrics().filter((metric) => columns[metric.key]).map((metric) => {
     const column = columns[metric.key];
     const seriesByPerson = {};
     orderedPeople().forEach((person) => {
@@ -544,8 +549,10 @@ function renderFunnel() {
         <span class="funnel-label">${label}</span>
         <span class="funnel-bar">${bars}</span>
         <span class="funnel-total">${number(totals[index])}</span>
-      </div>`;
+    </div>`;
   }).join("");
+  document.querySelector("#funnel-note").textContent =
+    "Kontaktstufen sind keine starre 1:1-Kette: Direkte Entscheider umgehen das Vorzimmer. Die Balken zeigen Mengen, keine erfundenen Konversionsraten.";
 }
 
 // Stundenprofil. Drei Dinge, die eine reine Datenübertragung falsch machen
@@ -564,6 +571,15 @@ function renderFunnel() {
 const HOUR_MIN_BASE = 3;
 
 function renderHours() {
+  const rateSwitch = document.querySelector("#hours-rate-switch");
+  if (state.period === "day") {
+    document.querySelector("#hours-title").textContent = "Tagesverlauf nach Uhrzeit";
+    rateSwitch.hidden = true;
+    zeichneTagesvolumen();
+    return;
+  }
+  document.querySelector("#hours-title").textContent = "Beste Anrufzeiten";
+  rateSwitch.hidden = false;
   zeichneStunden("#hours-chart", state.hours, state.heatmapRate);
 }
 
@@ -577,17 +593,13 @@ function renderTrendHours() {
 function zeichneStunden(selektor, quelle, quote) {
   const container = document.querySelector(selektor);
   const useConnection = quote === "connection";
-  const valueKey = useConnection ? "transfer_rate" : "reach_rate";
+  const valueKey = useConnection ? "transfer_rate" : "net_rate";
   const baseKey = useConnection ? "gatekeeper_contacts" : "calls_gross";
   const baseLabel = useConnection ? "Vorzimmer-Kontakte" : "Anrufe";
 
-  const hours = [...new Set(quelle.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
-    .sort((a, b) => a - b);
-
-  if (hours.length === 0) {
-    container.innerHTML = `<p class="empty-note">Für diesen Zeitraum liegen keine ${baseLabel} vor.</p>`;
-    return;
-  }
+  // 08:00–17:00 ist die operative Anrufzeit. Auch leere Stunden bleiben
+  // sichtbar, damit ein später Nachmittag nicht fälschlich verschwindet.
+  const hours = Array.from({ length: 10 }, (_, index) => index + 8);
 
   const people = orderedPeople();
   const rows = hours.map((hour) => {
@@ -617,6 +629,35 @@ function zeichneStunden(selektor, quelle, quote) {
   container.innerHTML = rows + legende;
 }
 
+function zeichneTagesvolumen() {
+  const container = document.querySelector("#hours-chart");
+  const people = orderedPeople();
+  const hours = Array.from({ length: 10 }, (_, index) => index + 8);
+  const totals = hours.map((hour) => people.reduce((sum, person) => {
+    const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
+    return {
+      callsGross: sum.callsGross + Number(row?.calls_gross ?? 0),
+      callsNet: sum.callsNet + Number(row?.calls_net ?? 0),
+    };
+  }, { callsGross: 0, callsNet: 0 }));
+  const maxGross = Math.max(1, ...totals.map((total) => total.callsGross));
+
+  const rows = hours.map((hour, index) => {
+    const total = totals[index];
+    const rate = total.callsGross === 0 ? null : safeRate(total.callsNet, total.callsGross);
+    return `<div class="volume-hour-row">
+      <span class="hour-label">${String(hour).padStart(2, "0")}:00</span>
+      <span class="volume-track" title="${hour}:00 Uhr: ${number(total.callsGross)} Brutto, ${number(total.callsNet)} Netto">
+        <i class="volume-gross" style="width:${(total.callsGross / maxGross) * 100}%"></i>
+        <i class="volume-net" style="width:${(total.callsNet / maxGross) * 100}%"></i>
+      </span>
+      <span class="hour-figure"><b>${number(total.callsGross)}</b><small>brutto · ${number(total.callsNet)} netto · ${rate === null ? "–" : percent(rate)}</small></span>
+    </div>`;
+  }).join("");
+  container.innerHTML = rows +
+    `<p class="chart-legend">Je Stunde: helle Fläche = Brutto-Anrufe, farbige Fläche = angenommene Netto-Anrufe. Leere Stunden von 08:00 bis 17:00 bleiben sichtbar.</p>`;
+}
+
 // --- Details -----------------------------------------------------------------
 
 function renderDetails() {
@@ -642,7 +683,9 @@ function renderDetails() {
 
 function renderTrends() {
   const columns = [
+    ["calls_gross", "Brutto", number],
     ["calls_net", "Netto-Anrufe", number],
+    ["net_rate", "Nettoquote", percent],
     ["connection_rate", "Durchstellquote", percent],
     ["decision_maker_contacts", "Entscheider", number],
     ["appointments", "Termine", number],
@@ -857,7 +900,7 @@ document.addEventListener("click", (event) => {
     document.querySelectorAll("[data-rate]").forEach((button) => {
       button.classList.toggle("active", button.dataset.rate === state.heatmapRate);
     });
-    renderHeatmap();
+    renderHours();
   }
 });
 
@@ -929,8 +972,8 @@ function samplePreview() {
   ];
   state.people = people;
   state.metrics = {
-    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, dealsWon: 7, winRate: 12.1, revenue: 4200000, newsletters: null },
-    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
+    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, netRate: 65.1, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, dealsWon: 7, winRate: 12.1, revenue: 4200000, newsletters: null },
+    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, netRate: 57.1, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
   };
   state.periodRange = { start: "2026-09-01", end: "2026-09-30" };
   // Wie die echten Ziele: 150 Brutto-Anrufe je Arbeitstag und 25 % Terminquote.
@@ -947,7 +990,7 @@ function samplePreview() {
       state.hours.push({
         slug: person.slug, metric_hour: hour,
         calls_gross: 40 - index * 12, calls_net: 24 - index * 8,
-        reach_rate: shape - 6 + index * 3,
+        net_rate: shape - 6 + index * 3,
         gatekeeper_contacts: 18 - index * 5, connected_calls: 10 - index * 3,
         transfer_rate: shape - index * 11,
       });
@@ -959,6 +1002,7 @@ function samplePreview() {
       month_start: month, slug: person.slug, display_name: person.display_name, color: person.color,
       calls_gross: 479 - index * 71 - monthIndex * 40,
       calls_net: 312 - index * 79 - monthIndex * 25,
+      net_rate: 65.1 - index * 8 - monthIndex * 2,
       gatekeeper_contacts: 186 - index * 34 - monthIndex * 15,
       connected_calls: 121 - index * 53 - monthIndex * 9,
       connection_rate: 65.1 - index * 20.4 - monthIndex * 2,

@@ -24,6 +24,15 @@
 | Gesprächszeit | Call Activity | Summe `duration` nur für Netto-Calls |
 | Beste Anrufzeiten | Call Activity und Opening/Follow-up | Zwei Quoten je Stunde in `Europe/Berlin`: Nettoquote (netto/brutto) und Durchstellquote (Durchstellungen/Vorzimmer-Kontakte) |
 
+### Zeit- und Zeitraumlogik
+
+- Der Tag einer Aktivität und ihre Stunde stammen aus Close `activity_at`, vor dem Speichern nach `Europe/Berlin` umgerechnet. Die Uhrzeit des stündlichen Syncs verändert keine Kennzahl.
+- **Tag** zeigt exakt den ausgewählten Kalendertag. Der Tagesverlauf listet jede operative Stunde von **08:00 bis 17:00** – auch dann, wenn keine Aktivität vorliegt.
+- **Woche** zeigt Montag bis Freitag der Kalenderwoche; Samstag und Sonntag gehören nicht in die Vertriebswoche.
+- **Monat** beginnt immer am Ersten und endet am letzten Kalendertag des ausgewählten Monats. Die Trendtabelle zeigt den aktuellen sowie die zwei vorherigen Monate.
+- Nettoquote = Summe Netto-Anrufe / Summe Brutto-Anrufe. Durchstellquote = Summe Durchstellungen / Summe Vorzimmer-Kontakte. Terminquote = Summe Termine / Summe Entscheiderkontakte. Das Dashboard bildet nie Mittelwerte aus Einzelquoten.
+- Stunden ohne Grundgesamtheit zeigen bei Quoten einen Strich statt `0 %`. Stunden mit weniger als drei Kontakten bleiben sichtbar, werden aber als zu kleine Basis gedämpft und nicht als Empfehlung behandelt.
+
 `created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die stündliche Überlappung werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
 
 ### KPI-Umfang des ersten Dashboards
@@ -142,4 +151,5 @@ Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormona
 - 2026-09-02: Mapping-Version `2026-09-02.v1` lokal angelegt.
 - 2026-09-02: Sichtbaren MVP-Umfang auf Brutto, Netto, Anrufzeiten, Vorzimmer, Entscheider, Termine und Newsletter begrenzt.
 - 2026-09-03: Newsletter-Quelle auf den freigegebenen Close-Workflow festgelegt; Abschlussstatus `goal` und `finished` werden Michael/Felix über den Ersteller der Anmeldung zugerechnet.
-- Nächster Schritt: Mapping in den manuellen Close-Sync einbauen und einen vollständigen Testtag gegen Close zählen.
+- 2026-09-03: KPI- und Zeitraumvertrag präzisiert: sechs Kernwerte, Nettoquote aus Brutto/Netto, Terminquote aus Entscheider/Termine, Wochenansicht Montag bis Freitag und Stundenanzeige 08:00 bis 17:00.
+- Nächster Schritt: Einen vollständigen Testtag gegen Close zählen und die erste produktive Stunden-Synchronisierung kontrollieren.
