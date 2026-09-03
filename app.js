@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03g";
+import * as data from "./data.js?v=2026-09-03h";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -187,10 +187,16 @@ async function loadAll() {
 
 // --- Ziele -------------------------------------------------------------------
 
-function daysBetween(startIso, endIso) {
-  const start = Date.parse(`${startIso}T00:00:00Z`);
-  const end = Date.parse(`${endIso}T00:00:00Z`);
-  return Math.round((end - start) / 86400000) + 1;
+function workdaysBetween(startIso, endIso) {
+  let count = 0;
+  const cursor = new Date(`${startIso}T12:00:00Z`);
+  const end = Date.parse(`${endIso}T12:00:00Z`);
+  while (cursor.getTime() <= end) {
+    const weekday = cursor.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) count += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
 }
 
 // Ein Ziel gilt für seinen eigenen Zeitraum. Deckt die Ansicht nur einen Teil
@@ -218,12 +224,18 @@ function targetFor(personId, column) {
     const overlapEnd = target.period_end < state.periodRange.end ? target.period_end : state.periodRange.end;
     if (overlapEnd < overlapStart) continue;
 
-    total += Number(value) * (daysBetween(overlapStart, overlapEnd) / daysBetween(target.period_start, target.period_end));
+    const zielTage = workdaysBetween(target.period_start, target.period_end);
+    if (zielTage === 0) continue;
+    total += Number(value) * (workdaysBetween(overlapStart, overlapEnd) / zielTage);
     found = true;
   }
 
   if (isRate) return rates.length === 0 ? null : rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-  return found ? Math.max(1, Math.round(total)) : null;
+  // Ein Wochenende enthält keine Arbeitstage. Dann gibt es kein Ziel, statt
+  // eines von null, an dem jede Zahl scheitern würde.
+  if (!found) return null;
+  const skaliert = Math.round(total);
+  return skaliert === 0 ? null : skaliert;
 }
 
 function metricTarget(metric, personId) {
@@ -250,14 +262,24 @@ function performanceClass(score) {
 
 // Vier Werte tragen die erste Ebene. Alles andere ist eine Ebene tiefer
 // erreichbar, statt gleichzeitig um Aufmerksamkeit zu konkurrieren.
-const CORE_KEYS = ["callsNet", "connectionRate", "appointments", "appointmentRate"];
+const CORE_KEYS = ["callsGross", "callsNet", "decisionMakers", "appointments"];
 
 function coreMetrics() {
   return CORE_KEYS.map((key) => metricDefinitions.find((metric) => metric.key === key));
 }
 
+const DETAIL_ORDER = [
+  "gatekeeper", "connectionRate", "directDecisionMakers", "appointmentRate",
+  "newsletters", "dealsWon", "winRate", "revenue",
+];
+
 function detailMetrics() {
-  return metricDefinitions.filter((metric) => !CORE_KEYS.includes(metric.key));
+  const rest = metricDefinitions.filter((metric) => !CORE_KEYS.includes(metric.key));
+  return rest.slice().sort((a, b) => {
+    const ia = DETAIL_ORDER.indexOf(a.key);
+    const ib = DETAIL_ORDER.indexOf(b.key);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
 }
 
 function orderedPeople() {
@@ -435,10 +457,10 @@ function renderSeries() {
 
   const days = [...new Set(state.series.map((row) => row.metric_date))].sort();
   const columns = {
+    callsGross: "calls_gross",
     callsNet: "calls_net",
-    connectionRate: "connection_rate",
+    decisionMakers: "decision_maker_contacts",
     appointments: "appointments",
-    appointmentRate: "appointment_rate",
   };
 
   document.querySelector("#series-charts").innerHTML = coreMetrics().map((metric) => {
@@ -486,32 +508,62 @@ function renderFunnel() {
   }).join("");
 }
 
-// Stundenprofil als liegendes Balkendiagramm statt Kachelgitter.
+// Stundenprofil. Drei Dinge, die eine reine Datenübertragung falsch machen
+// würde:
+//
+// Eine Quote von 0 % behauptet, dass niemand durchgestellt hat. Lagen in der
+// Stunde gar keine Kontakte vor, ist das keine Null, sondern keine Aussage —
+// dafür steht ein Strich.
+//
+// 100 % aus einem einzigen Kontakt sieht aus wie die beste Anrufzeit des Tages.
+// Deshalb steht die Grundgesamtheit neben jeder Quote, und alles unter drei
+// Kontakten wird gedämpft: erkennbar, aber nicht als Empfehlung lesbar.
+//
+// Die Zahl steht außerhalb des Balkens, sonst verschwindet sie bei schmalen
+// Balken genau dort, wo man sie am ehesten nachliest.
+const HOUR_MIN_BASE = 3;
+
 function renderHours() {
   const container = document.querySelector("#hours-chart");
   const useConnection = state.heatmapRate === "connection";
   const valueKey = useConnection ? "transfer_rate" : "reach_rate";
   const baseKey = useConnection ? "gatekeeper_contacts" : "calls_gross";
+  const baseLabel = useConnection ? "Vorzimmer-Kontakte" : "Anrufe";
 
   const hours = [...new Set(state.hours.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
     .sort((a, b) => a - b);
 
   if (hours.length === 0) {
-    container.innerHTML = `<p class="empty-note">Für diesen Zeitraum liegen keine ${useConnection ? "Vorzimmer-Kontakte" : "Anrufe"} vor.</p>`;
+    container.innerHTML = `<p class="empty-note">Für diesen Zeitraum liegen keine ${baseLabel} vor.</p>`;
     return;
   }
 
   const people = orderedPeople();
-  container.innerHTML = hours.map((hour) => {
+  const rows = hours.map((hour) => {
     const bars = people.map((person) => {
       const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
       const base = row ? Number(row[baseKey]) : 0;
       const value = row ? Number(row[valueKey]) : 0;
-      if (base === 0) return `<i class="is-empty" title="${firstName(person.display_name)}: keine Daten"></i>`;
-      return `<i style="width:${Math.max(2, value)}%;background:${person.color}" title="${firstName(person.display_name)}, ${hour}:00 Uhr: ${Math.round(value)} % aus ${base}"><b>${Math.round(value)}%</b></i>`;
+
+      if (base === 0) {
+        return `<span class="hour-bar is-missing" title="${firstName(person.display_name)}, ${hour}:00 Uhr: keine ${baseLabel}">
+                  <span class="hour-track"></span>
+                  <span class="hour-figure">–</span>
+                </span>`;
+      }
+
+      const duenn = base < HOUR_MIN_BASE;
+      return `<span class="hour-bar ${duenn ? "is-thin" : ""}"
+                title="${firstName(person.display_name)}, ${hour}:00 Uhr: ${Math.round(value)} % aus ${base} ${baseLabel}${duenn ? " — zu wenig für eine Aussage" : ""}">
+                <span class="hour-track"><i style="width:${Math.max(1, value)}%;background:${person.color}"></i></span>
+                <span class="hour-figure"><b>${Math.round(value)} %</b><small>aus ${base}</small></span>
+              </span>`;
     }).join("");
     return `<div class="hour-row"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span><span class="hour-bars">${bars}</span></div>`;
   }).join("");
+
+  const legende = `<p class="chart-legend">Quote je Stunde, daneben die Grundgesamtheit. Gedämpfte Zeilen beruhen auf weniger als ${HOUR_MIN_BASE} ${baseLabel} und taugen nicht als Empfehlung.</p>`;
+  container.innerHTML = rows + legende;
 }
 
 // --- Details -----------------------------------------------------------------
@@ -786,10 +838,13 @@ function samplePreview() {
     felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
   };
   state.periodRange = { start: "2026-09-01", end: "2026-09-30" };
-  state.targets = [
-    { sales_person_id: "p1", period_start: "2026-09-01", period_end: "2026-09-30", calls_gross: 500, calls_net: 300, gatekeeper_contacts: 180, connected_calls: 110, decision_maker_contacts: 150, appointments: 50, transfer_rate_target: 60, appointment_rate_target: 33 },
-    { sales_person_id: "p2", period_start: "2026-09-01", period_end: "2026-09-30", calls_gross: 500, calls_net: 300, gatekeeper_contacts: 180, connected_calls: 110, decision_maker_contacts: 150, appointments: 50, transfer_rate_target: 60, appointment_rate_target: 33 },
-  ];
+  // Wie die echten Ziele: 150 Brutto-Anrufe je Arbeitstag und 25 % Terminquote.
+  state.targets = ["p1", "p2"].map((id) => ({
+    sales_person_id: id, period_start: "2026-09-01", period_end: "2026-09-30",
+    calls_gross: 150 * 22, calls_net: 0, gatekeeper_contacts: 0, connected_calls: 0,
+    decision_maker_contacts: 0, appointments: 0,
+    transfer_rate_target: null, appointment_rate_target: 25,
+  }));
   state.hours = [];
   for (let hour = 8; hour <= 17; hour += 1) {
     const shape = [38, 52, 61, 57, 34, 41, 66, 72, 59, 44][hour - 8];

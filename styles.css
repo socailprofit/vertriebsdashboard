@@ -338,69 +338,6 @@ footer {
 
 /* --- Trichter ----------------------------------------------------------- */
 
-.funnel-section, .analysis-panel, .projects-section, .manager-section, .race-section, .metrics-section {
-  padding: clamp(16px, 2vw, 24px);
-  background: var(--surface);
-  border-radius: var(--radius);
-}
-
-.funnel { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-
-.funnel-step { display: grid; gap: 8px; padding: 14px; background: var(--bg); border-radius: 12px; }
-.funnel-step > small { color: var(--muted-2); font-size: 0.76rem; }
-.funnel-values { display: flex; gap: 14px; }
-.funnel-person { display: grid; }
-.funnel-person strong { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
-.funnel-person span { color: var(--muted-2); font-size: 0.72rem; }
-.funnel-person.is-dimmed { opacity: 0.4; }
-.funnel-line { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
-
-.person-legend { display: flex; gap: 14px; color: var(--muted); font-size: 0.8rem; }
-.person-legend span { display: flex; align-items: center; gap: 6px; }
-.legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.legend-dot.michael { background: var(--michael); }
-.legend-dot.felix { background: var(--felix); }
-
-/* --- Analyse ------------------------------------------------------------ */
-
-.analysis-grid { display: grid; gap: clamp(16px, 2vw, 24px); grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
-
-.heatmap { display: grid; gap: 6px; overflow-x: auto; }
-.heat-row { display: grid; grid-template-columns: 78px repeat(var(--hours, 9), minmax(46px, 1fr)); gap: 5px; align-items: center; }
-.heat-row.header span { color: var(--muted-2); font-size: 0.68rem; text-align: center; }
-.heat-person { font-size: 0.84rem; font-weight: 620; }
-
-.heat-cell {
-  display: grid;
-  place-items: center;
-  padding: 11px 2px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--heat-color) var(--heat-strength), transparent);
-  font-size: 0.78rem;
-  font-weight: 620;
-}
-
-.heat-cell.is-empty { color: var(--muted-2); background: transparent; border: 1px dashed var(--line); }
-
-.caller-ranking { display: grid; gap: 10px; }
-
-.ranking-person {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 15px;
-  background: var(--bg);
-  border-left: 3px solid var(--rank-color);
-  border-radius: 12px;
-}
-
-.rank-number { color: var(--muted-2); font-size: 0.8rem; font-weight: 700; }
-.rank-avatar { display: grid; place-items: center; width: 38px; height: 38px; background: var(--rank-soft); color: var(--rank-color); border-radius: 50%; font-size: 0.8rem; font-weight: 700; }
-.rank-copy strong { display: block; font-size: 0.94rem; }
-.rank-copy small { color: var(--muted-2); font-size: 0.74rem; }
-.rank-value { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
-
 .empty-note { margin: 0; padding: 20px 4px; color: var(--muted-2); font-size: 0.86rem; }
 
 /* --- Tabellen ----------------------------------------------------------- */
@@ -533,23 +470,27 @@ tbody td:first-child { font-weight: 620; }
 .funnel-total { text-align: right; font-size: 0.95rem; font-weight: 700; }
 
 /* Stundenprofil als liegende Balken statt Kachelgitter. */
-.hours-chart { display: grid; gap: 6px; }
-.hour-row { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 10px; }
+.hours-chart { display: grid; gap: 8px; }
+.hour-row { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 12px; }
 .hour-label { color: var(--muted-2); font-size: 0.74rem; }
-.hour-bars { display: grid; gap: 3px; }
+.hour-bars { display: grid; gap: 4px; }
 
-.hour-bars i {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  height: 15px;
-  padding-right: 6px;
-  border-radius: 4px;
-  min-width: 30px;
-}
+.hour-bar { display: grid; grid-template-columns: 1fr 96px; align-items: center; gap: 10px; }
+.hour-track { height: 14px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.hour-track i { display: block; height: 100%; border-radius: 5px; }
 
-.hour-bars i b { color: #061020; font-size: 0.66rem; font-weight: 700; }
-.hour-bars i.is-empty { background: var(--bg); min-width: 0; width: 100%; }
+/* Die Quote steht neben dem Balken statt darin — sonst ist sie genau bei
+   schmalen Balken unlesbar, wo man sie am ehesten nachschlägt. */
+.hour-figure { display: flex; align-items: baseline; gap: 6px; font-size: 0.76rem; }
+.hour-figure b { font-weight: 700; }
+.hour-figure small { color: var(--muted-2); font-size: 0.68rem; }
+
+/* Wenige Kontakte ergeben eine Quote, aber keine Aussage. Sichtbar bleiben,
+   ohne als Empfehlung zu wirken. */
+.hour-bar.is-thin { opacity: 0.45; }
+.hour-bar.is-missing .hour-figure { color: var(--muted-2); }
+
+.chart-legend { margin: 12px 0 0; color: var(--muted-2); font-size: 0.72rem; line-height: 1.5; }
 
 /* Details: aufgeklappt nur, wenn jemand sie sehen will. */
 .details-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
