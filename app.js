@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03d";
+import * as data from "./data.js?v=2026-09-03e";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -19,7 +19,6 @@ const metricDefinitions = [
   { key: "dealsWon", label: "Deals", detail: "Gewonnene Opportunities", format: number, target: "deals_won" },
   { key: "winRate", label: "Abschlussquote", detail: "Deals ÷ Termine", format: percent, noTarget: true },
   { key: "revenue", label: "Umsatz", detail: "Gewonnene Opportunities", format: currency, target: "revenue_cents" },
-  { key: "forecast", label: "Umsatzprognose", detail: "linear auf Arbeitstage hochgerechnet", format: currency, noTarget: true },
   { key: "newsletters", label: "Newsletter", detail: "Quelle in Close noch offen", format: count, noTarget: true },
 ];
 
@@ -139,21 +138,8 @@ function toPerson(row) {
     dealsWon: Number(row.deals_won),
     winRate: Number(row.win_rate),
     revenue: Number(row.revenue_cents),
-    // Eine Hochrechnung aus drei von zweiundzwanzig Arbeitstagen multipliziert
-    // mit sieben und sagt nichts. Erst ab einem Fünftel des Zeitraums und
-    // mindestens fünf Arbeitstagen wird sie gezeigt, sonst bleibt sie leer.
-    forecast: forecastOrNull(row),
-    totalWorkdays: Number(row.total_workdays),
-    elapsedWorkdays: Number(row.elapsed_workdays),
     newsletters: row.newsletters === null ? null : Number(row.newsletters),
   };
-}
-
-function forecastOrNull(row) {
-  const elapsed = Number(row.elapsed_workdays);
-  const total = Number(row.total_workdays);
-  if (total === 0 || elapsed < 5 || elapsed / total < 0.2) return null;
-  return Number(row.revenue_forecast_cents);
 }
 
 async function loadAll() {
@@ -391,16 +377,11 @@ function boardEntries() {
     appointments: sum("appointments"),
     dealsWon: sum("dealsWon"),
     revenue: sum("revenue"),
-    totalWorkdays: state.metrics[people[0].slug].totalWorkdays,
-    elapsedWorkdays: state.metrics[people[0].slug].elapsedWorkdays,
     newsletters: people.every((person) => state.metrics[person.slug].newsletters === null) ? null : sum("newsletters"),
   };
   teamMetrics.connectionRate = safeRate(teamMetrics.connected, teamMetrics.gatekeeper);
   teamMetrics.appointmentRate = safeRate(teamMetrics.appointments, teamMetrics.decisionMakers);
   teamMetrics.winRate = safeRate(teamMetrics.dealsWon, teamMetrics.appointments);
-  teamMetrics.forecast = people.every((person) => state.metrics[person.slug].forecast === null)
-    ? null
-    : people.reduce((total, person) => total + (state.metrics[person.slug].forecast ?? 0), 0);
 
   entries.push({
     slug: "team",
@@ -785,8 +766,8 @@ function samplePreview() {
   ];
   state.people = people;
   state.metrics = {
-    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, dealsWon: 7, winRate: 12.1, revenue: 4200000, forecast: 6160000, totalWorkdays: 22, elapsedWorkdays: 15, newsletters: null },
-    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, dealsWon: 3, winRate: 14.3, revenue: 1600000, forecast: 2346000, totalWorkdays: 22, elapsedWorkdays: 15, newsletters: null },
+    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, dealsWon: 7, winRate: 12.1, revenue: 4200000, newsletters: null },
+    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
   };
   state.periodRange = { start: "2026-09-01", end: "2026-09-30" };
   state.targets = [
