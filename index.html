@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-03l" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-03m" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -143,6 +143,18 @@
               <tbody id="trend-rows"></tbody>
             </table>
           </div>
+
+          <div class="section-heading trend-hours-heading">
+            <div>
+              <p class="eyebrow">Nach Uhrzeit</p>
+              <h3>Beste Anrufzeiten über drei Monate</h3>
+            </div>
+            <div class="rate-switch" role="group" aria-label="Quote für den Dreimonatszeitraum auswählen">
+              <button data-trend-rate="connection" class="active" type="button">Durchstellquote</button>
+              <button data-trend-rate="reach" type="button">Nettoquote</button>
+            </div>
+          </div>
+          <div id="trend-hours" class="hours-chart"></div>
         </section>
 
         <section class="panel" id="manager-section" aria-labelledby="manager-title" hidden>
@@ -183,6 +195,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-03l"></script>
+    <script type="module" src="./app.js?v=2026-09-03m"></script>
   </body>
 </html>

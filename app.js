@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03l";
+import * as data from "./data.js?v=2026-09-03m";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -52,6 +52,8 @@ const state = {
   syncRun: null,
   heatmapRate: "connection",
   series: [],
+  trendHours: [],
+  trendRate: "connection",
   widget: null,
   lastCalculated: null,
   status: "start",
@@ -151,18 +153,20 @@ function addDaysIso(iso, days) {
 }
 
 async function loadAll() {
-  const [people, metricRows, hourRows, trends, series] = await Promise.all([
+  const [people, metricRows, hourRows, trends, series, trendHours] = await Promise.all([
     data.loadPeople(),
     data.loadMetrics(state.period, state.referenceDate),
     data.loadHourPerformance(state.period, state.referenceDate),
     data.loadTrends(),
     data.loadDailySeries(seriesStart(), seriesEnd()),
+    data.loadHourPerformance("trend", state.referenceDate),
   ]);
 
   state.people = people;
   state.hours = hourRows;
   state.trends = trends;
   state.series = series;
+  state.trendHours = trendHours;
   // Wann die Kennzahlen zuletzt gerechnet wurden, steht in den Daten selbst.
   // Der Sync-Lauf wäre die genauere Quelle, ist aber der Betriebsrolle
   // vorbehalten — diese Angabe sieht jeder.
@@ -562,13 +566,24 @@ function renderFunnel() {
 const HOUR_MIN_BASE = 3;
 
 function renderHours() {
-  const container = document.querySelector("#hours-chart");
-  const useConnection = state.heatmapRate === "connection";
+  zeichneStunden("#hours-chart", state.hours, state.heatmapRate);
+}
+
+// Dieselbe Darstellung über den Dreimonatszeitraum. Dort trägt sie mehr: Über
+// einen Tag beruht jede Stundenquote auf wenigen Fällen, über drei Monate auf
+// genug, um daraus eine Anrufzeit abzuleiten.
+function renderTrendHours() {
+  zeichneStunden("#trend-hours", state.trendHours, state.trendRate);
+}
+
+function zeichneStunden(selektor, quelle, quote) {
+  const container = document.querySelector(selektor);
+  const useConnection = quote === "connection";
   const valueKey = useConnection ? "transfer_rate" : "reach_rate";
   const baseKey = useConnection ? "gatekeeper_contacts" : "calls_gross";
   const baseLabel = useConnection ? "Vorzimmer-Kontakte" : "Anrufe";
 
-  const hours = [...new Set(state.hours.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
+  const hours = [...new Set(quelle.filter((row) => Number(row[baseKey]) > 0).map((row) => row.metric_hour))]
     .sort((a, b) => a - b);
 
   if (hours.length === 0) {
@@ -579,7 +594,7 @@ function renderHours() {
   const people = orderedPeople();
   const rows = hours.map((hour) => {
     const bars = people.map((person) => {
-      const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
+      const row = quelle.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
       const base = row ? Number(row[baseKey]) : 0;
       const value = row ? Number(row[valueKey]) : 0;
 
@@ -735,6 +750,7 @@ function render() {
   renderSeries();
   renderFunnel();
   renderHours();
+  renderTrendHours();
   renderDetails();
   renderTrends();
   renderManager();
@@ -827,6 +843,15 @@ document.addEventListener("click", (event) => {
   if (periodButton) {
     state.period = periodButton.dataset.period;
     refresh();
+    return;
+  }
+  const trendRateButton = event.target.closest("[data-trend-rate]");
+  if (trendRateButton) {
+    state.trendRate = trendRateButton.dataset.trendRate;
+    document.querySelectorAll("[data-trend-rate]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.trendRate === state.trendRate);
+    });
+    renderTrendHours();
     return;
   }
   const rateButton = event.target.closest("[data-rate]");
@@ -931,6 +956,7 @@ function samplePreview() {
       });
     });
   }
+  state.trendHours = state.hours;
   state.trends = ["2026-09-01", "2026-08-01", "2026-07-01"].flatMap((month, monthIndex) =>
     people.map((person, index) => ({
       month_start: month, slug: person.slug, display_name: person.display_name, color: person.color,

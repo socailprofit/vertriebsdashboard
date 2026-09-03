@@ -548,3 +548,6 @@ body.is-widget .panel { border-radius: 0; min-height: 100vh; }
   .goal-item { grid-template-columns: 1fr; gap: 4px; }
   .goal-figure { text-align: left; }
 }
+
+.trend-hours-heading { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.trend-hours-heading h3 { font-size: 1.05rem; letter-spacing: -0.01em; }

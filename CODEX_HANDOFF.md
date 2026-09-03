@@ -239,6 +239,8 @@ Alle drei geprüften Feld-IDs stimmen mit `CUSTOM_FIELDS` überein.
 | `config.js` / `data.js` / `app.js` | Verbindung, Datenschicht, Darstellung |
 | `CLAUDE_CODE_HANDOFF.md` | Vorgeschichte |
 
+**Beste Anrufzeiten** erscheinen an zwei Stellen mit eigenem Quoten-Umschalter: im gewählten Zeitraum und über die drei Monate des Aufbewahrungsfensters. Beide zeichnet `zeichneStunden()` in `app.js`, die Daten liefert `get_call_hour_performance` mit den Zeiträumen `day`, `week`, `month` und `trend`.
+
 **Nützlich:** `?preview=1` zeigt die Oberfläche mit Beispielzahlen ohne Anmeldung. `?widget=kernwerte|verlauf|trichter|stunden|details|trend` rendert einen Abschnitt allein, für spätere Einbettung per `<iframe>`.
 
 Supabase spielt Migrationen bei jedem Push nach `main` ein. Der Check heißt „Supabase Preview" und muss auf `success` stehen. Bei `failed to bundle function` erneut pushen — der Fehler war reproduzierbar transient.
