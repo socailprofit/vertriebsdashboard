@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03i";
+import * as data from "./data.js?v=2026-09-03j";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -16,9 +16,6 @@ const metricDefinitions = [
   { key: "decisionMakers", label: "Entscheider gesamt", detail: "Direkt und durchgestellt", format: number, target: "decision_maker_contacts" },
   { key: "appointments", label: "Termine", detail: "Termin vereinbart", format: number, target: "appointments" },
   { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, rateTarget: "appointment_rate_target", ratio: ["appointments", "decisionMakers"] },
-  { key: "dealsWon", label: "Deals", detail: "Gewonnene Opportunities", format: number, target: "deals_won" },
-  { key: "winRate", label: "Abschlussquote", detail: "Deals ÷ Termine", format: percent, noTarget: true },
-  { key: "revenue", label: "Umsatz", detail: "Gewonnene Opportunities", format: currency, target: "revenue_cents" },
   { key: "newsletters", label: "Newsletter", detail: "Quelle in Close noch offen", format: count, noTarget: true },
 ];
 
@@ -32,8 +29,6 @@ const targetFields = [
   ["decision_maker_contacts", "Entscheider gesamt"],
   ["appointments", "Termine"],
   ["appointment_rate_target", "Terminquote (%)"],
-  ["deals_won", "Deals"],
-  ["revenue_cents", "Umsatz (Cent)"],
 ];
 
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
@@ -84,12 +79,6 @@ function count(value) {
 function minutes(value) {
   const total = Math.round(value || 0);
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
-}
-
-function currency(cents) {
-  if (cents === null || cents === undefined) return "—";
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
-    .format(Number(cents) / 100);
 }
 
 function percent(value) {
@@ -270,7 +259,7 @@ function coreMetrics() {
 
 const DETAIL_ORDER = [
   "gatekeeper", "connected", "connectionRate", "directDecisionMakers",
-  "appointmentRate", "newsletters", "dealsWon", "winRate", "revenue",
+  "appointmentRate", "newsletters",
 ];
 
 function detailMetrics() {
@@ -282,13 +271,16 @@ function detailMetrics() {
   });
 }
 
-function orderedPeople() {
-  return state.people.filter((person) => state.metrics[person.slug]);
-}
+const SAMMELANSICHTEN = new Set(["team", "chef", "betrieb"]);
 
-function focusClass(slug) {
-  if (state.view === "team" || state.view === "chef") return "";
-  return state.view === slug ? "is-focused" : "is-dimmed";
+// In einer Personenansicht bleibt nur diese Person übrig — samt Diagrammen,
+// Trichter und Stundenprofil. Vorher liefen alle drei Blöcke gedimmt mit, und
+// jede Ansicht zeigte am Ende dieselben Zahlen.
+function orderedPeople() {
+  const mitDaten = state.people.filter((person) => state.metrics[person.slug]);
+  if (SAMMELANSICHTEN.has(state.view)) return mitDaten;
+  const eigene = mitDaten.filter((person) => person.slug === state.view);
+  return eigene.length > 0 ? eigene : mitDaten;
 }
 
 function periodCaption() {
@@ -368,14 +360,13 @@ function teamEntry() {
     callsGross: sum("callsGross"), callsNet: sum("callsNet"), talkMinutes: sum("talkMinutes"),
     gatekeeper: sum("gatekeeper"), connected: sum("connected"),
     directDecisionMakers: sum("directDecisionMakers"), decisionMakers: sum("decisionMakers"),
-    appointments: sum("appointments"), dealsWon: sum("dealsWon"), revenue: sum("revenue"),
+    appointments: sum("appointments"),
     newsletters: people.every((person) => state.metrics[person.slug].newsletters === null) ? null : sum("newsletters"),
   };
   // Team-Quoten aus den Summen, nicht als Mittel der Einzelquoten — sonst zählte
   // jemand mit wenigen Gesprächen genauso schwer wie jemand mit vielen.
   metrics.connectionRate = safeRate(metrics.connected, metrics.gatekeeper);
   metrics.appointmentRate = safeRate(metrics.appointments, metrics.decisionMakers);
-  metrics.winRate = safeRate(metrics.dealsWon, metrics.appointments);
   return { slug: "team", label: "Team", color: "#9fb4d0", targetId: people.map((p) => p.id), metrics };
 }
 
@@ -410,7 +401,7 @@ function renderCore() {
     }).join("");
 
     return `
-      <article class="core-card ${focusClass(entry.slug)}" style="--person-color:${entry.color}">
+      <article class="core-card" style="--person-color:${entry.color}">
         <header>
           <span class="core-name">${entry.label}</span>
           <span class="core-score ${performanceClass(score)}">${score === null ? "" : `${score}%`}</span>
@@ -418,6 +409,42 @@ function renderCore() {
         <div class="core-values">${values}</div>
       </article>`;
   }).join("");
+}
+
+// Zielerreichung getrennt von den Kernwerten: Nicht jede Kennzahl hat ein Ziel,
+// und die wenigen, die eines haben, sollen nicht zwischen den anderen
+// untergehen. Die Liste ergibt sich aus den tatsächlich gepflegten Zielen —
+// kommt später eines dazu, erscheint es hier von selbst.
+const GOAL_METRICS = [
+  ["callsGross", "Anrufe brutto", "calls_gross", number],
+  ["callsNet", "Anrufe netto", "calls_net", number],
+  ["gatekeeper", "Vorzimmer", "gatekeeper_contacts", number],
+  ["connected", "Durchstellungen", "connected_calls", number],
+  ["connectionRate", "Durchstellquote", "transfer_rate_target", percent],
+  ["decisionMakers", "Entscheider gesamt", "decision_maker_contacts", number],
+  ["appointments", "Termine", "appointments", number],
+  ["appointmentRate", "Terminquote", "appointment_rate_target", percent],
+];
+
+function renderGoals() {
+  const zeilen = boardEntries().flatMap((entry) =>
+    GOAL_METRICS.flatMap(([key, label, column, format]) => {
+      const ziel = targetFor(entry.targetId, column);
+      if (ziel === null) return [];
+      const ist = entry.metrics[key];
+      if (ist === null || ist === undefined) return [];
+      const anteil = attainment(ist, ziel);
+      return [`
+        <div class="goal-item ${performanceClass(anteil)}">
+          <span class="goal-head"><b>${entry.label}</b> · ${label}</span>
+          <span class="goal-track"><i style="width:${Math.min(100, anteil)}%;background:${entry.color}"></i></span>
+          <span class="goal-figure">${format(ist)} <small>von ${format(ziel)} · ${Math.round(anteil)} %</small></span>
+        </div>`];
+    }));
+
+  document.querySelector("#goal-strip").innerHTML = zeilen.length === 0
+    ? `<p class="empty-note">Noch keine Ziele hinterlegt. Ohne Ziel bleibt eine Kennzahl farblos — das ist beabsichtigt, eine Farbe ohne Vorgabe wäre geraten.</p>`
+    : zeilen.join("");
 }
 
 // --- Diagramme ---------------------------------------------------------------
@@ -456,6 +483,11 @@ function renderSeries() {
   document.querySelector("#series-legend").innerHTML = legend;
 
   const days = [...new Set(state.series.map((row) => row.metric_date))].sort();
+  document.querySelector("#series-note").textContent = days.length === 0
+    ? "Für diesen Zeitraum liegen keine Tageswerte vor."
+    : state.period === "day"
+      ? `Letzte Tage bis zum Stichtag — ein einzelner Tag ergäbe keinen Verlauf. ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`
+      : `Tageswerte im gewählten Zeitraum: ${germanDate(days[0])} bis ${germanDate(days[days.length - 1])}.`;
   const columns = {
     callsGross: "calls_gross",
     callsNet: "calls_net",
@@ -500,7 +532,7 @@ function renderFunnel() {
       return `<i style="width:${(value / widest) * 100}%;background:${person.color}" title="${firstName(person.display_name)}: ${number(value)}"></i>`;
     }).join("");
     return `
-      <div class="funnel-row ${focusClass("")}">
+      <div class="funnel-row">
         <span class="funnel-label">${label}</span>
         <span class="funnel-bar">${bars}</span>
         <span class="funnel-total">${number(totals[index])}</span>
@@ -659,6 +691,7 @@ function render() {
   renderNav();
   renderHeader();
   renderCore();
+  renderGoals();
   renderSeries();
   renderFunnel();
   renderHours();

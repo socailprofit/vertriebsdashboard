@@ -29,7 +29,8 @@ Zu tun:
 
 - Die Ziele in `sales_targets` sind leer. Solange dort nichts steht, zeigen alle Kacheln „kein Ziel hinterlegt" und bleiben farblos. Das ist gewollt — Farben ohne Zielwerte wären geraten — aber der Wettbewerbscharakter fehlt, bis Antony Werte pflegt. Zieleditor: Ansicht „Ziele", Rolle `manager` oder `operator`.
 - Alle vier Konten teilen sich derzeit ein Passwort. Das gehört geändert; ein gemeinsames Passwort hebelt die Rollentrennung aus.
-- Umsatz ist sichtbar, aber ungeprüft: Im importierten Zeitraum gab es keinen gewonnenen Deal. Die Zuordnung über das Lead-Feld `3.01 Opener` und die Frage Vertragswert / MRR / ARR bei `monthly` oder `annual` sind unbestätigt.
+- Umsatz, Deals und Abschlussquote werden **weiterhin importiert, aber nicht angezeigt** (Entscheidung vom 2026-09-03). Sie stehen in `daily_sales_metrics` und `get_dashboard_metrics` bereit; im Frontend fehlen sie in `metricDefinitions`. Ungeprüft sind sie ohnehin: Im importierten Zeitraum gab es keinen gewonnenen Deal, und die Frage Vertragswert / MRR / ARR bei `monthly` oder `annual` ist offen.
+- Ziele skalieren nach **Arbeitstagen**, nicht Kalendertagen (`workdaysBetween` in `app.js`). Ein Ziel wird für seinen eigenen Zeitraum gepflegt und anteilig auf die Ansicht umgerechnet: 19.800 Brutto-Anrufe für ein Halbjahr ergeben 150 an einem Arbeitstag. Ein Zeitraum ohne Arbeitstage liefert **kein** Ziel statt eines Ziels von null.
 - Echte Sekundenaktualität wäre über **Close-Webhooks** erreichbar statt über den Zeitplan. GitHub Actions garantiert keine Pünktlichkeit; 15 Minuten sind das praktisch Dichteste. Ein Webhook, der die Edge Function direkt anstößt, brächte die Latenz auf Sekunden.
 
 ### 3. Über GitHub Pages veröffentlichen

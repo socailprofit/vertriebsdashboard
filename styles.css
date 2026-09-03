@@ -520,3 +520,31 @@ tbody td:first-child { font-weight: 620; }
 /* Widget: ein Abschnitt allein, ohne Rahmen der Anwendung. */
 body.is-widget main { padding: 0; gap: 0; }
 body.is-widget .panel { border-radius: 0; min-height: 100vh; }
+
+/* --- Zielerreichung ----------------------------------------------------- */
+
+.goal-strip { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+.goal-item {
+  display: grid;
+  grid-template-columns: minmax(140px, 210px) 1fr minmax(150px, auto);
+  align-items: center;
+  gap: 14px;
+  --perf: var(--muted);
+}
+
+.goal-item.is-strong { --perf: var(--good); }
+.goal-item.is-ok { --perf: var(--mid); }
+.goal-item.is-weak { --perf: var(--bad); }
+
+.goal-head { font-size: 0.82rem; color: var(--muted); }
+.goal-head b { color: var(--text); font-weight: 650; }
+.goal-track { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.goal-track i { display: block; height: 100%; border-radius: 5px; }
+.goal-figure { text-align: right; font-size: 0.86rem; font-weight: 650; color: var(--perf); }
+.goal-figure small { color: var(--muted-2); font-weight: 400; font-size: 0.72rem; }
+
+@media (max-width: 720px) {
+  .goal-item { grid-template-columns: 1fr; gap: 4px; }
+  .goal-figure { text-align: left; }
+}
