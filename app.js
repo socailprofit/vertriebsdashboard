@@ -994,8 +994,8 @@ document.querySelector("#password-setup-form").addEventListener("submit", async 
   const confirmation = String(form.get("confirmation") ?? "");
   const status = document.querySelector("#password-setup-status");
 
-  if (password.length < 12) {
-    status.textContent = "Das persönliche Passwort muss mindestens 12 Zeichen haben.";
+  if (password.length < 6) {
+    status.textContent = "Das persönliche Passwort muss mindestens 6 Zeichen haben.";
     return;
   }
   if (password !== confirmation) {
