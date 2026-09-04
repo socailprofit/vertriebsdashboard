@@ -17,7 +17,7 @@
 - Es gilt ein rollierendes Drei-Monats-Fenster: aktueller Monat plus zwei Vormonate.
 - Beim Monatswechsel werden Rohaktivitäten, Tageswerte, Zusammenfassungen, Ziele und Sync-Protokolle vor diesem Fenster gelöscht.
 - Supabase-Datenmodell, Edge Function und Cron sind produktiv ausgerollt; der Cron-Lauf wurde am 2026-09-03 bestätigt.
-- Der Wochenreview ist implementiert, aber erst nach Setzen von `OPENAI_API_KEY`, Deployment der neuen Function/Migrationen und einem erfolgreichen Testlauf produktiv.
+- Der Wochenreview ist serverseitig implementiert und ausgerollt. Für den ersten produktiven KI-Lauf fehlt nur noch `OPENAI_API_KEY` als Supabase Function Secret; anschließend wird der Review automatisch montags erzeugt.
 
 ### Lokale Vorschau
 

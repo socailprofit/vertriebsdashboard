@@ -18,7 +18,7 @@
 
 1. Das kuratierte Social-Profit-Profil liegt lokal außerhalb des öffentlichen Repositorys bereit und wird einmalig als aktive Version `v1` in `weekly_review_contexts` eingespielt. Keine Close-Notizen, Leadtexte oder Einzelfälle übernehmen.
 2. In Supabase unter **Edge Functions → Secrets** `OPENAI_API_KEY` anlegen. Den Wert niemals in Git, `config.js` oder SQL eintragen.
-3. Optional `OPENAI_MODEL=gpt-5.6-luna` als Function Secret setzen. Ohne diesen Eintrag nutzt die Function dieses Modell bereits als Standard.
+3. Optional `OPENAI_MODEL=gpt-5.4-mini-2026-03-17` als Function Secret setzen. Ohne diesen Eintrag nutzt die Function denselben versionierten, Structured-Output-fähigen API-Snapshot bereits als Standard.
 4. Migrationen anwenden und danach die Function deployen:
 
 ```bash
