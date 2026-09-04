@@ -1,7 +1,22 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-04d";
+import * as data from "./data.js?v=2026-09-04e";
+
+// Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
+// (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
+// oder einem nicht ladbaren Bild bleibt automatisch der Initialen-Platzhalter.
+const PROFILE_IMAGES = Object.freeze({
+  michael: null,
+  felix: null,
+  antony: null,
+});
+
+const PROFILE_INITIALS = Object.freeze({
+  michael: "MG",
+  felix: "FW",
+  antony: "AR",
+});
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -111,6 +126,64 @@ function initials(displayName) {
 
 function firstName(displayName) {
   return displayName.split(/\s+/)[0];
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#039;",
+  })[character]);
+}
+
+function renderPersonAvatar({ slug, name, initials: avatarInitials, image }) {
+  const safeSlug = escapeHtml(slug);
+  const safeInitials = escapeHtml(avatarInitials || initials(name));
+  const imageMarkup = image
+    ? `<img src="${escapeHtml(image)}" alt="" data-profile-image />`
+    : "";
+  const fallbackHidden = image ? " hidden" : "";
+
+  return `<span class="person-avatar person-avatar--${safeSlug}" aria-hidden="true">
+    ${imageMarkup}
+    <span class="person-avatar-fallback"${fallbackHidden}>${safeInitials}</span>
+  </span>`;
+}
+
+function renderTeamAvatar() {
+  return `<span class="person-avatar person-avatar--team" aria-hidden="true">
+    <svg viewBox="0 0 24 24" focusable="false">
+      <circle cx="8" cy="9" r="2.4"></circle>
+      <circle cx="16" cy="9" r="2.4"></circle>
+      <path d="M3.8 17c.4-2.7 2-4.1 4.2-4.1s3.8 1.4 4.2 4.1"></path>
+      <path d="M11.8 17c.4-2.7 2-4.1 4.2-4.1s3.8 1.4 4.2 4.1"></path>
+    </svg>
+  </span>`;
+}
+
+function renderDashboardAvatar(slug, name) {
+  if (slug === "team") return renderTeamAvatar();
+  return renderPersonAvatar({
+    slug,
+    name,
+    initials: PROFILE_INITIALS[slug],
+    image: PROFILE_IMAGES[slug],
+  });
+}
+
+function enableProfileImageFallbacks(container) {
+  container.querySelectorAll("[data-profile-image]").forEach((image) => {
+    const fallback = image.nextElementSibling;
+    const showFallback = () => {
+      image.hidden = true;
+      if (fallback) fallback.hidden = false;
+    };
+
+    image.addEventListener("error", showFallback, { once: true });
+    if (image.complete && image.naturalWidth === 0) showFallback();
+  });
 }
 
 function safeRate(numerator, denominator) {
@@ -308,12 +381,33 @@ function periodCaption() {
 }
 
 function renderNav() {
-  const buttons = [`<button class="nav-button" data-view="team">Team</button>`];
+  const buttons = [`<button class="nav-button nav-button--person" data-view="team">${renderTeamAvatar()}<span>Team</span></button>`];
   state.people.forEach((person) => {
-    buttons.push(`<button class="nav-button" data-view="${person.slug}">${firstName(person.display_name)}</button>`);
+    const profileInitials = PROFILE_INITIALS[person.slug];
+    const label = escapeHtml(firstName(person.display_name));
+    if (!profileInitials) {
+      buttons.push(`<button class="nav-button" data-view="${escapeHtml(person.slug)}">${label}</button>`);
+      return;
+    }
+    const avatar = renderPersonAvatar({
+      slug: person.slug,
+      name: person.display_name,
+      initials: profileInitials,
+      image: PROFILE_IMAGES[person.slug],
+    });
+    buttons.push(`<button class="nav-button nav-button--person" data-view="${escapeHtml(person.slug)}">${avatar}<span>${label}</span></button>`);
   });
-  buttons.push(`<button class="nav-button" data-view="antony">Antony</button>`);
-  document.querySelector(".view-nav").innerHTML = buttons.join("");
+  const antonyAvatar = renderPersonAvatar({
+    slug: "antony",
+    name: "Antony Rigone",
+    initials: PROFILE_INITIALS.antony,
+    image: PROFILE_IMAGES.antony,
+  });
+  buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Antony</span></button>`);
+
+  const navigation = document.querySelector(".view-nav");
+  navigation.innerHTML = buttons.join("");
+  enableProfileImageFallbacks(navigation);
 }
 
 function renderHeader() {
@@ -406,7 +500,8 @@ function boardEntries() {
 // --- Kernwerte ---------------------------------------------------------------
 
 function renderCore() {
-  document.querySelector("#core-grid").innerHTML = boardEntries().map((entry) => {
+  const coreGrid = document.querySelector("#core-grid");
+  coreGrid.innerHTML = boardEntries().map((entry) => {
     const score = entry.slug === "team" ? null : weightedScore(entry.metrics, entry.targetId);
     const values = coreMetrics().map((metric) => {
       const value = entry.metrics[metric.key];
@@ -426,12 +521,16 @@ function renderCore() {
     return `
       <article class="core-card" style="--person-color:${entry.color}">
         <header>
-          <span class="core-name">${entry.label}</span>
+          <span class="core-identity">
+            ${renderDashboardAvatar(entry.slug, entry.label)}
+            <span class="core-name">${entry.label}</span>
+          </span>
           <span class="core-score ${performanceClass(score)}">${score === null ? "" : `${score}%`}</span>
         </header>
         <div class="core-values">${values}</div>
       </article>`;
   }).join("");
+  enableProfileImageFallbacks(coreGrid);
 }
 
 // Antony ist eine eigene Arbeitsansicht. Die Mengen stammen vollständig aus
@@ -440,6 +539,9 @@ function renderCore() {
 function renderAntony() {
   const container = document.querySelector("#antony-donuts");
   const note = document.querySelector("#antony-note");
+  const profile = document.querySelector("#antony-profile-avatar");
+  profile.innerHTML = renderDashboardAvatar("antony", "Antony Rigone");
+  enableProfileImageFallbacks(profile);
   if (!state.closing) {
     container.innerHTML = `<p class="antony-empty">Für diesen Zeitraum liegen noch keine Closer-Daten vor.</p>`;
     note.textContent = "";

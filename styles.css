@@ -18,6 +18,7 @@
 
   --michael: #3b9dff;
   --felix: #f5a524;
+  --antony: #9b8cff;
 
   --good: #3ddc84;
   --mid: #f5b942;
@@ -152,6 +153,63 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--michael); o
 
 .nav-button:hover, .period-switch button:hover, .rate-switch button:hover { color: var(--text); }
 .nav-button.active { color: #061020; background: var(--text); font-weight: 620; }
+
+.nav-button--person {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.person-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  overflow: hidden;
+  color: #061020;
+  background: var(--avatar-color, var(--muted));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  font-size: 0.62rem;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.person-avatar--michael { --avatar-color: var(--michael); }
+.person-avatar--felix { --avatar-color: var(--felix); }
+.person-avatar--antony { --avatar-color: var(--antony); }
+.person-avatar--team { --avatar-color: #9fb4d0; }
+
+.person-avatar--team svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.person-avatar img,
+.person-avatar-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.person-avatar img {
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.person-avatar-fallback {
+  display: grid;
+  place-items: center;
+}
 
 .ghost-button { border-color: var(--line); font-size: 0.8rem; }
 .ghost-button:hover { color: var(--text); border-color: var(--line-strong); }
@@ -389,6 +447,8 @@ tbody td:first-child { font-weight: 620; }
 
 @media (max-width: 620px) {
   .topbar { justify-content: center; text-align: center; }
+  .person-avatar { flex-basis: 23px; width: 23px; height: 23px; font-size: 0.55rem; }
+  .nav-button--person { gap: 6px; }
   .goal-field { grid-template-columns: 1fr; }
   .goal-field input { width: 100%; }
 }
@@ -449,6 +509,9 @@ tbody td:first-child { font-weight: 620; }
 
 .core-card.is-dimmed { opacity: 0.42; }
 .core-card header { display: grid; gap: 2px; }
+.core-identity { display: flex; align-items: center; gap: 10px; }
+.core-identity .person-avatar { flex-basis: 36px; width: 36px; height: 36px; font-size: 0.68rem; }
+.core-identity .person-avatar--team svg { width: 22px; height: 22px; }
 .core-name { font-size: clamp(1.3rem, 2.2vw, 1.9rem); font-weight: 700; letter-spacing: -0.02em; }
 .core-score { font-size: 0.85rem; font-weight: 650; color: var(--perf, var(--muted-2)); }
 
@@ -468,6 +531,8 @@ tbody td:first-child { font-weight: 620; }
 /* Eigener vierter Reiter: kompakte Closer-Strecke statt einer überbreiten
    zusätzlichen Personenzeile in jeder Vertriebsansicht. */
 .antony-section { --antony: #9b8cff; }
+.section-person-heading { display: flex; align-items: center; gap: 12px; }
+.section-person-heading > .person-avatar { flex-basis: 42px; width: 42px; height: 42px; font-size: 0.72rem; }
 .antony-donuts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
