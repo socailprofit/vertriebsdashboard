@@ -8,6 +8,7 @@ import {
   calculateCallTimeQuality,
   callTimeMetric,
 } from "./call-time-score.mjs?v=2026-09-04k";
+import { hasAntonyDashboardAccess } from "./access-control.mjs?v=2026-09-04m";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -233,10 +234,12 @@ function safeRate(numerator, denominator) {
   return denominator > 0 ? (numerator / denominator) * 100 : 0;
 }
 
+function canViewAntony() {
+  return state.status === "preview" || hasAntonyDashboardAccess(state.profile.email);
+}
+
 function canViewWeeklyReview() {
-  // Vorlaeufig fuer alle vollstaendig angemeldeten Dashboard-Nutzer sichtbar.
-  // Die spaetere Rigone-Sperre muss wieder hier UND im Datenbank-RPC erfolgen.
-  return state.status === "preview" || Boolean(state.profile.email);
+  return canViewAntony();
 }
 
 function canViewThreeMonthReview() {
@@ -276,7 +279,8 @@ async function loadAll() {
   // Erst die Kennzahlen laden: Sie sind die einzige verbindliche Quelle für
   // den Zeitraum. Die Tagesreihen dürfen nicht noch den Bereich der vorher
   // geöffneten Ansicht verwenden, wenn man Tag, Woche oder Monat umschaltet.
-  const weeklyReviewRequest = canViewWeeklyReview()
+  const antonyAccess = canViewAntony();
+  const weeklyReviewRequest = antonyAccess
     ? data.loadLatestWeeklyReview().catch(() => null)
     : Promise.resolve(null);
   // Der Dreimonatsrueckblick ist nur in der Monatsansicht relevant. Bei Tag
@@ -291,8 +295,8 @@ async function loadAll() {
     data.loadHourPerformance(state.period, state.referenceDate),
     trendsRequest,
     trendHoursRequest,
-    // Der Review ist eine optionale Zusatzanalyse fuer alle freigeschalteten
-    // Dashboard-Konten; der RPC prueft den Zugang erneut serverseitig.
+    // Der Review ist eine optionale Zusatzanalyse fuer die beiden explizit
+    // freigegebenen Antony-Konten; der RPC prueft erneut serverseitig.
     weeklyReviewRequest,
   ]);
 
@@ -322,11 +326,17 @@ async function loadAll() {
     : { start: state.referenceDate, end: state.referenceDate };
 
   const plannerPeriodRange = calendarMonthRange(state.referenceDate);
-  const selectedClosingRequest = data.loadAntonyClosingMetrics(state.period, state.referenceDate);
-  const plannerMetricsRequest = state.period === "month"
+  const selectedClosingRequest = antonyAccess
+    ? data.loadAntonyClosingMetrics(state.period, state.referenceDate)
+    : Promise.resolve(null);
+  const plannerMetricsRequest = !antonyAccess
+    ? Promise.resolve([])
+    : state.period === "month"
     ? Promise.resolve(metricRows)
     : data.loadMetrics("month", state.referenceDate);
-  const plannerClosingRequest = state.period === "month"
+  const plannerClosingRequest = !antonyAccess
+    ? Promise.resolve(null)
+    : state.period === "month"
     ? selectedClosingRequest
     : data.loadAntonyClosingMetrics("month", state.referenceDate);
   const [
@@ -339,14 +349,20 @@ async function loadAll() {
     data.loadTargets(state.periodRange.start, state.periodRange.end),
     // Der Zielplan ist optional und darf das bestehende Tracking auch dann
     // nicht blockieren, wenn die neue Tabelle noch nicht ausgerollt wurde.
-    data.loadAntonyGoal("month", plannerPeriodRange.start).catch(() => null),
+    antonyAccess
+      ? data.loadAntonyGoal("month", plannerPeriodRange.start).catch(() => null)
+      : Promise.resolve(null),
     plannerMetricsRequest,
     selectedClosingRequest,
     plannerClosingRequest,
     // Beide neuen Antony-Auswertungen sind Zusatzmodule. Ein noch nicht
     // migrierter RPC darf die bestehenden Team-KPIs nicht blockieren.
-    data.loadAntonyOpenPipeline(state.referenceDate).catch(() => null),
-    data.loadAntonyPerformanceSeries(state.period, state.referenceDate).catch(() => []),
+    antonyAccess
+      ? data.loadAntonyOpenPipeline(state.referenceDate).catch(() => null)
+      : Promise.resolve(null),
+    antonyAccess
+      ? data.loadAntonyPerformanceSeries(state.period, state.referenceDate).catch(() => [])
+      : Promise.resolve([]),
   ]);
   state.series = series;
   state.targets = targets;
@@ -511,13 +527,15 @@ function renderNav() {
     });
     buttons.push(`<button class="nav-button nav-button--person" data-view="${escapeHtml(person.slug)}">${avatar}<span>${label}</span></button>`);
   });
-  const antonyAvatar = renderPersonAvatar({
-    slug: "antony",
-    name: "Antony Rigone",
-    initials: PROFILE_INITIALS.antony,
-    image: PROFILE_IMAGES.antony,
-  });
-  buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Antony</span></button>`);
+  if (canViewAntony()) {
+    const antonyAvatar = renderPersonAvatar({
+      slug: "antony",
+      name: "Antony Rigone",
+      initials: PROFILE_INITIALS.antony,
+      image: PROFILE_IMAGES.antony,
+    });
+    buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Antony</span></button>`);
+  }
 
   const navigation = document.querySelector(".view-nav");
   navigation.innerHTML = buttons.join("");
@@ -738,10 +756,7 @@ function remainingPlannerWorkdays() {
 }
 
 function canSaveAntonyGoal() {
-  const email = String(state.profile.email ?? "").toLowerCase();
-  return email === "rigone@socialprofit.de"
-    || state.profile.role === "manager"
-    || state.profile.role === "operator";
+  return canViewAntony();
 }
 
 function renderAntonyPotential() {
@@ -1591,6 +1606,10 @@ function updateUrl() {
 }
 
 function render() {
+  if (state.view === "antony" && !canViewAntony()) {
+    const own = state.people.find((person) => person.id === state.profile.salesPersonId);
+    state.view = own?.slug ?? "team";
+  }
   renderNav();
   renderHeader();
   if (state.view === "antony") {
@@ -1670,6 +1689,10 @@ async function startSession() {
     return;
   }
 
+  // Direkte oder alte Antony-Links duerfen die geschuetzten RPCs fuer andere
+  // Konten nicht einmal im Hintergrund anfragen.
+  if (state.view === "antony" && !canViewAntony()) state.view = "team";
+
   showApp(true);
   await refresh();
 
@@ -1730,6 +1753,7 @@ document.addEventListener("click", (event) => {
   }
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
+    if (viewButton.dataset.view === "antony" && !canViewAntony()) return;
     state.view = viewButton.dataset.view;
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });

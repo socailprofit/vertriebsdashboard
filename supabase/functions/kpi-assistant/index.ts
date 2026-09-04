@@ -141,7 +141,7 @@ Deno.serve(async (request) => {
       return response(request, 401, { ok: false, error: "unauthorized" });
     }
 
-    const { data: hasAccess, error: accessError } = await userClient.rpc("has_dashboard_access");
+    const { data: hasAccess, error: accessError } = await userClient.rpc("has_antony_access");
     if (accessError || hasAccess !== true) {
       return response(request, 403, { ok: false, error: "dashboard_access_required" });
     }

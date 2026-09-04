@@ -110,9 +110,8 @@ export async function loadMetrics(period, referenceDate) {
   );
 }
 
-// Diese Auswertung ist vorerst für alle vollständig eingerichteten
-// Dashboard-Konten freigegeben. Der Login bleibt serverseitig erforderlich;
-// eine spätere persönliche Antony-Sperre wird wieder im RPC umgesetzt.
+// Diese Auswertung ist ausschließlich für die vollständig eingerichteten
+// Konten rigone@ und info@ freigegeben. Der RPC erzwingt das serverseitig.
 export async function loadAntonyClosingMetrics(period, referenceDate) {
   const rows = await run(
     "Closer-Kennzahlen laden",
@@ -176,7 +175,7 @@ export async function askKpiAssistant(question, period, referenceDate) {
     const messages = {
       daily_limit_reached: "Das Tageslimit fuer KPI-Fragen ist erreicht.",
       configuration_incomplete: "Die KPI-KI ist noch nicht aktiviert. Der OpenAI-Key fehlt serverseitig in Supabase.",
-      dashboard_access_required: "Fuer KPI-Fragen ist ein freigeschalteter Dashboard-Zugang erforderlich.",
+      dashboard_access_required: "Fuer KPI-Fragen ist die Antony-Vollansicht erforderlich.",
       unauthorized: "Bitte neu anmelden und die Frage erneut senden.",
       invalid_question: "Bitte eine Frage mit 3 bis 500 Zeichen eingeben.",
       ai_unavailable: "Die KPI-KI ist gerade nicht erreichbar. Bitte spaeter erneut versuchen.",
