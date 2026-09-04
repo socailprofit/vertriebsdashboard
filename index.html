@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-04h" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-04i" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -113,10 +113,14 @@
           <section class="antony-potential" aria-labelledby="antony-potential-title">
             <div class="antony-potential-heading">
               <div>
-                <p class="eyebrow">Ist-Zustand · Termin-Potenzial</p>
-                <h3 id="antony-potential-title">Was aktuell reinkommt und möglich ist</h3>
+                <p class="eyebrow">IST · Monatsausblick</p>
+                <h3 id="antony-potential-title">Was bei aktuellem Tempo im Monat entsteht</h3>
               </div>
-              <div class="antony-potential-context">
+              <label class="antony-customer-value">Ø Kundenwert
+                <span class="money-input"><input id="antony-ist-customer-value" type="number" min="1" step="100" placeholder="10000" inputmode="decimal" /><span>€</span></span>
+                <small id="antony-ist-value-status" aria-live="polite"></small>
+              </label>
+              <div class="antony-potential-context" aria-label="Prognosezeitraum">
                 <p class="section-note" id="antony-potential-period"></p>
                 <p class="section-note" id="antony-potential-basis"></p>
               </div>
@@ -126,10 +130,16 @@
 
           <details class="antony-planner" id="antony-planner">
             <summary>
-              <span><span class="eyebrow">Optional · Monatsplanung</span><strong>Monatsziel-Rechner öffnen</strong></span>
-              <small>Monatsumsatz und Neukunden rückwärts auf die Leistungskette rechnen</small>
+              <span><span class="eyebrow">Optional · Wunschrechnung</span><strong>Eigenes Monatsziel simulieren</strong></span>
+              <small>Ziel und Raten mit Schiebereglern verändern</small>
             </summary>
             <form class="antony-plan-form" id="antony-plan-form">
+              <label class="antony-range antony-range--goal">
+                <span><span>Wunschumsatz</span><output id="antony-target-revenue-output"></output></span>
+                <input name="target_revenue_eur" type="range" min="0" max="200000" step="1000" value="40000" />
+                <small id="antony-derived-customer-target"></small>
+              </label>
+
               <div class="antony-rate-mode">
                 <div>
                   <strong>Berechnungsbasis</strong>
@@ -141,31 +151,21 @@
                 </div>
               </div>
 
-              <div class="antony-plan-inputs">
-                <label>Neukundenziel
-                  <input name="target_new_customers" type="number" min="0" step="1" placeholder="4" />
-                </label>
-                <label>Wunschumsatz
-                  <span class="money-input"><input name="target_revenue_eur" type="number" min="0" step="100" placeholder="40000" /><span>€</span></span>
-                </label>
-                <label>Kundenwert
-                  <span class="money-input"><input name="customer_value_eur" type="number" min="1" step="100" placeholder="10000" /><span>€</span></span>
-                </label>
-              </div>
-
               <div class="antony-custom-rates" id="antony-custom-rates" hidden>
-                <p>Nur geänderte Raten eintragen. Leere Felder übernehmen weiterhin den aktuellen Ist-Wert.</p>
-                <div class="antony-plan-inputs antony-plan-inputs--rates">
-                  <label>Termin → Closer-Termin
-                    <span class="rate-input"><input name="appointment_to_closer_rate_override" type="number" min="0.1" max="100" step="0.1" /><span>%</span></span>
+                <div class="antony-range-grid">
+                  <label class="antony-range">
+                    <span><span>Termin → Closer</span><output id="antony-appointment-rate-output"></output></span>
+                    <input name="appointment_to_closer_rate_override" type="range" min="1" max="100" step="1" />
                     <small id="current-appointment-to-closer-rate"></small>
                   </label>
-                  <label>Closer-Showrate
-                    <span class="rate-input"><input name="show_rate_override" type="number" min="0.1" max="100" step="0.1" /><span>%</span></span>
+                  <label class="antony-range">
+                    <span><span>Showrate</span><output id="antony-show-rate-output"></output></span>
+                    <input name="show_rate_override" type="range" min="1" max="100" step="1" />
                     <small id="current-show-rate"></small>
                   </label>
-                  <label>Closingrate
-                    <span class="rate-input"><input name="closing_rate_override" type="number" min="0.1" max="100" step="0.1" /><span>%</span></span>
+                  <label class="antony-range">
+                    <span><span>Closingrate</span><output id="antony-closing-rate-output"></output></span>
+                    <input name="closing_rate_override" type="range" min="1" max="100" step="1" />
                     <small id="current-closing-rate"></small>
                   </label>
                 </div>
@@ -178,6 +178,17 @@
               </div>
             </form>
           </details>
+
+          <section class="weekly-review" id="weekly-review" aria-labelledby="weekly-review-title" hidden>
+            <div class="weekly-review-heading">
+              <div>
+                <p class="eyebrow">Analyse</p>
+                <h3 id="weekly-review-title">KI-Wochenreview für Antony</h3>
+              </div>
+              <p class="section-note" id="weekly-review-period"></p>
+            </div>
+            <div id="weekly-review-content" class="weekly-review-content" aria-live="polite"></div>
+          </section>
         </section>
 
         <section class="panel" id="widget-verlauf" data-widget="verlauf" aria-labelledby="series-title">
@@ -296,6 +307,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-04h"></script>
+    <script type="module" src="./app.js?v=2026-09-04i"></script>
   </body>
 </html>

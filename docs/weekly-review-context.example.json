@@ -1,0 +1,19 @@
+{
+  "company": {
+    "name": "",
+    "offer": "",
+    "business_model": ""
+  },
+  "icp": {
+    "summary": "",
+    "buyer_roles": [],
+    "company_profile": "",
+    "core_problems": []
+  },
+  "sales": {
+    "motion": "",
+    "kpi_definitions": [],
+    "priority_rules": [],
+    "benchmarks": []
+  }
+}

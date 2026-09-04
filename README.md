@@ -4,12 +4,12 @@
 
 - Eine gemeinsame interne Webapp mit Team-, Michael-, Felix- und Chefansicht.
 - Michael und Felix sehen ihre Einzelwerte und den gemeinsamen Wettbewerb.
-- Antony sieht zusätzlich Ziele, Sync-Status und später die tägliche KI-Zusammenfassung.
+- Antony besitzt eine eigene Closer-Ansicht. Nur sein Konto sieht darin zusätzlich fünf wöchentliche KI-Punkte aus aggregierten Kennzahlen, dem Vorwochenvergleich und einem versionierten, serverseitigen Social-Profit-Profil.
 - Close bleibt die einzige Quelle für Calls, Aktivitäten, Termine, Newsletter-Abschlüsse, Abschlüsse und Umsatz.
 - Das verbindliche Close-Mapping liegt versioniert unter `docs/close-mapping.md` und im serverseitigen Mapping-Modul.
 - Supabase speichert Benutzerrollen, Ziele, Rohaktivitäten, Tageskennzahlen und Sync-Protokolle.
 - Der schreibfreie End-to-End-Sync-Test und ein manuell freigegebener Ein-Tages-Schreibimport für 2026-09-01 sind am 2026-09-02 erfolgreich gelaufen; der Abgleich der Zahlen gegen Close steht noch aus.
-- KPIs und Quoten werden deterministisch berechnet; KI formuliert später nur die Zusammenfassung.
+- KPIs, Quoten und Vorwochendifferenzen werden deterministisch berechnet; KI formuliert ausschließlich den Wochenreview aus aggregierten Zahlen.
 - Der erste sichtbare KPI-Umfang ist auf Brutto-/Netto-Calls, beste Anrufzeiten, Vorzimmer, Durchstellungen, direkte und gesamte Entscheiderkontakte, Termine, Terminquote und Newsletter-Abschlüsse begrenzt.
 - Michael wird blau und Felix orange dargestellt; Leistungsfarben richten sich später nach den von Antony gesetzten Zielen.
 - Tag zeigt exakt den Berliner Kalendertag. Woche zeigt Montag bis Stichtag (am Wochenende bis Freitag), Monat den 1. bis Stichtag. Ohne bewusst gewählten historischen Stichtag folgt die Ansicht automatisch dem neuen Berliner Tag.
@@ -17,6 +17,7 @@
 - Es gilt ein rollierendes Drei-Monats-Fenster: aktueller Monat plus zwei Vormonate.
 - Beim Monatswechsel werden Rohaktivitäten, Tageswerte, Zusammenfassungen, Ziele und Sync-Protokolle vor diesem Fenster gelöscht.
 - Supabase-Datenmodell, Edge Function und Cron sind produktiv ausgerollt; der Cron-Lauf wurde am 2026-09-03 bestätigt.
+- Der Wochenreview ist implementiert, aber erst nach Setzen von `OPENAI_API_KEY`, Deployment der neuen Function/Migrationen und einem erfolgreichen Testlauf produktiv.
 
 ### Lokale Vorschau
 

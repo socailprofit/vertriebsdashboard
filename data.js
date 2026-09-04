@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04h";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04i";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -120,6 +120,16 @@ export async function loadAntonyClosingMetrics(period, referenceDate) {
       p_period: period,
       p_reference_date: referenceDate,
     }),
+  );
+  return rows[0] ?? null;
+}
+
+// Der Browser erhält über den geschützten RPC ausschließlich den fertigen
+// Reviewtext und den Zeitraum. Das gespeicherte KPI-JSON bleibt serverseitig.
+export async function loadLatestWeeklyReview() {
+  const rows = await run(
+    "Wochenreview laden",
+    requireClient().rpc("get_latest_weekly_review"),
   );
   return rows[0] ?? null;
 }

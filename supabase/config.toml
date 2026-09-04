@@ -3,3 +3,5 @@ project_id = "vertriebsdashboard"
 [functions.close-sync]
 verify_jwt = false
 
+[functions.weekly-review]
+verify_jwt = false
