@@ -878,6 +878,40 @@ tbody td:first-child { font-weight: 620; }
 .weekly-review-content li::marker { color: var(--antony); font-weight: 700; }
 .weekly-review-empty { margin: 0; color: var(--muted); line-height: 1.5; }
 
+.kpi-assistant {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.kpi-assistant-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.kpi-assistant-heading h4 { margin-top: 3px; font-size: 1rem; }
+.kpi-assistant-form { display: grid; gap: 8px; }
+.kpi-assistant-form > label { color: var(--muted); font-size: 0.76rem; }
+.kpi-assistant-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: stretch; }
+.kpi-assistant-input-row textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  line-height: 1.4;
+}
+.kpi-assistant-input-row textarea:focus { outline: 2px solid color-mix(in srgb, var(--antony) 55%, transparent); outline-offset: 1px; }
+.kpi-assistant-input-row .primary-button { min-width: 92px; margin: 0; background: var(--antony); }
+.kpi-assistant-input-row .primary-button:disabled { cursor: wait; opacity: 0.65; }
+.kpi-assistant-form > small { color: var(--muted-2); font-size: 0.68rem; line-height: 1.4; }
+.kpi-assistant-answer { padding: 14px 16px; border-left: 3px solid var(--antony); border-radius: 8px; background: var(--surface); }
+.kpi-assistant-answer p { margin: 0; line-height: 1.55; }
+.kpi-assistant-answer small { display: block; margin-top: 7px; color: var(--muted-2); }
+.kpi-assistant-answer .kpi-assistant-error { color: var(--bad); }
+.kpi-assistant-loading { color: var(--muted); }
+
 @media (max-width: 980px) {
   .antony-donuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .antony-pipeline-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1017,6 +1051,8 @@ body.is-widget .panel { border-radius: 0; min-height: 100vh; }
   .antony-plan-step { border-left: 0; border-top: 1px solid var(--line); }
   .antony-plan-step:first-child { border-top: 0; }
   .weekly-review-heading { align-items: start; flex-direction: column; }
+  .kpi-assistant-heading { align-items: start; flex-direction: column; }
+  .kpi-assistant-input-row { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

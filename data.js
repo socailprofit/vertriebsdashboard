@@ -158,6 +158,37 @@ export async function loadLatestWeeklyReview() {
   return rows[0] ?? null;
 }
 
+// Die Session wird von supabase-js als Authorization-Header mitgesendet. Der
+// Edge-Endpunkt prueft den Nutzer und den Dashboard-Zugang erneut, bevor er
+// serverseitig aggregierte Fakten und den OpenAI-Key verwendet.
+export async function askKpiAssistant(question, period, referenceDate) {
+  const { data, error } = await requireClient().functions.invoke("kpi-assistant", {
+    body: { question, period, referenceDate },
+  });
+  if (error) {
+    let code = "assistant_failed";
+    try {
+      const payload = await error.context?.json();
+      if (typeof payload?.error === "string") code = payload.error;
+    } catch {
+      // Der Browser erhaelt bewusst keine technischen oder externen Details.
+    }
+    const messages = {
+      daily_limit_reached: "Das Tageslimit fuer KPI-Fragen ist erreicht.",
+      configuration_incomplete: "Die KPI-KI ist noch nicht aktiviert. Der OpenAI-Key fehlt serverseitig in Supabase.",
+      dashboard_access_required: "Fuer KPI-Fragen ist ein freigeschalteter Dashboard-Zugang erforderlich.",
+      unauthorized: "Bitte neu anmelden und die Frage erneut senden.",
+      invalid_question: "Bitte eine Frage mit 3 bis 500 Zeichen eingeben.",
+      ai_unavailable: "Die KPI-KI ist gerade nicht erreichbar. Bitte spaeter erneut versuchen.",
+    };
+    throw new Error(messages[code] ?? "Die KPI-Frage konnte nicht beantwortet werden.");
+  }
+  if (!data?.ok || typeof data.answer !== "string") {
+    throw new Error("Die KPI-KI hat keine gueltige Antwort geliefert.");
+  }
+  return data;
+}
+
 // Der optionale Rechner speichert nur die Zielannahmen des angemeldeten
 // Antony-/Leitungs-Kontos. Die operativen Close-Daten bleiben unverändert.
 export async function loadAntonyGoal(periodType, periodStart) {

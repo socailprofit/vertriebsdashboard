@@ -214,6 +214,24 @@
               <p class="section-note" id="weekly-review-period"></p>
             </div>
             <div id="weekly-review-content" class="weekly-review-content" aria-live="polite"></div>
+            <div class="kpi-assistant">
+              <div class="kpi-assistant-heading">
+                <div>
+                  <p class="eyebrow">KPI-Frage</p>
+                  <h4>Social-Profit-Assistent</h4>
+                </div>
+                <p class="section-note">Zum aktuell gewählten Zeitraum</p>
+              </div>
+              <form id="kpi-assistant-form" class="kpi-assistant-form">
+                <label for="kpi-assistant-question">Was möchtest du aus den Kennzahlen ableiten?</label>
+                <div class="kpi-assistant-input-row">
+                  <textarea id="kpi-assistant-question" name="question" rows="2" minlength="3" maxlength="500" required placeholder="z. B. Welchen Funnel-Engpass sollten wir als Nächstes priorisieren?"></textarea>
+                  <button class="primary-button" id="kpi-assistant-submit" type="submit">Fragen</button>
+                </div>
+                <small>Nur aggregierte Kennzahlen werden verarbeitet. Keine Namen, Kundendaten oder Close-Notizen eingeben.</small>
+              </form>
+              <div id="kpi-assistant-answer" class="kpi-assistant-answer" aria-live="polite" hidden></div>
+            </div>
           </section>
         </section>
 

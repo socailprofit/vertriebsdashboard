@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.weekly-review]
 verify_jwt = false
+
+[functions.kpi-assistant]
+verify_jwt = true

@@ -80,6 +80,7 @@ const state = {
   antonyPlannerClosing: null,
   antonyPlannerPeriodRange: { start: null, end: null },
   weeklyReview: null,
+  kpiAssistant: { answer: null, error: null, loading: false, remainingRequests: null },
   periodRange: { start: null, end: null },
   profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null },
   syncRun: null,
@@ -226,8 +227,9 @@ function safeRate(numerator, denominator) {
 }
 
 function canViewWeeklyReview() {
-  return state.status === "preview"
-    || String(state.profile.email ?? "").trim().toLowerCase() === "rigone@socialprofit.de";
+  // Vorlaeufig fuer alle vollstaendig angemeldeten Dashboard-Nutzer sichtbar.
+  // Die spaetere Rigone-Sperre muss wieder hier UND im Datenbank-RPC erfolgen.
+  return state.status === "preview" || Boolean(state.profile.email);
 }
 
 // --- Daten laden -------------------------------------------------------------
@@ -270,8 +272,8 @@ async function loadAll() {
     data.loadHourPerformance(state.period, state.referenceDate),
     data.loadTrends(),
     data.loadHourPerformance("trend", state.referenceDate),
-    // Der Review ist eine optionale, persönliche Zusatzanalyse. Andere
-    // Konten fragen den geschützten RPC nicht einmal an.
+    // Der Review ist eine optionale Zusatzanalyse fuer alle freigeschalteten
+    // Dashboard-Konten; der RPC prueft den Zugang erneut serverseitig.
     weeklyReviewRequest,
   ]);
 
@@ -1093,12 +1095,43 @@ function renderWeeklyReview() {
   if (!review?.content) {
     period.textContent = "Letzte abgeschlossene Vertriebswoche";
     content.innerHTML = `<p class="weekly-review-empty">Noch kein Wochenreview vorhanden. Der erste Review wird nach dem nächsten erfolgreichen Montagslauf angezeigt.</p>`;
+    renderKpiAssistant();
     return;
   }
 
   period.textContent = `${germanDate(review.week_start)} – ${germanDate(review.week_end)}`;
   const sentences = String(review.content).split("\n").map((sentence) => sentence.trim()).filter(Boolean);
   content.innerHTML = `<ol>${sentences.map((sentence) => `<li>${escapeHtml(sentence)}</li>`).join("")}</ol>`;
+  renderKpiAssistant();
+}
+
+function renderKpiAssistant() {
+  const form = document.querySelector("#kpi-assistant-form");
+  const submit = document.querySelector("#kpi-assistant-submit");
+  const answer = document.querySelector("#kpi-assistant-answer");
+  if (!form || !submit || !answer) return;
+
+  submit.disabled = state.kpiAssistant.loading;
+  submit.textContent = state.kpiAssistant.loading ? "Analysiert …" : "Fragen";
+
+  const text = state.kpiAssistant.error || state.kpiAssistant.answer;
+  if (!text && !state.kpiAssistant.loading) {
+    answer.hidden = true;
+    answer.replaceChildren();
+    return;
+  }
+
+  answer.hidden = false;
+  if (state.kpiAssistant.loading) {
+    answer.innerHTML = `<p class="kpi-assistant-loading">Die aggregierten Kennzahlen werden analysiert …</p>`;
+    return;
+  }
+
+  answer.innerHTML = `<p class="${state.kpiAssistant.error ? "kpi-assistant-error" : ""}">${escapeHtml(text)}</p>${
+    Number.isInteger(state.kpiAssistant.remainingRequests)
+      ? `<small>Noch ${number(state.kpiAssistant.remainingRequests)} KPI-Fragen heute.</small>`
+      : ""
+  }`;
 }
 
 // Zielerreichung getrennt von den Kernwerten: Nicht jede Kennzahl hat ein Ziel,
@@ -1617,6 +1650,7 @@ function endSession() {
   state.antonyPlannerClosing = null;
   state.antonyPlannerPeriodRange = { start: null, end: null };
   state.weeklyReview = null;
+  state.kpiAssistant = { answer: null, error: null, loading: false, remainingRequests: null };
   state.forcePasswordSetup = false;
   state.passwordChangeInProgress = false;
   showApp(false);
@@ -1655,6 +1689,7 @@ document.addEventListener("click", (event) => {
   const periodButton = event.target.closest("[data-period]");
   if (periodButton) {
     state.period = periodButton.dataset.period;
+    state.kpiAssistant = { answer: null, error: null, loading: false, remainingRequests: null };
     refresh();
     return;
   }
@@ -1681,6 +1716,7 @@ document.querySelector("#reference-date").addEventListener("change", (event) => 
   const selectedDate = event.target.value || berlinToday();
   state.referenceDate = selectedDate;
   state.datePinned = selectedDate !== berlinToday();
+  state.kpiAssistant = { answer: null, error: null, loading: false, remainingRequests: null };
   refresh();
 });
 
@@ -1731,6 +1767,52 @@ document.querySelector("#password-setup-form").addEventListener("submit", async 
 
 document.querySelector("#password-setup-sign-out").addEventListener("click", () => data.signOut());
 document.querySelector("#sign-out").addEventListener("click", () => data.signOut());
+
+document.querySelector("#kpi-assistant-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const question = String(new FormData(event.currentTarget).get("question") ?? "").trim();
+  if (question.length < 3 || question.length > 500) {
+    state.kpiAssistant = {
+      answer: null,
+      error: "Bitte eine Frage mit 3 bis 500 Zeichen eingeben.",
+      loading: false,
+      remainingRequests: null,
+    };
+    renderKpiAssistant();
+    return;
+  }
+
+  if (state.status === "preview") {
+    state.kpiAssistant = {
+      answer: "In der Vorschau wird kein kostenpflichtiger API-Aufruf ausgeführt. Nach Anmeldung beantwortet die KI diese Frage ausschließlich aus dem gewählten KPI-Zeitraum und dem Social-Profit-Kontext.",
+      error: null,
+      loading: false,
+      remainingRequests: null,
+    };
+    renderKpiAssistant();
+    return;
+  }
+
+  state.kpiAssistant = { answer: null, error: null, loading: true, remainingRequests: null };
+  renderKpiAssistant();
+  try {
+    const result = await data.askKpiAssistant(question, state.period, state.referenceDate);
+    state.kpiAssistant = {
+      answer: result.answer,
+      error: null,
+      loading: false,
+      remainingRequests: result.remainingRequests,
+    };
+  } catch (error) {
+    state.kpiAssistant = {
+      answer: null,
+      error: error.message,
+      loading: false,
+      remainingRequests: null,
+    };
+  }
+  renderKpiAssistant();
+});
 
 // Ziele schreiben darf ausschließlich der Manager. Die Policy setzt das
 // serverseitig durch, das Formular erscheint nur passend dazu.
