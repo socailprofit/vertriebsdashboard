@@ -1,11 +1,11 @@
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.
 //
-// Das Dashboard rechnet nichts selbst. Jede Kennzahl und jede Quote kommt aus
-// den Datenbankfunktionen, die im Mapping festgelegt sind. Der Browser
-// formatiert nur noch.
+// Jede fachliche Kennzahl und ihre Grundgesamtheit kommt aus den
+// Datenbankfunktionen. Der Browser formatiert sie und bildet daraus lediglich
+// den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04j";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04k";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 

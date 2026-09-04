@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-04j" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-04k" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -235,18 +235,6 @@
           </section>
         </section>
 
-        <section class="panel" id="widget-verlauf" data-widget="verlauf" aria-labelledby="series-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Verlauf</p>
-              <h2 id="series-title">Entwicklung im Zeitraum</h2>
-            </div>
-            <div class="person-legend" id="series-legend"></div>
-          </div>
-          <p class="section-note" id="series-note"></p>
-          <div class="chart-row" id="series-charts"></div>
-        </section>
-
         <div class="panel-row" id="dashboard-analysis-row">
           <section class="panel" id="widget-trichter" data-widget="trichter" aria-labelledby="funnel-title">
             <div class="section-heading">
@@ -255,6 +243,7 @@
                 <h2 id="funnel-title">Vom Anruf zum Termin</h2>
               </div>
             </div>
+            <div class="transfer-donuts" id="transfer-donuts"></div>
             <div class="funnel" id="funnel"></div>
             <p class="chart-legend" id="funnel-note"></p>
           </section>
@@ -266,13 +255,28 @@
                 <h2 id="hours-title">Beste Anrufzeiten</h2>
               </div>
               <div class="rate-switch" id="hours-rate-switch" role="group" aria-label="Quote auswählen">
-                <button data-rate="connection" class="active" type="button">Durchstellquote</button>
-                <button data-rate="net" type="button">Nettoquote</button>
+                <button data-rate="quality" class="active" type="button">Gesamt</button>
+                <button data-rate="productive" type="button">Erreichbar</button>
+                <button data-rate="connection" type="button">Durchstellung</button>
+                <button data-rate="decision" type="button">Entscheider</button>
+                <button data-rate="appointment" type="button">Termin</button>
               </div>
             </div>
             <div id="hours-chart" class="hours-chart"></div>
           </section>
         </div>
+
+        <section class="panel" id="widget-verlauf" data-widget="verlauf" aria-labelledby="series-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Verlauf</p>
+              <h2 id="series-title">Entwicklung im Zeitraum</h2>
+            </div>
+            <div class="person-legend" id="series-legend"></div>
+          </div>
+          <p class="section-note" id="series-note"></p>
+          <div class="chart-row" id="series-charts"></div>
+        </section>
 
         <section class="panel" id="widget-details" data-widget="details" aria-labelledby="details-title">
           <div class="section-heading">
@@ -306,8 +310,11 @@
               <h3>Beste Anrufzeiten über drei Monate</h3>
             </div>
             <div class="rate-switch" role="group" aria-label="Quote für den Dreimonatszeitraum auswählen">
-              <button data-trend-rate="connection" class="active" type="button">Durchstellquote</button>
-              <button data-trend-rate="net" type="button">Nettoquote</button>
+              <button data-trend-rate="quality" class="active" type="button">Gesamt</button>
+              <button data-trend-rate="productive" type="button">Erreichbar</button>
+              <button data-trend-rate="connection" type="button">Durchstellung</button>
+              <button data-trend-rate="decision" type="button">Entscheider</button>
+              <button data-trend-rate="appointment" type="button">Termin</button>
             </div>
           </div>
           <div id="trend-hours" class="hours-chart"></div>
@@ -351,6 +358,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-04j"></script>
+    <script type="module" src="./app.js?v=2026-09-04k"></script>
   </body>
 </html>

@@ -1,8 +1,13 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-04j";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-04j";
+import * as data from "./data.js?v=2026-09-04k";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-04k";
+import {
+  aggregateCallTimeRows,
+  calculateCallTimeQuality,
+  callTimeMetric,
+} from "./call-time-score.mjs?v=2026-09-04k";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -33,6 +38,8 @@ const metricDefinitions = [
   { key: "decisionMakers", label: "Entscheider gesamt", detail: "Direkt und durchgestellt", format: number, target: "decision_maker_contacts" },
   { key: "appointments", label: "Termine", detail: "Termin vereinbart", format: number, target: "appointments" },
   { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, rateTarget: "appointment_rate_target", ratio: ["appointments", "decisionMakers"] },
+  { key: "mailbox", label: "Mailbox", detail: "Close-Outcome 📮 Mailbox", format: number, noTarget: true },
+  { key: "outsideBusinessHours", label: "Außerhalb Geschäftszeit", detail: "Close-Outcome außerhalb der Geschäftszeiten", format: number, noTarget: true },
   { key: "newsletters", label: "Newsletter-Abschlüsse", detail: "Close-Workflow: Ziel erreicht oder beendet", format: count, noTarget: true },
 ];
 
@@ -84,10 +91,10 @@ const state = {
   periodRange: { start: null, end: null },
   profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null },
   syncRun: null,
-  heatmapRate: "connection",
+  heatmapRate: "quality",
   series: [],
   trendHours: [],
-  trendRate: "connection",
+  trendRate: "quality",
   widget: null,
   lastCalculated: null,
   status: "start",
@@ -252,6 +259,8 @@ function toPerson(row) {
     decisionMakers: Number(row.decision_maker_contacts),
     appointments: Number(row.appointments),
     appointmentRate: Number(row.appointment_rate),
+    mailbox: Number(row.mailbox_calls ?? 0),
+    outsideBusinessHours: Number(row.outside_business_hours_calls ?? 0),
     dealsWon: Number(row.deals_won),
     winRate: Number(row.win_rate),
     revenue: Number(row.revenue_cents),
@@ -284,6 +293,18 @@ async function loadAll() {
   state.weeklyReview = weeklyReview;
   state.metrics = {};
   metricRows.forEach((row) => { state.metrics[row.slug] = toPerson(row); });
+  // Die Outcome-Zahlen gehören bewusst nur in die Detail- und Stundenebene.
+  // Sie stammen aus demselben Stunden-RPC und verändern keine Kernkennzahl.
+  for (const person of people) {
+    const metrics = state.metrics[person.slug];
+    if (!metrics) continue;
+    const ownHours = hourRows.filter((row) => row.slug === person.slug);
+    metrics.mailbox = ownHours.reduce((sum, row) => sum + Number(row.mailbox_calls ?? 0), 0);
+    metrics.outsideBusinessHours = ownHours.reduce(
+      (sum, row) => sum + Number(row.outside_business_hours_calls ?? 0),
+      0,
+    );
+  }
 
   const first = metricRows[0];
   state.periodRange = first
@@ -429,7 +450,7 @@ function coreMetrics() {
 }
 
 const DETAIL_ORDER = [
-  "gatekeeper", "connected", "connectionRate", "directDecisionMakers",
+  "mailbox", "outsideBusinessHours", "gatekeeper", "connected", "connectionRate", "directDecisionMakers",
   "newsletters",
 ];
 
@@ -556,7 +577,8 @@ function teamEntry() {
     callsGross: sum("callsGross"), callsNet: sum("callsNet"), talkMinutes: sum("talkMinutes"),
     gatekeeper: sum("gatekeeper"), connected: sum("connected"),
     directDecisionMakers: sum("directDecisionMakers"), decisionMakers: sum("decisionMakers"),
-    appointments: sum("appointments"),
+    appointments: sum("appointments"), mailbox: sum("mailbox"),
+    outsideBusinessHours: sum("outsideBusinessHours"),
     newsletters: people.every((person) => state.metrics[person.slug].newsletters === null) ? null : sum("newsletters"),
   };
   // Team-Quoten aus den Summen, nicht als Mittel der Einzelquoten — sonst zählte
@@ -1282,6 +1304,35 @@ function renderFunnel() {
   const totals = steps.map(([, key]) => people.reduce((sum, person) => sum + state.metrics[person.slug][key], 0));
   const widest = Math.max(1, ...totals);
 
+  // Die Durchstellquote ist die wichtigste Diagnose innerhalb der
+  // Kontaktstufen, aber keine Kern-KPI. In der Teamansicht stehen deshalb der
+  // gewichtete Teamwert und beide Personen direkt nebeneinander; in einer
+  // Personenansicht bleibt nur deren eigener Donut stehen.
+  const transferEntries = boardEntries().slice().sort((a, b) => {
+    if (a.slug === "team") return -1;
+    if (b.slug === "team") return 1;
+    return 0;
+  });
+  document.querySelector("#transfer-donuts").innerHTML = transferEntries.map((entry) => {
+    const base = Number(entry.metrics.gatekeeper ?? 0);
+    const successes = Number(entry.metrics.connected ?? 0);
+    const rate = base > 0 ? safeRate(successes, base) : null;
+    const safeRateValue = rate === null ? 0 : Math.min(100, Math.max(0, rate));
+    const aria = rate === null
+      ? `${entry.label}: keine Vorzimmer-Kontakte`
+      : `${entry.label}: ${Math.round(rate)} Prozent Durchstellquote, ${successes} von ${base}`;
+    return `
+      <article class="transfer-donut-card" style="--donut-color:${entry.color}">
+        <span class="transfer-donut" style="--donut-rate:${safeRateValue}" role="img" aria-label="${aria}">
+          <strong>${rate === null ? "–" : `${Math.round(rate)} %`}</strong>
+        </span>
+        <span class="transfer-donut-copy">
+          <b>${entry.label}</b>
+          <small>${successes} von ${base} Vorzimmern durchgestellt</small>
+        </span>
+      </article>`;
+  }).join("");
+
   document.querySelector("#funnel").innerHTML = steps.map(([label, key], index) => {
     const bars = people.map((person) => {
       const value = state.metrics[person.slug][key];
@@ -1295,37 +1346,20 @@ function renderFunnel() {
     </div>`;
   }).join("");
   document.querySelector("#funnel-note").textContent =
-    "Kontaktstufen sind keine starre 1:1-Kette: Direkte Entscheider umgehen das Vorzimmer. Die Balken zeigen Mengen, keine erfundenen Konversionsraten.";
+    "Die Donuts zeigen Durchstellungen ÷ Vorzimmer-Kontakte. Der Teamwert wird aus den Summen berechnet. Direkte Entscheider umgehen das Vorzimmer und bleiben deshalb außerhalb dieser Quote.";
 }
 
-// Stundenprofil. Drei Dinge, die eine reine Datenübertragung falsch machen
-// würde:
-//
-// Eine Quote von 0 % behauptet, dass niemand durchgestellt hat. Lagen in der
-// Stunde gar keine Kontakte vor, ist das keine Null, sondern keine Aussage —
-// dafür steht ein Strich.
-//
-// 100 % aus einem einzigen Kontakt sieht aus wie die beste Anrufzeit des Tages.
-// Deshalb steht die Grundgesamtheit neben jeder Quote, und alles unter drei
-// Kontakten wird gedämpft: erkennbar, aber nicht als Empfehlung lesbar.
-//
-// Die Zahl steht außerhalb des Balkens, sonst verschwindet sie bei schmalen
-// Balken genau dort, wo man sie am ehesten nachliest.
+// Das Stundenprofil bleibt dicht: eine Zeile je Uhrzeit, Michael und Felix in
+// der Teamansicht nebeneinander. Die Gesamtqualität verbindet die vier
+// Stufenraten. Close-Outcomes Mailbox und außerhalb der Geschäftszeiten werden
+// dabei aus den nur technisch "answered" gemeldeten Calls herausgerechnet.
 const HOUR_MIN_BASE = 3;
 
 function renderHours() {
   const rateSwitch = document.querySelector("#hours-rate-switch");
-  if (state.period === "day") {
-    document.querySelector("#hours-title").textContent = "Tagesverlauf nach Uhrzeit";
-    rateSwitch.hidden = true;
-    // Die Tagesaktivitaet links zeigt bereits Brutto- und Netto-Mengen je
-    // Person. Hier steht deshalb die dazugehoerige Erreichbarkeitsquote je
-    // Person und exakt derselben Close-Stunde. So wird aus spaeten Anrufen
-    // nach 14 Uhr kein Team-Mittelwert und keine verschobene Tagesquote.
-    zeichneStunden("#hours-chart", state.hours, "net");
-    return;
-  }
-  document.querySelector("#hours-title").textContent = "Beste Anrufzeiten";
+  document.querySelector("#hours-title").textContent = state.period === "day"
+    ? "Anrufzeiten heute"
+    : "Beste Anrufzeiten";
   rateSwitch.hidden = false;
   zeichneStunden("#hours-chart", state.hours, state.heatmapRate);
 }
@@ -1337,77 +1371,74 @@ function renderTrendHours() {
   zeichneStunden("#trend-hours", state.trendHours, state.trendRate);
 }
 
-function zeichneStunden(selektor, quelle, quote) {
+function hourRateText(value) {
+  return value === null || value === undefined ? "–" : `${Math.round(value)} %`;
+}
+
+function zeichneStunden(selektor, quelle, mode) {
   const container = document.querySelector(selektor);
-  const useConnection = quote === "connection";
-  const baseKey = useConnection ? "gatekeeper_contacts" : "calls_gross";
-  const successKey = useConnection ? "connected_calls" : "calls_net";
-  const baseLabel = useConnection ? "Vorzimmer-Kontakte" : "Anrufe";
-  const successLabel = useConnection ? "durchgestellt" : "netto";
-
-  // 08:00–17:00 ist die operative Anrufzeit. Auch leere Stunden bleiben
-  // sichtbar, damit ein später Nachmittag nicht fälschlich verschwindet.
   const hours = Array.from({ length: 10 }, (_, index) => index + 8);
-
   const people = orderedPeople();
+  const baselines = Object.fromEntries(people.map((person) => [
+    person.slug,
+    aggregateCallTimeRows(quelle.filter(
+      (row) => row.slug === person.slug && hours.includes(Number(row.metric_hour)),
+    )),
+  ]));
+  const evaluated = new Map();
+
+  for (const person of people) {
+    for (const hour of hours) {
+      const row = quelle.find((entry) => entry.slug === person.slug && Number(entry.metric_hour) === hour) ?? {};
+      const quality = calculateCallTimeQuality(row, baselines[person.slug]);
+      evaluated.set(`${person.slug}:${hour}`, { quality, metric: callTimeMetric(quality, mode) });
+    }
+  }
+
+  const bestByPerson = Object.fromEntries(people.map((person) => {
+    const candidates = hours
+      .map((hour) => ({ hour, ...evaluated.get(`${person.slug}:${hour}`) }))
+      .filter(({ metric }) => metric.value !== null && metric.base >= HOUR_MIN_BASE)
+      .sort((a, b) => b.metric.value - a.metric.value || b.metric.base - a.metric.base || a.hour - b.hour);
+    return [person.slug, candidates[0]?.hour ?? null];
+  }));
+
+  const head = `<div class="hour-matrix-head" aria-hidden="true">
+    <span></span>
+    <span class="hour-bars">${people.map((person) => `<b style="--person-color:${person.color}">${firstName(person.display_name)}</b>`).join("")}</span>
+  </div>`;
+
   const rows = hours.map((hour) => {
     const bars = people.map((person) => {
-      const row = quelle.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
-      const base = row ? Number(row[baseKey]) : 0;
-      const successes = row ? Number(row[successKey]) : 0;
-      // Die sichtbare Quote wird defensiv aus genau den beiden angezeigten
-      // Stundenwerten berechnet. Damit koennen ein veraltetes Prozentfeld und
-      // Zaehler/Nenner in der Darstellung niemals auseinanderlaufen.
-      const value = safeRate(successes, base);
+      const { quality, metric } = evaluated.get(`${person.slug}:${hour}`);
+      const missing = metric.value === null || metric.base === 0;
+      const thin = !missing && metric.base < HOUR_MIN_BASE;
+      const best = !missing && bestByPerson[person.slug] === hour;
+      const value = missing ? 0 : Math.min(100, Math.max(0, metric.value));
+      const visibleValue = mode === "quality" ? `${Math.round(value)} / 100` : `${Math.round(value)} %`;
+      const title = missing
+        ? `${firstName(person.display_name)}, ${hour}:00 Uhr: keine belastbare Grundgesamtheit`
+        : `${firstName(person.display_name)}, ${hour}:00 Uhr · Qualität ${Math.round(quality.quality)} von 100 · erreichbar ${hourRateText(quality.rates.productive)} · durchgestellt ${hourRateText(quality.rates.connection)} · Entscheider ${hourRateText(quality.rates.decision)} · Termine ${hourRateText(quality.rates.appointment)} · Mailbox ${quality.mailbox_calls} · außerhalb Geschäftszeit ${quality.outside_business_hours_calls}`;
 
-      if (base === 0) {
-        return `<span class="hour-bar is-missing" title="${firstName(person.display_name)}, ${hour}:00 Uhr: keine ${baseLabel}">
-                  <span class="hour-track"></span>
-                  <span class="hour-figure">–</span>
-                </span>`;
-      }
-
-      const duenn = base < HOUR_MIN_BASE;
-      return `<span class="hour-bar ${duenn ? "is-thin" : ""}"
-                title="${firstName(person.display_name)}, ${hour}:00 Uhr: ${Math.round(value)} % aus ${base} ${baseLabel}${duenn ? " — zu wenig für eine Aussage" : ""}">
-                <span class="hour-track"><i style="width:${Math.max(1, value)}%;background:${person.color}"></i></span>
-                <span class="hour-figure"><b>${Math.round(value)} %</b><small>${successes} ${successLabel} aus ${base}</small></span>
+      return `<span class="hour-bar ${missing ? "is-missing" : ""} ${thin ? "is-thin" : ""} ${best ? "is-best" : ""}"
+                style="--person-color:${person.color}" title="${title}">
+                <span class="hour-bar-top">
+                  <span class="hour-person">${firstName(person.display_name)}</span>
+                  <b>${missing ? "–" : visibleValue}</b>
+                  ${best ? "<em>Beste</em>" : ""}
+                </span>
+                <span class="hour-track"><i style="width:${missing ? 0 : Math.max(1, value)}%"></i></span>
+                <small class="hour-meta">${quality.calls_gross} Anrufe · ${quality.productive_calls} produktiv · MB ${quality.mailbox_calls} · AG ${quality.outside_business_hours_calls}</small>
               </span>`;
     }).join("");
     return `<div class="hour-row"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span><span class="hour-bars">${bars}</span></div>`;
   }).join("");
 
-  const legende = `<p class="chart-legend">Quote je Person und tatsächlicher Close-Stunde (Europe/Berlin), daneben Treffer und Grundgesamtheit. Leere Stunden bis 17:00 bleiben sichtbar. Gedämpfte Zeilen beruhen auf weniger als ${HOUR_MIN_BASE} ${baseLabel} und taugen nicht als Empfehlung.</p>`;
-  container.innerHTML = rows + legende;
-}
-
-function zeichneTagesvolumen() {
-  const container = document.querySelector("#hours-chart");
-  const people = orderedPeople();
-  const hours = Array.from({ length: 10 }, (_, index) => index + 8);
-  const totals = hours.map((hour) => people.reduce((sum, person) => {
-    const row = state.hours.find((entry) => entry.slug === person.slug && entry.metric_hour === hour);
-    return {
-      callsGross: sum.callsGross + Number(row?.calls_gross ?? 0),
-      callsNet: sum.callsNet + Number(row?.calls_net ?? 0),
-    };
-  }, { callsGross: 0, callsNet: 0 }));
-  const maxGross = Math.max(1, ...totals.map((total) => total.callsGross));
-
-  const rows = hours.map((hour, index) => {
-    const total = totals[index];
-    const rate = total.callsGross === 0 ? null : safeRate(total.callsNet, total.callsGross);
-    return `<div class="volume-hour-row">
-      <span class="hour-label">${String(hour).padStart(2, "0")}:00</span>
-      <span class="volume-track" title="${hour}:00 Uhr: ${number(total.callsGross)} Brutto, ${number(total.callsNet)} Netto">
-        <i class="volume-gross" style="width:${(total.callsGross / maxGross) * 100}%"></i>
-        <i class="volume-net" style="width:${(total.callsNet / maxGross) * 100}%"></i>
-      </span>
-      <span class="hour-figure"><b>${number(total.callsGross)}</b><small>brutto · ${number(total.callsNet)} netto · ${rate === null ? "–" : percent(rate)}</small></span>
-    </div>`;
-  }).join("");
-  container.innerHTML = rows +
-    `<p class="chart-legend">Je Stunde: helle Fläche = Brutto-Anrufe, farbige Fläche = angenommene Netto-Anrufe. Leere Stunden von 08:00 bis 17:00 bleiben sichtbar.</p>`;
+  const modeCopy = mode === "quality"
+    ? "Gesamtqualität: 35 % produktive Erreichbarkeit, 25 % Durchstellung, je 20 % Entscheider- und Terminquote. Kleine Stichproben werden zum persönlichen Periodenmittel geglättet."
+    : `${callTimeMetric(calculateCallTimeQuality({}, {}), mode).label}: sichtbare Treffer geteilt durch ihre jeweilige Grundgesamtheit.`;
+  container.innerHTML = head + rows +
+    `<p class="chart-legend">${modeCopy} MB = Mailbox, AG = außerhalb der Geschäftszeiten; beide mindern nur hier die produktive Erreichbarkeit. „Beste“ benötigt mindestens ${HOUR_MIN_BASE} Fälle. Grundlage ist die tatsächliche Close-Stunde in Europe/Berlin.</p>`;
 }
 
 // --- Details -----------------------------------------------------------------
@@ -1967,8 +1998,8 @@ function samplePreview() {
   ];
   state.people = people;
   state.metrics = {
-    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, netRate: 65.1, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, dealsWon: 7, winRate: 12.1, revenue: 4200000, newsletters: null },
-    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, netRate: 57.1, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
+    michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, netRate: 65.1, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, mailbox: 31, outsideBusinessHours: 7, dealsWon: 7, winRate: 12.1, revenue: 4200000, newsletters: null },
+    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, netRate: 57.1, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, mailbox: 18, outsideBusinessHours: 11, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
   };
   state.periodRange = { start: "2026-09-01", end: "2026-09-30" };
   // Wie die echten Ziele: 150 Brutto-Anrufe je Arbeitstag und 25 % Terminquote.
@@ -1982,11 +2013,21 @@ function samplePreview() {
   for (let hour = 8; hour <= 17; hour += 1) {
     const shape = [38, 52, 61, 57, 34, 41, 66, 72, 59, 44][hour - 8];
     people.forEach((person, index) => {
+      const callsGross = 40 - index * 12;
+      const callsNet = 24 - index * 8;
+      const mailboxCalls = [5, 3, 1, 2, 4, 2, 1, 1, 2, 4][hour - 8] - (index && hour % 2 === 0 ? 1 : 0);
+      const outsideBusinessHoursCalls = [3, 1, 0, 0, 1, 0, 0, 0, 1, 3][hour - 8];
+      const decisionMakers = Math.max(2, Math.round((shape / 100) * (10 - index * 2)));
       state.hours.push({
         slug: person.slug, metric_hour: hour,
-        calls_gross: 40 - index * 12, calls_net: 24 - index * 8,
+        calls_gross: callsGross, calls_net: callsNet,
+        mailbox_calls: Math.max(0, mailboxCalls),
+        outside_business_hours_calls: outsideBusinessHoursCalls,
+        productive_calls: Math.max(0, callsNet - mailboxCalls - outsideBusinessHoursCalls),
         net_rate: shape - 6 + index * 3,
         gatekeeper_contacts: 18 - index * 5, connected_calls: 10 - index * 3,
+        decision_maker_contacts: decisionMakers,
+        appointments: Math.max(0, Math.round(decisionMakers * (0.18 + ((hour - 8) % 4) * 0.05))),
         transfer_rate: shape - index * 11,
       });
     });

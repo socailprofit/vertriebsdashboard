@@ -22,7 +22,9 @@
 | Anrufe brutto | Call Activity | `direction = outbound` und finaler Status `completed`, `no-answer`, `busy`, `failed` oder `timeout` |
 | Anrufe netto | Call Activity | Brutto-Call mit `status = completed` und `disposition = answered` |
 | Gesprächszeit | Call Activity | Summe `duration` nur für Netto-Calls |
-| Beste Anrufzeiten | Call Activity und Opening/Follow-up | Zwei Quoten je Stunde in `Europe/Berlin`: Nettoquote (netto/brutto) und Durchstellquote (Durchstellungen/Vorzimmer-Kontakte) |
+| Beste Anrufzeiten | Call Activity und Opening/Follow-up | Pro Stunde in `Europe/Berlin`: produktive Erreichbarkeit, Durchstell-, Entscheider- und Terminquote; kleine Stichproben werden zum persönlichen Periodenmittel geglättet |
+| Mailbox | Call Outcome | Outcome-ID `outcome_030sp0X2TRtdT8YPJfqwWS` (`📮 Mailbox`) |
+| Außerhalb Geschäftszeit | Call Outcome | Outcome-ID `outcome_030spLYZrlWBQ9kEiPfudv` (`⌛️ außerhalb der Geschäftszeiten`) |
 
 ### Zeit- und Zeitraumlogik
 
@@ -32,6 +34,7 @@
 - **Monat** beginnt immer am Ersten und endet am letzten Kalendertag des ausgewählten Monats. Die Trendtabelle zeigt den aktuellen sowie die zwei vorherigen Monate.
 - Nettoquote = Summe Netto-Anrufe / Summe Brutto-Anrufe. Durchstellquote = Summe Durchstellungen / Summe Vorzimmer-Kontakte. Terminquote = Summe Termine / Summe Entscheiderkontakte. Das Dashboard bildet nie Mittelwerte aus Einzelquoten.
 - Stunden ohne Grundgesamtheit zeigen bei Quoten einen Strich statt `0 %`. Stunden mit weniger als drei Kontakten bleiben sichtbar, werden aber als zu kleine Basis gedämpft und nicht als Empfehlung behandelt.
+- Die Stunden-Gesamtqualität gewichtet produktive Erreichbarkeit mit 35 %, Durchstellung mit 25 % sowie Entscheider- und Terminquote mit je 20 %. `Mailbox` und `außerhalb der Geschäftszeiten` werden dabei von den technisch als beantwortet gemeldeten Calls abgezogen. Diese Klassifizierung gilt ausschließlich für die Stundenempfehlung und verändert Anrufe brutto, Anrufe netto oder deren Quote nicht.
 
 `created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die stündliche Überlappung werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
 
@@ -41,14 +44,14 @@ Im ersten produktiven Stand werden nur folgende Werte sichtbar gemacht:
 
 1. Anrufe brutto
 2. Anrufe netto
-3. Nettoquote **und** Durchstellquote nach Stunde zur Ermittlung der besten Anrufzeiten
+3. Intelligente Stundenqualität aus produktiver Erreichbarkeit, Durchstell-, Entscheider- und Terminquote; Mailbox und außerhalb der Geschäftszeiten als Negativ-Outcomes
 4. Vorzimmer-Kontakte
 5. Durchstellungen und Durchstellquote
 6. Entscheiderkontakte, zusätzlich getrennt nach direkt erreicht und durchgestellt
 7. Termine und Terminquote
 8. Newsletter-Abschlüsse
 
-Am 2026-09-02 festgelegt: Beide Stundenquoten werden gezeigt, weil sie verschiedene Fragen beantworten — die Nettoquote sagt, wann überhaupt abgenommen wird, die Durchstellquote, wann man am Vorzimmer vorbeikommt.
+Die Einzelquoten bleiben umschaltbar. Die Gesamtqualität beantwortet die Steuerungsfrage, wann aus einem Anruf mit belastbarer Basis am ehesten ein produktiver Entscheiderkontakt und Termin entsteht.
 
 Deals und Umsatz werden weiterhin importiert und in Supabase vorgehalten, aber **nicht angezeigt**. Die offene Frage nach Vertragswert, MRR oder ARR bei `monthly`/`annual` bleibt damit vertagt, bis der Umsatz sichtbar werden soll.
 
