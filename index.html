@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-03q" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-03r" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -21,6 +21,23 @@
           <button class="primary-button" type="submit">Anmelden</button>
         </form>
         <p class="form-status" id="login-status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="login-screen" id="password-setup-screen" hidden>
+      <div class="login-card">
+        <span class="brand-mark" aria-hidden="true">SP</span>
+        <h1>Eigenes Passwort festlegen</h1>
+        <p>Bevor du den Vertriebsbereich öffnen kannst, legst du ein persönliches Passwort fest. Dieses Passwort teilst du mit niemandem.</p>
+        <form id="password-setup-form">
+          <label for="new-password">Neues Passwort</label>
+          <input id="new-password" name="password" type="password" autocomplete="new-password" minlength="12" required />
+          <label for="new-password-confirmation">Passwort wiederholen</label>
+          <input id="new-password-confirmation" name="confirmation" type="password" autocomplete="new-password" minlength="12" required />
+          <button class="primary-button" type="submit">Passwort speichern und fortfahren</button>
+        </form>
+        <p class="form-status" id="password-setup-status" aria-live="polite"></p>
+        <button class="text-button" id="password-setup-sign-out" type="button">Anderes Konto verwenden</button>
       </div>
     </section>
 
@@ -196,6 +213,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-03q"></script>
+    <script type="module" src="./app.js?v=2026-09-03r"></script>
   </body>
 </html>

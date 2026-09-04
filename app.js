@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03q";
+import * as data from "./data.js?v=2026-09-03r";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -53,7 +53,7 @@ const state = {
   trends: [],
   targets: [],
   periodRange: { start: null, end: null },
-  profile: { displayName: null, role: "sales", salesPersonId: null },
+  profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false },
   syncRun: null,
   heatmapRate: "connection",
   series: [],
@@ -64,6 +64,8 @@ const state = {
   status: "start",
   error: null,
   unsubscribe: null,
+  forcePasswordSetup: false,
+  passwordChangeInProgress: false,
 };
 
 // --- Formatierung ------------------------------------------------------------
@@ -879,10 +881,23 @@ function reportStartupFailure(error) {
 function showApp(visible) {
   document.querySelector(".app-shell").hidden = !visible;
   document.querySelector("#login-screen").hidden = visible;
+  document.querySelector("#password-setup-screen").hidden = true;
+}
+
+function showPasswordSetup() {
+  document.querySelector(".app-shell").hidden = true;
+  document.querySelector("#login-screen").hidden = true;
+  document.querySelector("#password-setup-screen").hidden = false;
 }
 
 async function startSession() {
   state.profile = await data.loadProfile();
+  if (state.forcePasswordSetup || state.profile.mustChangePassword) {
+    state.status = "password-setup";
+    showPasswordSetup();
+    return;
+  }
+
   showApp(true);
   await refresh();
 
@@ -900,7 +915,9 @@ async function startSession() {
 function endSession() {
   state.unsubscribe?.();
   state.unsubscribe = null;
-  state.profile = { displayName: null, role: "sales", salesPersonId: null };
+  state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false };
+  state.forcePasswordSetup = false;
+  state.passwordChangeInProgress = false;
   showApp(false);
 }
 
@@ -970,6 +987,39 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
   }
 });
 
+document.querySelector("#password-setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const password = String(form.get("password") ?? "");
+  const confirmation = String(form.get("confirmation") ?? "");
+  const status = document.querySelector("#password-setup-status");
+
+  if (password.length < 12) {
+    status.textContent = "Das persönliche Passwort muss mindestens 12 Zeichen haben.";
+    return;
+  }
+  if (password !== confirmation) {
+    status.textContent = "Die beiden Passwörter stimmen nicht überein.";
+    return;
+  }
+
+  state.passwordChangeInProgress = true;
+  status.textContent = "Persönliches Passwort wird gespeichert …";
+  try {
+    await data.updatePassword(password);
+    if (state.profile.mustChangePassword) await data.completePasswordSetup();
+    state.forcePasswordSetup = false;
+    state.profile.mustChangePassword = false;
+    status.textContent = "";
+    await startSession();
+  } catch (error) {
+    status.textContent = `Passwort konnte nicht gespeichert werden: ${error.message}`;
+  } finally {
+    state.passwordChangeInProgress = false;
+  }
+});
+
+document.querySelector("#password-setup-sign-out").addEventListener("click", () => data.signOut());
 document.querySelector("#sign-out").addEventListener("click", () => data.signOut());
 
 // Ziele schreiben darf ausschließlich der Manager. Die Policy setzt das
@@ -1131,8 +1181,17 @@ function boot() {
     return;
   }
 
-  data.onAuthChange((session) => {
-    if (session) startSession().catch(reportStartupFailure); else endSession();
+  data.onAuthChange((event, session) => {
+    if (!session) {
+      endSession();
+      return;
+    }
+    // Supabase kennzeichnet einen Einladungs-/Wiederherstellungslink als
+    // PASSWORD_RECOVERY. Der Link darf nur die Passwortseite öffnen, nie die
+    // Kennzahlen. Bei eingeladenen Konten greift zusätzlich die serverseitige
+    // must_change_password-Sperre aus dem Profil.
+    if (event === "PASSWORD_RECOVERY") state.forcePasswordSetup = true;
+    if (!state.passwordChangeInProgress) startSession().catch(reportStartupFailure);
   });
 
   data.currentSession()

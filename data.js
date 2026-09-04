@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03q";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03r";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -45,12 +45,28 @@ export async function signIn(email, password) {
   if (error) throw new Error(error.message);
 }
 
+// Ein Einladungs- oder Reset-Link erstellt eine kurzlebige Sitzung. Nur aus
+// dieser Sitzung darf das persönliche Passwort gesetzt werden; die App nimmt
+// oder speichert niemals ein Aktivierungs- oder Team-Passwort.
+export async function updatePassword(password) {
+  const { error } = await requireClient().auth.updateUser({ password });
+  if (error) throw new Error(error.message);
+}
+
+// Die Datenbank lässt erst nach diesem serverseitigen Abschluss Dashboard-
+// Daten zu. Der Aufruf folgt ausschließlich auf einen erfolgreichen
+// auth.updateUser()-Aufruf im selben Browserablauf.
+export async function completePasswordSetup() {
+  const { error } = await requireClient().rpc("complete_personal_password_setup");
+  if (error) throw new Error(error.message);
+}
+
 export async function signOut() {
   await requireClient().auth.signOut();
 }
 
 export function onAuthChange(handler) {
-  requireClient().auth.onAuthStateChange((_event, session) => handler(session));
+  requireClient().auth.onAuthStateChange((event, session) => handler(event, session));
 }
 
 // Das Profil entscheidet über die Chefansicht und darüber, welche Person beim
@@ -59,14 +75,15 @@ export function onAuthChange(handler) {
 export async function loadProfile() {
   const rows = await run(
     "Profil laden",
-    requireClient().from("profiles").select("display_name, role, sales_person_id").limit(1),
+    requireClient().from("profiles").select("display_name, role, sales_person_id, must_change_password").limit(1),
   );
   const profile = rows[0];
-  if (!profile) return { displayName: null, role: "sales", salesPersonId: null };
+  if (!profile) return { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: true };
   return {
     displayName: profile.display_name,
     role: profile.role,
     salesPersonId: profile.sales_person_id,
+    mustChangePassword: Boolean(profile.must_change_password),
   };
 }
 
