@@ -465,6 +465,61 @@ tbody td:first-child { font-weight: 620; }
 .core-card.is-strong .core-score { color: var(--good); }
 .core-card.is-weak .core-score { color: var(--bad); }
 
+/* Eigener vierter Reiter: kompakte Closer-Strecke statt einer überbreiten
+   zusätzlichen Personenzeile in jeder Vertriebsansicht. */
+.antony-section { --antony: #9b8cff; }
+.antony-donuts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-top: 18px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.antony-metric {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+  gap: 14px;
+  min-height: 132px;
+  padding: 18px;
+  background: var(--bg);
+}
+
+.donut {
+  --donut-value: 0;
+  width: 78px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border-radius: 50%;
+  background: conic-gradient(var(--antony) calc(var(--donut-value) * 1%), var(--surface-2) 0);
+}
+
+.donut::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: inherit;
+  background: var(--bg);
+}
+
+.donut span { position: relative; z-index: 1; font-size: 0.78rem; font-weight: 720; }
+.donut.is-empty { background: var(--surface-2); color: var(--muted-2); }
+.antony-metric-copy { display: grid; gap: 2px; min-width: 0; }
+.antony-metric-copy > span { color: var(--muted); font-size: 0.76rem; }
+.antony-metric-copy strong { font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1; }
+.antony-metric-copy small { color: var(--muted-2); font-size: 0.7rem; line-height: 1.35; }
+.antony-empty { margin: 0; padding: 20px; color: var(--muted); background: var(--bg); }
+
+@media (max-width: 980px) {
+  .antony-donuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* Verlauf: vier kleine Liniendiagramme nebeneinander. */
 .chart-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 
@@ -576,6 +631,8 @@ body.is-widget .panel { border-radius: 0; min-height: 100vh; }
 @media (max-width: 620px) {
   .volume-hour-row { grid-template-columns: 46px 1fr; }
   .volume-hour-row .hour-figure { grid-column: 2; }
+  .antony-donuts { grid-template-columns: 1fr; }
+  .antony-metric { min-height: 112px; }
 }
 
 .trend-hours-heading { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }

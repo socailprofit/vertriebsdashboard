@@ -1,7 +1,7 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-04c";
+import * as data from "./data.js?v=2026-09-04d";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -35,6 +35,7 @@ const targetFields = [
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
+  antony: ["Closer-Strecke", "Antony im Fokus", "Termine von Michael und Felix bis zum Neukunden kompakt nachverfolgt."],
   chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
   betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
@@ -292,6 +293,7 @@ const SAMMELANSICHTEN = new Set(["team", "chef", "betrieb"]);
 // jede Ansicht zeigte am Ende dieselben Zahlen.
 function orderedPeople() {
   const mitDaten = state.people.filter((person) => state.metrics[person.slug]);
+  if (state.view === "antony") return [];
   if (SAMMELANSICHTEN.has(state.view)) return mitDaten;
   const eigene = mitDaten.filter((person) => person.slug === state.view);
   return eigene.length > 0 ? eigene : mitDaten;
@@ -310,13 +312,7 @@ function renderNav() {
   state.people.forEach((person) => {
     buttons.push(`<button class="nav-button" data-view="${person.slug}">${firstName(person.display_name)}</button>`);
   });
-  const role = state.profile.role;
-  if (role === "manager" || role === "operator") {
-    buttons.push(`<button class="nav-button" data-view="chef">Ziele</button>`);
-  }
-  if (role === "operator") {
-    buttons.push(`<button class="nav-button" data-view="betrieb">Betrieb</button>`);
-  }
+  buttons.push(`<button class="nav-button" data-view="antony">Antony</button>`);
   document.querySelector(".view-nav").innerHTML = buttons.join("");
 }
 
@@ -342,6 +338,15 @@ function renderHeader() {
   document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${periodCaption()}`;
 
   if (state.widget) return;
+  const antonyView = state.view === "antony";
+  [
+    "#widget-kernwerte", "#widget-verlauf", "#dashboard-analysis-row",
+    "#widget-details", "#widget-trend",
+  ].forEach((selector) => {
+    document.querySelector(selector).hidden = antonyView;
+  });
+  document.querySelector("#antony-section").hidden = !antonyView;
+
   const role = state.profile.role;
   const leads = role === "manager" || role === "operator";
   document.querySelector("#manager-section").hidden = state.view !== "chef" || !leads;
@@ -401,7 +406,7 @@ function boardEntries() {
 // --- Kernwerte ---------------------------------------------------------------
 
 function renderCore() {
-  const salesCards = boardEntries().map((entry) => {
+  document.querySelector("#core-grid").innerHTML = boardEntries().map((entry) => {
     const score = entry.slug === "team" ? null : weightedScore(entry.metrics, entry.targetId);
     const values = coreMetrics().map((metric) => {
       const value = entry.metrics[metric.key];
@@ -427,37 +432,77 @@ function renderCore() {
         <div class="core-values">${values}</div>
       </article>`;
   }).join("");
+}
 
-  const closingCard = state.closing
-    ? `
-      <article class="core-card" style="--person-color:#9b8cff">
-        <header>
-          <span class="core-name">Antony</span>
-          <span class="core-score"></span>
-        </header>
-        <div class="core-values">
-          ${[
-            ["Termine", number(state.closing.appointments)],
-            ["Setter Calls", number(state.closing.setter_calls)],
-            ["Closer terminiert", number(state.closing.setter_successes)],
-            ["Setterquote", percent(state.closing.setter_success_rate)],
-            ["Closer Calls", number(state.closing.closer_calls)],
-            ["CC2 vereinbart", number(state.closing.closer_second_calls)],
-            ["Entschiedene Closer Calls", number(state.closing.decided_closer_calls)],
-            ["Verkauft", number(state.closing.closer_sales)],
-            ["Closer-Abschlussquote", percent(state.closing.closer_success_rate)],
-            ["Neukunden", number(state.closing.new_customers)],
-          ].map(([label, value]) => `
-            <div class="core-value is-neutral">
-              <span class="core-label">${label}</span>
-              <strong>${value}</strong>
-              <small>kein Ziel</small>
-            </div>`).join("")}
+// Antony ist eine eigene Arbeitsansicht. Die Mengen stammen vollständig aus
+// der geschützten Datenbankfunktion; die Kreise setzen nur die zugehörigen
+// Zähler und Nenner ins Verhältnis und zeigen die Basis direkt daneben.
+function renderAntony() {
+  const container = document.querySelector("#antony-donuts");
+  const note = document.querySelector("#antony-note");
+  if (!state.closing) {
+    container.innerHTML = `<p class="antony-empty">Für diesen Zeitraum liegen noch keine Closer-Daten vor.</p>`;
+    note.textContent = "";
+    return;
+  }
+
+  const closing = state.closing;
+  const ratio = (numerator, denominator) => denominator > 0 ? safeRate(numerator, denominator) : null;
+  const charts = [
+    {
+      label: "Termine", value: closing.appointments,
+      rate: ratio(closing.setter_calls, closing.appointments),
+      detail: "davon als Setter Call erfasst",
+    },
+    {
+      label: "Setter Calls", value: closing.setter_calls,
+      rate: closing.setter_calls > 0 ? Number(closing.setter_success_rate) : null,
+      detail: "Setter-Showrate · Closer terminiert",
+    },
+    {
+      label: "Closer Calls", value: closing.closer_calls,
+      rate: ratio(closing.closer_calls, closing.setter_successes),
+      detail: "Closer-Showrate · durchgeführt",
+    },
+    {
+      label: "CC2 vereinbart", value: closing.closer_second_calls,
+      rate: ratio(closing.closer_second_calls, closing.closer_calls),
+      detail: "Anteil an allen Closer Calls",
+    },
+    {
+      label: "Neukunden", value: closing.new_customers,
+      rate: closing.decided_closer_calls > 0 ? Number(closing.closer_success_rate) : null,
+      detail: "Abschlussquote entschiedener Closer Calls",
+    },
+    {
+      label: "Termin → Closer", value: ratio(closing.closer_calls, closing.appointments),
+      rate: ratio(closing.closer_calls, closing.appointments),
+      detail: "Gesamtconversion vom Termin zum Closer Call",
+      valueIsRate: true,
+    },
+  ];
+
+  container.innerHTML = charts.map((chart) => {
+    const rate = chart.rate === null ? null : Math.max(0, Math.min(100, chart.rate));
+    const displayedRate = rate === null ? "—" : percent(rate);
+    const displayedValue = chart.valueIsRate ? displayedRate : number(chart.value);
+    const aria = `${chart.label}: ${displayedValue}; Quote ${displayedRate}`;
+    return `
+      <article class="antony-metric">
+        <div class="donut ${rate === null ? "is-empty" : ""}"
+             style="--donut-value:${rate ?? 0}"
+             role="img" aria-label="${aria}">
+          <span>${displayedRate}</span>
         </div>
-      </article>`
-    : "";
+        <div class="antony-metric-copy">
+          <span>${chart.label}</span>
+          <strong>${displayedValue}</strong>
+          <small>${chart.detail}</small>
+        </div>
+      </article>`;
+  }).join("");
 
-  document.querySelector("#core-grid").innerHTML = salesCards + closingCard;
+  note.textContent = "Termine und Setter stammen von Michael und Felix. Closer Calls, CC2 und Verkäufe werden ausschließlich Antony zugeordnet; Neukunden über das Close-Feld 3.03 Closer.";
 }
 
 // Zielerreichung getrennt von den Kernwerten: Nicht jede Kennzahl hat ein Ziel,
@@ -863,6 +908,12 @@ function updateUrl() {
 function render() {
   renderNav();
   renderHeader();
+  if (state.view === "antony") {
+    renderAntony();
+    renderSyncBadge();
+    updateUrl();
+    return;
+  }
   renderCore();
   renderGoals();
   renderSeries();
@@ -1143,6 +1194,18 @@ function samplePreview() {
       appointment_rate: 35.2 - index * 13.1 - monthIndex,
     })));
   state.profile = { displayName: "Vorschau", role: "operator", salesPersonId: null };
+  state.closing = {
+    appointments: 79,
+    setter_calls: 68,
+    setter_successes: 45,
+    setter_success_rate: 66.2,
+    closer_calls: 37,
+    closer_second_calls: 9,
+    decided_closer_calls: 28,
+    closer_sales: 8,
+    closer_success_rate: 28.6,
+    new_customers: 8,
+  };
   state.series = [];
   for (let day = 1; day <= 14; day += 1) {
     const datum = `2026-09-${String(day).padStart(2, "0")}`;

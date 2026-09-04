@@ -110,8 +110,9 @@ Absagen und verschobene Termine werden nicht als No Show gewertet.
 
 ### Closer-Stufe für Antony
 
-- Das vierte Feld `Antony` steht direkt im oberen Kernwertebereich und zeigt ausschließlich die Strecke Termine → Setter Calls → Closer terminiert → Closer Calls → CC2 → verkauft → Neukunden.
+- `Antony` ist der vierte Ansichtsreiter direkt neben `Felix`. Die Vertriebs-Kernwerte bleiben dadurch unverändert; Antonys eigener Reiter zeigt ausschließlich die Strecke Termine → Setter Calls → Closer terminiert → Closer Calls → CC2 → verkauft → Neukunden.
 - Setter- und Terminwerte stammen aus Michael/Felix-Aktivitäten. Closer Calls, CC2 und Verkäufe zählen nur Aktivitäten von Antony Rigone. Neukunden zählen gewonnene Opportunities mit Antony als `3.03 Closer`.
+- Setter-Showrate = `Closer terminiert ÷ Setter Calls`. Closer-Showrate = `Closer Calls ÷ Closer terminiert`. CC2-Quote = `CC2 vereinbart ÷ Closer Calls`. Gesamtconversion Termin → Closer = `Closer Calls ÷ Termine`.
 - `2. 🔥 CC2 vereinbart` ist eine offene Fortsetzung. Die Closer-Abschlussquote lautet deshalb `Verkauft ÷ (Closer Calls − CC2 vereinbart)`.
 - Die Datenbankfunktion verlangt weiterhin ein angemeldetes Konto mit abgeschlossener persönlicher Passworteinrichtung. Vorläufig sehen alle Dashboard-Nutzer das Feld; die spätere Sperre auf Antony wird serverseitig ergänzt.
 - Freitextfelder aus Close werden für diese Ansicht weder ausgewertet noch an den Browser übertragen.
@@ -168,5 +169,5 @@ Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es i
 - 2026-09-03: Newsletter-Quelle auf den freigegebenen Close-Workflow festgelegt; Abschlussstatus `goal` und `finished` werden Michael/Felix über den Ersteller der Anmeldung zugerechnet.
 - 2026-09-03: KPI- und Zeitraumvertrag präzisiert: sechs Kernwerte, Nettoquote aus Brutto/Netto, Terminquote aus Entscheider/Termine, Wochenansicht Montag bis Freitag und Stundenanzeige 08:00 bis 17:00.
 - 2026-09-03: Dauerhafte Monatsabschlüsse als eigene, schlanke Backend-Tabelle für das gesamte Team festgelegt; der automatische Lauf sichert den Vormonat am ersten lokalen Kalendertag.
-- 2026-09-04: Closer-Stufe als viertes Feld im oberen Kernwertebereich vorläufig für alle Dashboard-Nutzer freigegeben; CC2 aus dem Abschlussquoten-Nenner entfernt.
+- 2026-09-04: Closer-Stufe als eigener vierter Reiter neben Felix vorläufig für alle Dashboard-Nutzer freigegeben; kompakte Kreisdiagramme bilden Setter-, Closer-, CC2- und Gesamtconversion ab. CC2 bleibt aus dem Abschlussquoten-Nenner entfernt.
 - Nächster Schritt: Einen vollständigen Testtag gegen Close zählen und die erste produktive Stunden-Synchronisierung kontrollieren.
