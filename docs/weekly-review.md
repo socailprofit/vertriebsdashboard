@@ -69,9 +69,9 @@ Erwartung: genau eine abgeschlossene Zeile für die Kalenderwoche und genau fün
 
 ## Missing Context
 
-- Der produktive Wert von `OPENAI_API_KEY` muss durch den Projektinhaber als Supabase Function Secret gesetzt werden.
+- `OPENAI_API_KEY` und `OPENAI_MODEL` sind als Supabase Function Secrets vorhanden; ihre Werte liegen nicht im Repository.
 - Der erste produktive OpenAI-Lauf und der danach sichtbare Reviewtext sind noch nicht verifiziert.
-- Nach Setzen des Keys muss eine angemeldete KPI-Frage kontrolliert getestet werden. Vorher zeigt das Feld eine sichere Konfigurationsmeldung und führt keinen OpenAI-Aufruf aus.
+- Eine angemeldete KPI-Frage muss noch mit einem der beiden freigegebenen Konten kontrolliert getestet werden.
 - Der Review und der KPI-Assistent sind auf `rigone@socialprofit.de` und `info@socialprofit.de` begrenzt. Die Antony-Navigation und Antony-Datenaufrufe werden im Browser ausgeblendet und zusätzlich durch geschützte RPCs beziehungsweise die Edge Function serverseitig abgewiesen.
 
 ## Sources
