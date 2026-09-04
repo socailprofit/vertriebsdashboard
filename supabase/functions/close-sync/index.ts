@@ -20,7 +20,8 @@ import {
 } from "../_shared/close-mapping.ts";
 
 const CLOSE_API_BASE = "https://api.close.com/api/v1";
-const TARGET_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
+const SALES_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
+const CUSTOM_ACTIVITY_USER_IDS = [...SALES_USER_IDS, CLOSE_USERS.antony];
 const MAX_RANGE_DAYS = 31;
 const RETENTION_MONTHS = 3;
 // /activity/call/ and /activity/custom/ sort by date_created and expose no
@@ -255,6 +256,7 @@ function activityFactRow(fact: ActivityFact) {
     setter_calls: fact.setterCalls,
     setter_successes: fact.setterSuccesses,
     closer_calls: fact.closerCalls,
+    closer_second_calls: fact.closerSecondCalls,
     closer_sales: fact.closerSales,
     no_shows: fact.noShows,
     cancellations: fact.cancellations,
@@ -380,7 +382,6 @@ Deno.serve(async (request) => {
     }
 
     const activityWindow = {
-      user_id: TARGET_USER_IDS.join(","),
       date_created__gte: berlinMidnightUtc(addDays(startDate, -ACTIVITY_FETCH_BUFFER_DAYS)),
       date_created__lt: berlinMidnightUtc(addDays(nextDate, ACTIVITY_FETCH_BUFFER_DAYS)),
     };
@@ -393,8 +394,14 @@ Deno.serve(async (request) => {
     // ein Workflow klein ist, lesen wir die eine freigegebene Sequenz vollständig
     // und schreiben sie idempotent. So werden Statuswechsel mitgenommen.
     const [callResult, customResult, opportunityResult, newsletterResult] = await Promise.all([
-      settle(closeList<JsonRecord>(closeApiKey, "/activity/call/", activityWindow)),
-      settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", activityWindow)),
+      settle(closeList<JsonRecord>(closeApiKey, "/activity/call/", {
+        ...activityWindow,
+        user_id: SALES_USER_IDS.join(","),
+      })),
+      settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
+        ...activityWindow,
+        user_id: CUSTOM_ACTIVITY_USER_IDS.join(","),
+      })),
       settle(closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
         status_id__in: [...SALES_PIPELINE.wonStatusIds].join(","),
         date_won__gte: startDate,

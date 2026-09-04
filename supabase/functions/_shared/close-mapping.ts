@@ -1,4 +1,4 @@
-export const MAPPING_VERSION = "2026-09-03.v2";
+export const MAPPING_VERSION = "2026-09-04.v3";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
 export function metricTimeInReportingTimezone(occurredAt: string) {
@@ -79,6 +79,7 @@ const CLOSER_SALE_RESULTS = new Set([
   "1. ✅ Verkauft - in CC1",
   "3. ✅ Verkauft - in CC2 🔥",
 ]);
+const CLOSER_SECOND_CALL_RESULTS = new Set(["2. 🔥 CC2 vereinbart"]);
 
 type CustomValue = string | number | string[] | null;
 
@@ -154,6 +155,7 @@ export type ActivityFact = {
   setterCalls: number;
   setterSuccesses: number;
   closerCalls: number;
+  closerSecondCalls: number;
   closerSales: number;
   noShows: number;
   cancellations: number;
@@ -186,6 +188,7 @@ function emptyActivityFact(
     setterCalls: 0,
     setterSuccesses: 0,
     closerCalls: 0,
+    closerSecondCalls: 0,
     closerSales: 0,
     noShows: 0,
     cancellations: 0,
@@ -254,6 +257,7 @@ export function mapCustomActivity(activity: CloseCustomActivity): ActivityFact |
   if (activity.custom_activity_type_id === ACTIVITY_TYPES.closerCall) {
     const closerResult = stringValue(fieldValue(activity, CUSTOM_FIELDS.closerResult));
     fact.closerCalls = 1;
+    fact.closerSecondCalls = closerResult && CLOSER_SECOND_CALL_RESULTS.has(closerResult) ? 1 : 0;
     fact.closerSales = closerResult && CLOSER_SALE_RESULTS.has(closerResult) ? 1 : 0;
     return fact;
   }

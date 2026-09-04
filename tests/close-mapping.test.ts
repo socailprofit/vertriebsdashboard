@@ -82,6 +82,42 @@ test("gatekeeper transfer maps to the transfer rate", () => {
   assert.equal(fact.decisionMakerContacts, 1);
 });
 
+test("CC2 agreement is an open continuation and not a lost closer call", () => {
+  const fact = mapCustomActivity({
+    id: "custom_cc2",
+    lead_id: "lead_cc2",
+    user_id: "user_closer",
+    activity_at: "2026-09-03T12:00:00Z",
+    custom_activity_type_id: ACTIVITY_TYPES.closerCall,
+    status: "published",
+    custom_fields: [
+      { id: CUSTOM_FIELDS.closerResult, value: "2. 🔥 CC2 vereinbart" },
+    ],
+  });
+  assert.ok(fact);
+  assert.equal(fact.closerCalls, 1);
+  assert.equal(fact.closerSecondCalls, 1);
+  assert.equal(fact.closerSales, 0);
+});
+
+test("CC1 and CC2 sales count as closer sales", () => {
+  for (const result of ["1. ✅ Verkauft - in CC1", "3. ✅ Verkauft - in CC2 🔥"]) {
+    const fact = mapCustomActivity({
+      id: `custom_sale_${result}`,
+      lead_id: "lead_sale",
+      user_id: "user_closer",
+      activity_at: "2026-09-03T12:00:00Z",
+      custom_activity_type_id: ACTIVITY_TYPES.closerCall,
+      status: "published",
+      custom_fields: [{ id: CUSTOM_FIELDS.closerResult, value: result }],
+    });
+    assert.ok(fact);
+    assert.equal(fact.closerCalls, 1);
+    assert.equal(fact.closerSecondCalls, 0);
+    assert.equal(fact.closerSales, 1);
+  }
+});
+
 test("won deal is credited to the lead opener", () => {
   const statusId = [...SALES_PIPELINE.wonStatusIds][0];
   const deal = mapWonOpportunity({
