@@ -3,6 +3,7 @@ import {
   addDays,
   buildBusinessContext,
   buildModelInput,
+  buildPipelineInput,
   buildWeeklyComparison,
   businessContextIsConfigured,
   dateInReportingTimezone,
@@ -52,6 +53,7 @@ type ReviewInput = {
   current_week: ReturnType<typeof buildModelInput>;
   previous_week: ReturnType<typeof buildModelInput>;
   changes: ReturnType<typeof buildWeeklyComparison>;
+  open_pipeline: ReturnType<typeof buildPipelineInput>;
 };
 
 async function createReview(apiKey: string, model: string, input: ReviewInput) {
@@ -71,8 +73,11 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
         "Schreibe genau fünf wichtige Punkte für Antony als Geschäftsführer: Stärke, größter Funnel-Engpass, Trend plus auffällige Conversion gegenüber der Vorwoche, Priorität für die kommende Woche und genau eine konkrete Handlungsempfehlung.",
         "Wenn keine Benchmarks übergeben wurden, vergleiche ausschließlich Mengen, mathematische Funnelverluste, interne Conversion-Unterschiede und die Größe der jeweiligen Grundgesamtheit; unterstelle keine branchenüblichen Sollwerte.",
         "Wenn interne Benchmarks übergeben wurden, behandle Werte innerhalb des Normalbereichs als Standard und nicht automatisch als Stärke; bewerte Abweichungen nur nach den mitgelieferten Regeln.",
+        "Für die Nettoquote ist changes.business_signals verbindlich: 70 bis 80 Prozent sind Standard und dürfen im Feld strength nicht als besondere Stärke gelobt werden.",
+        "Liegt current_net_rate.status bei lead_list_quality_warning, muss einer der Punkte bottleneck, priority oder action ausdrücklich die Leadlisten-Qualität als Prüfpunkt nennen; formuliere das als Warnsignal und nicht als bewiesene Ursache.",
         "Erfinde keine Ursachen und ergänze keine Informationen, die nicht aus den Kennzahlen folgen.",
         "changes wurde deterministisch aus current_week minus previous_week berechnet: Mengen als absolute_change, Quoten als percentage_point_change.",
+        "open_pipeline ist nur eine aggregierte Momentaufnahme am angegebenen Stichtag aus einem rollierenden Drei-Monats-Fenster; nutze sie fuer konkrete Prioritaeten, aber behandle sie nicht als historischen Trend und erfinde keine Opportunity-Statuswerte.",
         "Wenn changes.data_basis.trend_reliable falsch ist, muss trend_and_conversion ausdrücklich auf die zu kleine Datenbasis hinweisen und darf keine belastbare Tendenz behaupten.",
         "Ordne die Kennzahlen mit business_context auf das konkrete Social-Profit-Angebot und den Industrie-ICP ein, aber leite daraus niemals unbelegte Ursachen ab.",
         "Jedes Ausgabefeld enthält genau einen kurzen deutschen Satz ohne Überschrift oder Floskel.",
@@ -166,23 +171,31 @@ Deno.serve(async (request) => {
     reservedWeek = week.start;
 
     const previousWeekStart = addDays(week.start, -7);
-    const [currentResult, previousResult] = await Promise.all([
+    const [currentResult, previousResult, pipelineResult] = await Promise.all([
       supabase.rpc("get_weekly_review_kpis", { p_week_start: week.start }),
       supabase.rpc("get_weekly_review_kpis", { p_week_start: previousWeekStart }),
+      supabase.rpc("get_antony_pipeline_snapshot", {
+        p_reference_date: dateInReportingTimezone(),
+      }),
     ]);
-    if (currentResult.error || previousResult.error || !currentResult.data || !previousResult.data) {
+    if (
+      currentResult.error || previousResult.error || pipelineResult.error
+      || !currentResult.data || !previousResult.data || !pipelineResult.data
+    ) {
       throw new Error("weekly_review_facts_failed");
     }
 
     const currentWeek = buildModelInput(currentResult.data);
     const previousWeek = buildModelInput(previousResult.data);
     const changes = buildWeeklyComparison(currentWeek, previousWeek);
-    const facts = { current_week: currentWeek, previous_week: previousWeek, changes };
+    const openPipeline = buildPipelineInput(pipelineResult.data);
+    const facts = { current_week: currentWeek, previous_week: previousWeek, changes, open_pipeline: openPipeline };
     const generated = await createReview(requiredEnvironment("OPENAI_API_KEY"), model, {
       business_context: businessContext,
       current_week: currentWeek,
       previous_week: previousWeek,
       changes,
+      open_pipeline: openPipeline,
     });
     const content = generated.sentences.join("\n");
 

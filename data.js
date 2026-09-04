@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04i";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04j";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -122,6 +122,30 @@ export async function loadAntonyClosingMetrics(period, referenceDate) {
     }),
   );
   return rows[0] ?? null;
+}
+
+// Nur aggregierte offene Funnel-Stufen. Der RPC liefert keine Lead-IDs,
+// Kontaktdaten, Notizen oder Rohpayloads an den Browser.
+export async function loadAntonyOpenPipeline(referenceDate) {
+  return run(
+    "Offene Antony-Pipeline laden",
+    requireClient().rpc("get_antony_open_pipeline", {
+      p_reference_date: referenceDate,
+    }),
+  );
+}
+
+// Kumulierte Zeitreihe aus derselben serverseitigen Faktenbasis wie die
+// Closer-KPIs. Am Tag bleiben Neukunden bewusst ohne Stundenlinie, weil Close
+// das Won-Datum im aktuellen Mapping nur tagesgenau bereitstellt.
+export async function loadAntonyPerformanceSeries(period, referenceDate) {
+  return run(
+    "Antony-Gesamtverlauf laden",
+    requireClient().rpc("get_antony_performance_series", {
+      p_period: period,
+      p_reference_date: referenceDate,
+    }),
+  );
 }
 
 // Der Browser erhält über den geschützten RPC ausschließlich den fertigen

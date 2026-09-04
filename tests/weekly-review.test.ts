@@ -3,8 +3,10 @@ import test from "node:test";
 import {
   buildBusinessContext,
   buildModelInput,
+  buildPipelineInput,
   buildWeeklyComparison,
   businessContextIsConfigured,
+  classifyNetRate,
   extractResponseText,
   parseReviewSentences,
   previousCompletedSalesWeek,
@@ -86,6 +88,33 @@ test("business context is bounded, whitelisted and needs the four core fields", 
   assert.equal(businessContextIsConfigured(buildBusinessContext({})), false);
 });
 
+test("pipeline input exposes aggregate counts but drops raw Close details", () => {
+  const input = buildPipelineInput({
+    as_of: "2026-09-04",
+    window_start: "2026-07-01",
+    retention_months: 3,
+    counts: {
+      total_open: 9,
+      setter_pending: 2,
+      closer_scheduled: 3,
+      rescheduled_closer: 1,
+      pending_decision_cc2: 3,
+      from_previous_months: 4,
+      older_than_14_days: 2,
+    },
+    oldest_open_date: "2026-07-22",
+    lead_ids: ["lead_secret"],
+    notes: "private Close note",
+    email: "person@example.test",
+  });
+
+  const serialised = JSON.stringify(input);
+  assert.equal(input.counts.total_open, 9);
+  assert.equal(serialised.includes("lead_secret"), false);
+  assert.equal(serialised.includes("private Close note"), false);
+  assert.equal(serialised.includes("person@example.test"), false);
+});
+
 test("weekly comparison covers every aggregate KPI with stable deltas", () => {
   const current = buildModelInput({
     funnel: {
@@ -128,6 +157,22 @@ test("weekly comparison covers every aggregate KPI with stable deltas", () => {
     previous_too_small: true,
     trend_reliable: false,
   });
+  assert.deepEqual(comparison.business_signals.current_net_rate, {
+    status: "standard",
+    interpretation: "Interner Normalbereich; darf im Review nicht als besondere Staerke gelobt werden.",
+  });
+  assert.deepEqual(comparison.business_signals.previous_net_rate, {
+    status: "lead_list_quality_warning",
+    interpretation: "Unter dem internen Standard; Leadlisten-Qualitaet pruefen, aber keine Ursache behaupten.",
+  });
+});
+
+test("net rate uses Social Profit's deterministic internal benchmark", () => {
+  assert.equal(classifyNetRate(0, 0).status, "no_data");
+  assert.equal(classifyNetRate(69.99, 100).status, "lead_list_quality_warning");
+  assert.equal(classifyNetRate(70, 100).status, "standard");
+  assert.equal(classifyNetRate(80, 100).status, "standard");
+  assert.equal(classifyNetRate(80.01, 100).status, "above_standard");
 });
 
 test("structured model output covers every required review topic", () => {

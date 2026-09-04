@@ -1,8 +1,8 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-04i";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-04i";
+import * as data from "./data.js?v=2026-09-04j";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-04j";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -70,6 +70,8 @@ const state = {
   trends: [],
   targets: [],
   closing: null,
+  antonyPipeline: null,
+  antonyPerformance: [],
   antonyGoal: null,
   antonyCustomerValueCents: 0,
   plannerOpen: false,
@@ -294,7 +296,10 @@ async function loadAll() {
   const plannerClosingRequest = state.period === "month"
     ? selectedClosingRequest
     : data.loadAntonyClosingMetrics("month", state.referenceDate);
-  const [series, targets, antonyGoal, plannerMetricRows, closing, plannerClosing] = await Promise.all([
+  const [
+    series, targets, antonyGoal, plannerMetricRows, closing, plannerClosing,
+    antonyPipeline, antonyPerformance,
+  ] = await Promise.all([
     // Tag bleibt ein einzelner Tag. Woche und Monat verwenden die gerade von
     // der Datenbank bestätigten Grenzen, nicht einen 14-Tage-Ersatzbereich.
     data.loadDailySeries(state.periodRange.start, state.periodRange.end),
@@ -305,6 +310,10 @@ async function loadAll() {
     plannerMetricsRequest,
     selectedClosingRequest,
     plannerClosingRequest,
+    // Beide neuen Antony-Auswertungen sind Zusatzmodule. Ein noch nicht
+    // migrierter RPC darf die bestehenden Team-KPIs nicht blockieren.
+    data.loadAntonyOpenPipeline(state.referenceDate).catch(() => null),
+    data.loadAntonyPerformanceSeries(state.period, state.referenceDate).catch(() => []),
   ]);
   state.series = series;
   state.targets = targets;
@@ -316,6 +325,8 @@ async function loadAll() {
     antonyGoal.closing_rate_override,
   ].some((value) => value !== null) ? "custom" : "current";
   state.closing = closing;
+  state.antonyPipeline = antonyPipeline;
+  state.antonyPerformance = antonyPerformance;
   state.antonyPlannerMetrics = {};
   plannerMetricRows.forEach((row) => { state.antonyPlannerMetrics[row.slug] = toPerson(row); });
   state.antonyPlannerClosing = plannerClosing;
@@ -884,6 +895,8 @@ function renderAntony() {
   if (!state.closing) {
     container.innerHTML = `<p class="antony-empty">Für diesen Zeitraum liegen noch keine Closer-Daten vor.</p>`;
     note.textContent = "";
+    renderAntonyPerformance();
+    renderAntonyPipeline();
     renderAntonyPotential();
     renderAntonyPlanner();
     renderWeeklyReview();
@@ -946,9 +959,122 @@ function renderAntony() {
   }).join("");
 
   note.textContent = "Termine und Setter stammen von Michael und Felix. Closer-Termine sind erfolgreiche Setter Calls. Closer Calls, CC2 und Abschlüsse im Gespräch zählen am tatsächlichen Gesprächstermin in Europe/Berlin. Neukunden gesamt zählen im Monat des Won-Datums – also wenn der Kunde zugesagt hat – und werden über das Close-Feld 3.03 Closer Antony zugeordnet.";
+  renderAntonyPerformance();
+  renderAntonyPipeline();
   renderAntonyPotential();
   renderAntonyPlanner();
   renderWeeklyReview();
+}
+
+const antonyPerformanceSeries = Object.freeze([
+  { key: "appointments_cumulative", label: "Termine", color: "#3b9dff" },
+  { key: "closer_appointments_cumulative", label: "Closer terminiert", color: "#9b8cff" },
+  { key: "closer_calls_cumulative", label: "Closer durchgeführt", color: "#36d399" },
+  { key: "new_customers_cumulative", label: "Neukunden", color: "#f5a524" },
+]);
+
+function renderAntonyPerformance() {
+  const summary = document.querySelector("#antony-performance-summary");
+  const chart = document.querySelector("#antony-performance-chart");
+  const note = document.querySelector("#antony-performance-note");
+  const period = document.querySelector("#antony-performance-period");
+  const rows = Array.isArray(state.antonyPerformance) ? state.antonyPerformance : [];
+  const closing = state.closing ?? {};
+  const summaryValues = [
+    ["Termine", closing.appointments ?? 0, "Michael + Felix"],
+    ["Closer terminiert", closing.setter_successes ?? 0, "aus Setter Calls"],
+    ["Closer durchgeführt", closing.closer_calls ?? 0, "Antony"],
+    ["Neukunden", closing.new_customers ?? 0, "Won-Datum"],
+  ];
+
+  period.textContent = periodCaption();
+  summary.innerHTML = summaryValues.map(([label, value, detail]) => `
+    <article><span>${label}</span><strong>${number(value)}</strong><small>${detail}</small></article>`).join("");
+
+  if (rows.length < 2) {
+    chart.innerHTML = `<p class="antony-analysis-empty">Für diesen Zeitraum liegen noch nicht genug Zeitpunkte für einen Verlauf vor.</p>`;
+    note.textContent = "Die Summen darüber bleiben vollständig; der Graph erscheint ab zwei Zeitpunkten.";
+    return;
+  }
+
+  const visibleSeries = antonyPerformanceSeries.filter((series) =>
+    state.period !== "day" || series.key !== "new_customers_cumulative");
+  const width = 960;
+  const height = 300;
+  const pad = { left: 42, right: 20, top: 20, bottom: 28 };
+  const values = visibleSeries.flatMap((series) => rows.map((row) => Number(row[series.key] ?? 0)));
+  const maxValue = Math.max(1, ...values);
+  const x = (index) => pad.left + (index / Math.max(1, rows.length - 1)) * (width - pad.left - pad.right);
+  const y = (value) => height - pad.bottom - (Number(value ?? 0) / maxValue) * (height - pad.top - pad.bottom);
+  const grid = Array.from({ length: 5 }, (_, index) => {
+    const value = (maxValue / 4) * index;
+    const position = y(value);
+    return `<g><line x1="${pad.left}" y1="${position.toFixed(1)}" x2="${width - pad.right}" y2="${position.toFixed(1)}" />
+      <text x="${pad.left - 9}" y="${(position + 4).toFixed(1)}">${number(value)}</text></g>`;
+  }).join("");
+  const paths = visibleSeries.map((series) => {
+    const d = rows.map((row, index) =>
+      `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(row[series.key]).toFixed(1)}`).join(" ");
+    const last = rows[rows.length - 1];
+    return `<path d="${d}" style="stroke:${series.color}" />
+      <circle cx="${x(rows.length - 1).toFixed(1)}" cy="${y(last[series.key]).toFixed(1)}" r="4" style="fill:${series.color}" />`;
+  }).join("");
+  const labels = rows.map((row, index) => ({
+    label: row.bucket_label,
+    index,
+  })).filter(({ index }) => {
+    const interval = Math.max(1, Math.ceil((rows.length - 1) / 5));
+    return index === 0 || index === rows.length - 1 || index % interval === 0;
+  });
+
+  chart.innerHTML = `
+    <div class="antony-performance-legend">${visibleSeries.map((series) => {
+      const last = rows[rows.length - 1];
+      return `<span><i style="background:${series.color}"></i>${series.label}<b>${number(last[series.key])}</b></span>`;
+    }).join("")}</div>
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Kumulierter Antony-Funnel im gewählten Zeitraum">
+      <g class="antony-performance-grid">${grid}</g>
+      <g class="antony-performance-lines">${paths}</g>
+    </svg>
+    <div class="antony-performance-axis">${labels.map(({ label, index }) =>
+      `<span style="left:${(index / (rows.length - 1)) * 100}%">${escapeHtml(label)}</span>`).join("")}</div>`;
+
+  note.textContent = state.period === "day"
+    ? "Kumuliert von 08:00 bis 17:00 Uhr in Europe/Berlin. Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält."
+    : "Kumulierte Funnel-Mengen je Kalendertag. Jeder Punkt baut ausschließlich auf den bis dahin erfassten, gemappten Close-Fakten auf.";
+}
+
+function renderAntonyPipeline() {
+  const grid = document.querySelector("#antony-pipeline-grid");
+  const note = document.querySelector("#antony-pipeline-note");
+  const period = document.querySelector("#antony-pipeline-period");
+  const pipeline = state.antonyPipeline;
+
+  if (!pipeline?.counts) {
+    period.textContent = "Rollierende 3 Monate";
+    grid.innerHTML = `<p class="antony-analysis-empty">Die aggregierte offene Pipeline ist noch nicht verfügbar.</p>`;
+    note.textContent = "Bestehende KPI- und Close-Mappings laufen davon unabhängig weiter.";
+    return;
+  }
+
+  const counts = pipeline.counts;
+  const cards = [
+    ["Offen gesamt", counts.total_open, "eindeutige Leads", "total"],
+    ["Termin ohne Setter Call", counts.setter_pending, "nächster Funnel-Schritt fehlt", "normal"],
+    ["Closer terminiert", counts.closer_scheduled, "noch ohne Closer-Durchführung", "normal"],
+    ["Closer verschoben", counts.rescheduled_closer, "noch ohne neuen Closer Call", "attention"],
+    ["CC2 / Entscheidung offen", counts.pending_decision_cc2, "kein späterer Closer-Abschluss", "attention"],
+    ["Aus Vormonaten offen", counts.from_previous_months, "über Monatsgrenze hinweg", "attention"],
+    ["Älter als 14 Tage", counts.older_than_14_days, "Priorität zur Nachverfolgung", "critical"],
+  ];
+  period.textContent = `${germanDate(pipeline.window_start)} – ${germanDate(pipeline.as_of)}`;
+  grid.innerHTML = cards.map(([label, value, detail, tone]) => `
+    <article class="antony-pipeline-card" data-tone="${tone}">
+      <span>${label}</span><strong>${number(value)}</strong><small>${detail}</small>
+    </article>`).join("");
+  note.textContent = pipeline.oldest_open_date
+    ? `Ältester logisch offener Stand: ${germanDate(pipeline.oldest_open_date)}. Die Einordnung nutzt nur letzte gemappte Funnel-Ereignisse und keine frei interpretierten Close-Notizen.`
+    : "Aktuell wurde im verfügbaren Drei-Monats-Fenster kein logisch offener Funnel-Stand erkannt.";
 }
 
 function renderWeeklyReview() {
@@ -1481,6 +1607,8 @@ function endSession() {
   state.unsubscribe = null;
   state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null };
   state.closing = null;
+  state.antonyPipeline = null;
+  state.antonyPerformance = [];
   state.antonyGoal = null;
   state.antonyCustomerValueCents = 0;
   state.plannerOpen = false;
@@ -1828,13 +1956,45 @@ function samplePreview() {
     week_start: "2026-08-24",
     week_end: "2026-08-28",
     content: [
-      "Die Nettoquote war im Wochenvergleich die stärkste Stufe des Funnels.",
+      "Die Terminquote lag innerhalb des internen Zielkorridors.",
       "Der größte Engpass lag zwischen Entscheiderkontakt und Termin.",
       "Closer-Showrate und Terminquote lagen unter der Vorwoche; wegen nur vier Closer Calls ist diese Tendenz noch nicht belastbar.",
       "Antony sollte nächste Woche die Durchführung bereits terminierter Closer Calls priorisieren.",
       "Prüfe jeden offenen Closer-Termin am Vortag und bestätige ihn verbindlich.",
     ].join("\n"),
   };
+  state.antonyPipeline = {
+    as_of: "2026-09-04",
+    window_start: "2026-07-01",
+    retention_months: 3,
+    counts: {
+      total_open: 14,
+      setter_pending: 3,
+      closer_scheduled: 5,
+      rescheduled_closer: 2,
+      pending_decision_cc2: 4,
+      from_previous_months: 6,
+      older_than_14_days: 2,
+    },
+    oldest_open_date: "2026-07-22",
+  };
+  const previewPerformanceLength = state.period === "week" ? 5 : 14;
+  const previewPerformancePoints = state.period === "day"
+    ? Array.from({ length: 10 }, (_, index) => ({
+        bucket_label: `${String(index + 8).padStart(2, "0")}:00`,
+        appointments_cumulative: Math.round((79 * (index + 1)) / 10),
+        closer_appointments_cumulative: Math.round((45 * (index + 1)) / 10),
+        closer_calls_cumulative: Math.round((37 * (index + 1)) / 10),
+        new_customers_cumulative: null,
+      }))
+    : Array.from({ length: previewPerformanceLength }, (_, index) => ({
+        bucket_label: `${String(index + 1).padStart(2, "0")}.09.`,
+        appointments_cumulative: Math.round((79 * (index + 1)) / previewPerformanceLength),
+        closer_appointments_cumulative: Math.round((45 * (index + 1)) / previewPerformanceLength),
+        closer_calls_cumulative: Math.round((37 * (index + 1)) / previewPerformanceLength),
+        new_customers_cumulative: Math.round((8 * (index + 1)) / previewPerformanceLength),
+      }));
+  state.antonyPerformance = previewPerformancePoints;
   state.series = [];
   for (let day = 1; day <= 14; day += 1) {
     const datum = `2026-09-${String(day).padStart(2, "0")}`;

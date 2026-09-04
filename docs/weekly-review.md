@@ -4,12 +4,14 @@
 
 - `weekly-review` erzeugt höchstens einen Review je ISO-Kalenderwoche und genau fünf kurze Geschäftsführer-Punkte.
 - Der vorgesehene Cron ruft die Function nach dem Deployment montags um 07:10 UTC auf. Sie analysiert die letzte abgeschlossene Vertriebswoche von Montag bis Freitag in `Europe/Berlin`.
-- Das Modell erhält ausschließlich die in `get_weekly_review_kpis` gebildeten Summen und Quoten der letzten abgeschlossenen Woche und der Vorwoche. Mengenänderungen und Prozentpunktänderungen werden vor dem Modellaufruf deterministisch berechnet. Rohpayloads, Close-Freitexte, IDs, Namen und E-Mail-Adressen sind nicht Teil des Modellinputs.
+- Das Modell erhält ausschließlich die in `get_weekly_review_kpis` gebildeten Summen und Quoten der letzten abgeschlossenen Woche und der Vorwoche sowie die aggregierte offene Pipeline-Momentaufnahme. Mengenänderungen und Prozentpunktänderungen werden vor dem Modellaufruf deterministisch berechnet. Rohpayloads, Close-Freitexte, IDs, Namen und E-Mail-Adressen sind nicht Teil des Modellinputs.
 - Die geschäftliche Einordnung stammt aus genau einer aktiven, manuell gepflegten Version in `weekly_review_contexts`. Die Whitelist begrenzt sie auf Unternehmen, Angebot, ICP, Sales Motion, KPI-Definitionen, Prioritäten und Benchmarks.
 - Der OpenAI-Aufruf läuft ausschließlich in der Supabase Edge Function mit `store: false`. `OPENAI_API_KEY` ist nur ein Supabase Function Secret.
 - Fertige Reviews liegen in `weekly_reviews`; `context_version` dokumentiert die verwendete Business-Profil-Version. Die Unique-Regel auf ISO-Jahr und ISO-Woche sowie eine Reservierung vor dem API-Aufruf verhindern doppelte Reviews.
 - Nur das angemeldete Konto `rigone@socialprofit.de` kann den Review über `get_latest_weekly_review` lesen. Alle anderen Konten blenden das Feld aus und der Server verweigert den RPC. Das gespeicherte KPI-JSON bleibt im Backend.
 - Die fünf Punkte decken Stärke, größten rechnerischen Funnel-Engpass, Vorwochentrend plus auffällige Conversion, nächste Priorität und genau eine konkrete Handlung ab. Bei zu kleiner Basis muss der dritte Punkt die fehlende Belastbarkeit benennen.
+- Die Nettoquote wird vor dem Modellaufruf deterministisch eingeordnet: 70 bis 80 Prozent sind neutraler Standard und keine besondere Stärke; unter 70 Prozent muss der Review die Leadlisten-Qualität als Prüfpunkt nennen, ohne daraus eine bewiesene Ursache zu machen.
+- Der Review darf zusätzlich die rein aggregierte offene Antony-Pipeline verwenden. Sie ist eine Momentaufnahme aus dem rollierenden Drei-Monats-Fenster und kein historischer Trend; Lead-IDs, Namen, Notizen und Rohpayloads werden nicht an das Modell gegeben.
 - KPI-, Close-, Mapping- und Auth-Logik wurden nicht verändert. Die neue Kette liest ihre Ergebnisse separat.
 
 ### Einmalige Inbetriebnahme
@@ -64,7 +66,6 @@ Erwartung: genau eine abgeschlossene Zeile für die Kalenderwoche und genau fün
 ## Missing Context
 
 - Der produktive Wert von `OPENAI_API_KEY` muss durch den Projektinhaber als Supabase Function Secret gesetzt werden.
-- Das bereits geprüfte Business-Profil muss noch einmalig als private Version `v1` in Supabase eingespielt werden.
 - Der erste produktive OpenAI-Lauf und der danach sichtbare Reviewtext sind noch nicht verifiziert.
 
 ## Sources
@@ -76,3 +77,4 @@ Erwartung: genau eine abgeschlossene Zeile für die Kalenderwoche und genau fün
 ## Timeline
 
 - 2026-09-04: Wochenreview als getrennte, serverseitige und idempotente Kette mit Vorwochenvergleich, genau fünf Punkten und Antony-only-Zugriff implementiert.
+- 2026-09-04: Privates Business-Profil `v1`, wöchentlicher Cron und Edge Function in Supabase installiert; aggregierte offene Pipeline als zusätzliche Priorisierungsgrundlage angebunden.

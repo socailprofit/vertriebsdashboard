@@ -127,6 +127,32 @@ export function buildModelInput(source: unknown) {
   };
 }
 
+// Die KI darf offene Pipeline nur als aggregierte Momentaufnahme sehen. Die
+// Whitelist verhindert, dass spaetere Erweiterungen des Datenbank-RPCs wie
+// Lead-IDs, Namen oder Notizen unbemerkt an das Modell weitergereicht werden.
+export function buildPipelineInput(source: unknown) {
+  const root = record(source);
+  const counts = record(root.counts);
+
+  return {
+    as_of: dateString(root.as_of),
+    timezone: REPORTING_TIMEZONE,
+    window_start: dateString(root.window_start),
+    retention_months: number(root.retention_months),
+    counts: {
+      total_open: number(counts.total_open),
+      setter_pending: number(counts.setter_pending),
+      closer_scheduled: number(counts.closer_scheduled),
+      rescheduled_closer: number(counts.rescheduled_closer),
+      pending_decision_cc2: number(counts.pending_decision_cc2),
+      from_previous_months: number(counts.from_previous_months),
+      older_than_14_days: number(counts.older_than_14_days),
+    },
+    oldest_open_date: dateString(root.oldest_open_date),
+    interpretation: "Punktuelle, aggregierte offene Funnel-Stufen aus dem rollierenden Drei-Monats-Fenster; keine Ursachen oder aktiven Close-Opportunity-Statuswerte.",
+  };
+}
+
 const FUNNEL_COUNT_KEYS = [
   "calls_gross",
   "calls_net",
@@ -158,6 +184,35 @@ const CLOSING_RATE_KEYS = [
 
 function roundedDelta(current: number, previous: number) {
   return Math.round((current - previous) * 100) / 100;
+}
+
+// Die Nettoquote wird nicht vom Modell frei interpretiert. 70 bis 80 Prozent
+// sind bei Social Profit der normale Arbeitsbereich und damit keine besondere
+// Staerke. Unter 70 Prozent entsteht ein konkreter Pruefhinweis fuer die
+// Leadlistenqualitaet; eine Ursache wird daraus weiterhin nicht behauptet.
+export function classifyNetRate(netRate: number, callsGross: number) {
+  if (callsGross <= 0) {
+    return {
+      status: "no_data",
+      interpretation: "Keine Brutto-Anrufe; die Nettoquote ist nicht bewertbar.",
+    };
+  }
+  if (netRate < 70) {
+    return {
+      status: "lead_list_quality_warning",
+      interpretation: "Unter dem internen Standard; Leadlisten-Qualitaet pruefen, aber keine Ursache behaupten.",
+    };
+  }
+  if (netRate <= 80) {
+    return {
+      status: "standard",
+      interpretation: "Interner Normalbereich; darf im Review nicht als besondere Staerke gelobt werden.",
+    };
+  }
+  return {
+    status: "above_standard",
+    interpretation: "Ueber dem internen Normalbereich; nur mit ausreichender Grundgesamtheit positiv einordnen.",
+  };
 }
 
 // Trends werden deterministisch berechnet, bevor das Modell die Daten sieht.
@@ -193,6 +248,11 @@ export function buildWeeklyComparison(
       current_too_small: current.data_basis.too_small,
       previous_too_small: previous.data_basis.too_small,
       trend_reliable: !current.data_basis.too_small && !previous.data_basis.too_small,
+    },
+    business_signals: {
+      current_net_rate: classifyNetRate(current.funnel.net_rate, current.funnel.calls_gross),
+      previous_net_rate: classifyNetRate(previous.funnel.net_rate, previous.funnel.calls_gross),
+      net_rate_standard_range: { minimum: 70, maximum: 80, unit: "percent" },
     },
   };
 }
