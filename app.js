@@ -1,7 +1,9 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-03r";
+import * as data from "./data.js?v=2026-09-04b";
+
+const ANTONY_EMAIL = "rigone@socialprofit.de";
 
 // Sichtbarer Kennzahlenumfang, am 2026-09-02 festgelegt. Gesprächszeit läuft als
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
@@ -52,8 +54,10 @@ const state = {
   hours: [],
   trends: [],
   targets: [],
+  closing: null,
   periodRange: { start: null, end: null },
   profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false },
+  currentEmail: null,
   syncRun: null,
   heatmapRate: "connection",
   series: [],
@@ -174,6 +178,9 @@ async function loadAll() {
   ]);
   state.series = series;
   state.targets = targets;
+  state.closing = state.currentEmail === ANTONY_EMAIL
+    ? await data.loadAntonyClosingMetrics(state.period, state.referenceDate)
+    : null;
   // Wann die Kennzahlen zuletzt gerechnet wurden, steht in den Daten selbst.
   // Der Sync-Lauf wäre die genauere Quelle, ist aber der Betriebsrolle
   // vorbehalten — diese Angabe sieht jeder.
@@ -697,7 +704,7 @@ function zeichneTagesvolumen() {
 // --- Details -----------------------------------------------------------------
 
 function renderDetails() {
-  document.querySelector("#details-row").innerHTML = boardEntries().map((entry) => {
+  const personBlocks = boardEntries().map((entry) => {
     const rows = detailMetrics().map((metric) => {
       const value = entry.metrics[metric.key];
       const target = metric.noTarget ? null : (metric.rateTarget ? targetFor(entry.targetId, metric.rateTarget) : targetFor(entry.targetId, metric.target));
@@ -715,6 +722,34 @@ function renderDetails() {
         <div class="detail-lines">${rows}</div>
       </details>`;
   }).join("");
+
+  const closing = state.currentEmail === ANTONY_EMAIL && state.closing
+    ? `
+      <details class="detail-block" style="--person-color:#9b8cff">
+        <summary>Antony</summary>
+        <div class="detail-lines">
+          ${[
+            ["Termine", number(state.closing.appointments)],
+            ["Setter Calls", number(state.closing.setter_calls)],
+            ["Closer terminiert", number(state.closing.setter_successes)],
+            ["Setterquote", percent(state.closing.setter_success_rate)],
+            ["Closer Calls", number(state.closing.closer_calls)],
+            ["CC2 vereinbart", number(state.closing.closer_second_calls)],
+            ["Entschiedene Closer Calls", number(state.closing.decided_closer_calls)],
+            ["Verkauft", number(state.closing.closer_sales)],
+            ["Closer-Abschlussquote", percent(state.closing.closer_success_rate)],
+            ["Neukunden", number(state.closing.new_customers)],
+          ].map(([label, value]) => `
+            <div class="detail-line is-neutral">
+              <span>${label}</span>
+              <strong>${value}</strong>
+              <small>—</small>
+            </div>`).join("")}
+        </div>
+      </details>`
+    : "";
+
+  document.querySelector("#details-row").innerHTML = personBlocks + closing;
 }
 
 function renderTrends() {
@@ -891,6 +926,8 @@ function showPasswordSetup() {
 }
 
 async function startSession() {
+  const session = await data.currentSession();
+  state.currentEmail = session?.user?.email?.trim().toLowerCase() ?? null;
   state.profile = await data.loadProfile();
   if (state.forcePasswordSetup || state.profile.mustChangePassword) {
     state.status = "password-setup";
@@ -916,6 +953,8 @@ function endSession() {
   state.unsubscribe?.();
   state.unsubscribe = null;
   state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false };
+  state.currentEmail = null;
+  state.closing = null;
   state.forcePasswordSetup = false;
   state.passwordChangeInProgress = false;
   showApp(false);

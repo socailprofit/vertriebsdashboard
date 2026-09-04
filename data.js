@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-03r";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04b";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -108,6 +108,21 @@ export async function loadMetrics(period, referenceDate) {
       p_reference_date: referenceDate,
     }),
   );
+}
+
+// Diese Auswertung ist zusätzlich in der Datenbank auf Antonys bestätigte
+// Auth-E-Mail begrenzt. Die Abfrage hier steuert nur die Darstellung; der
+// eigentliche Zugriffsschutz liegt im RPC und kann nicht im Browser umgangen
+// werden.
+export async function loadAntonyClosingMetrics(period, referenceDate) {
+  const rows = await run(
+    "Closer-Kennzahlen laden",
+    requireClient().rpc("get_antony_closing_metrics", {
+      p_period: period,
+      p_reference_date: referenceDate,
+    }),
+  );
+  return rows[0] ?? null;
 }
 
 export async function loadHourPerformance(period, referenceDate) {
