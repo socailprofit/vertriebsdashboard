@@ -1,7 +1,8 @@
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-04e";
+import * as data from "./data.js?v=2026-09-04h";
+import { calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-04h";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -69,8 +70,14 @@ const state = {
   trends: [],
   targets: [],
   closing: null,
+  antonyGoal: null,
+  plannerOpen: false,
+  antonyRateMode: "current",
+  antonyPlannerMetrics: {},
+  antonyPlannerClosing: null,
+  antonyPlannerPeriodRange: { start: null, end: null },
   periodRange: { start: null, end: null },
-  profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false },
+  profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null },
   syncRun: null,
   heatmapRate: "connection",
   series: [],
@@ -110,6 +117,20 @@ function percent(value) {
   return value === null || value === undefined ? "—" : `${Math.round(value)} %`;
 }
 
+function decimal(value) {
+  return value === null || value === undefined
+    ? "—"
+    : new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(value);
+}
+
+function euros(cents) {
+  return cents === null || cents === undefined
+    ? "—"
+    : new Intl.NumberFormat("de-DE", {
+      style: "currency", currency: "EUR", maximumFractionDigits: 0,
+    }).format(cents / 100);
+}
+
 function germanDate(isoDate) {
   return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
     .format(new Date(`${isoDate}T12:00:00Z`));
@@ -118,6 +139,16 @@ function germanDate(isoDate) {
 function monthLabel(isoDate) {
   return new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" })
     .format(new Date(`${isoDate}T12:00:00Z`));
+}
+
+function calendarMonthRange(isoDate) {
+  const start = new Date(`${isoDate.slice(0, 7)}-01T12:00:00Z`);
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1, 0);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  };
 }
 
 function initials(displayName) {
@@ -241,15 +272,39 @@ async function loadAll() {
     ? { start: first.period_start, end: first.period_end }
     : { start: state.referenceDate, end: state.referenceDate };
 
-  const [series, targets] = await Promise.all([
+  const plannerPeriodRange = calendarMonthRange(state.referenceDate);
+  const selectedClosingRequest = data.loadAntonyClosingMetrics(state.period, state.referenceDate);
+  const plannerMetricsRequest = state.period === "month"
+    ? Promise.resolve(metricRows)
+    : data.loadMetrics("month", state.referenceDate);
+  const plannerClosingRequest = state.period === "month"
+    ? selectedClosingRequest
+    : data.loadAntonyClosingMetrics("month", state.referenceDate);
+  const [series, targets, antonyGoal, plannerMetricRows, closing, plannerClosing] = await Promise.all([
     // Tag bleibt ein einzelner Tag. Woche und Monat verwenden die gerade von
     // der Datenbank bestätigten Grenzen, nicht einen 14-Tage-Ersatzbereich.
     data.loadDailySeries(state.periodRange.start, state.periodRange.end),
     data.loadTargets(state.periodRange.start, state.periodRange.end),
+    // Der Zielplan ist optional und darf das bestehende Tracking auch dann
+    // nicht blockieren, wenn die neue Tabelle noch nicht ausgerollt wurde.
+    data.loadAntonyGoal("month", plannerPeriodRange.start).catch(() => null),
+    plannerMetricsRequest,
+    selectedClosingRequest,
+    plannerClosingRequest,
   ]);
   state.series = series;
   state.targets = targets;
-  state.closing = await data.loadAntonyClosingMetrics(state.period, state.referenceDate);
+  state.antonyGoal = antonyGoal;
+  state.antonyRateMode = antonyGoal && [
+    antonyGoal.appointment_to_closer_rate_override,
+    antonyGoal.show_rate_override,
+    antonyGoal.closing_rate_override,
+  ].some((value) => value !== null) ? "custom" : "current";
+  state.closing = closing;
+  state.antonyPlannerMetrics = {};
+  plannerMetricRows.forEach((row) => { state.antonyPlannerMetrics[row.slug] = toPerson(row); });
+  state.antonyPlannerClosing = plannerClosing;
+  state.antonyPlannerPeriodRange = plannerPeriodRange;
   // Wann die Kennzahlen zuletzt gerechnet wurden, steht in den Daten selbst.
   // Der Sync-Lauf wäre die genauere Quelle, ist aber der Betriebsrolle
   // vorbehalten — diese Angabe sieht jeder.
@@ -533,6 +588,239 @@ function renderCore() {
   enableProfileImageFallbacks(coreGrid);
 }
 
+function storedAntonyGoal(row = state.antonyGoal) {
+  if (!row) return {};
+  return {
+    targetNewCustomers: Number(row.target_new_customers ?? 0),
+    targetRevenueCents: Number(row.target_revenue_cents ?? 0),
+    customerValueCents: Number(row.customer_value_cents ?? 0),
+    appointmentToCloserRateOverride: row.appointment_to_closer_rate_override == null
+      ? null
+      : Number(row.appointment_to_closer_rate_override),
+    showRateOverride: row.show_rate_override == null ? null : Number(row.show_rate_override),
+    closingRateOverride: row.closing_rate_override == null ? null : Number(row.closing_rate_override),
+  };
+}
+
+function plannerNumber(form, name) {
+  const raw = String(new FormData(form).get(name) ?? "").trim();
+  return raw === "" ? null : Number(raw);
+}
+
+function goalForAntonyRateMode(goal) {
+  if (state.antonyRateMode === "custom") return goal;
+  return {
+    ...goal,
+    appointmentToCloserRateOverride: null,
+    showRateOverride: null,
+    closingRateOverride: null,
+  };
+}
+
+function plannerGoalFromForm() {
+  const form = document.querySelector("#antony-plan-form");
+  return goalForAntonyRateMode({
+    targetNewCustomers: plannerNumber(form, "target_new_customers") ?? 0,
+    targetRevenueCents: Math.round((plannerNumber(form, "target_revenue_eur") ?? 0) * 100),
+    customerValueCents: Math.round((plannerNumber(form, "customer_value_eur") ?? 0) * 100),
+    appointmentToCloserRateOverride: plannerNumber(form, "appointment_to_closer_rate_override"),
+    showRateOverride: plannerNumber(form, "show_rate_override"),
+    closingRateOverride: plannerNumber(form, "closing_rate_override"),
+  });
+}
+
+function antonyActuals(metrics = state.metrics, closingRow = state.closing) {
+  const michael = Number(metrics.michael?.appointments ?? 0);
+  const felix = Number(metrics.felix?.appointments ?? 0);
+  const closing = closingRow ?? {};
+  return {
+    michaelAppointments: michael,
+    felixAppointments: felix,
+    appointments: Number(closing.appointments ?? michael + felix),
+    closerAppointments: Number(closing.setter_successes ?? 0),
+    closerCalls: Number(closing.closer_calls ?? 0),
+    decidedCloserCalls: Number(closing.decided_closer_calls ?? 0),
+    sales: Number(closing.closer_sales ?? 0),
+    newCustomers: Number(closing.new_customers ?? 0),
+  };
+}
+
+function antonyPlannerActuals() {
+  return antonyActuals(state.antonyPlannerMetrics, state.antonyPlannerClosing);
+}
+
+function plannerPeriodEnd() {
+  return state.antonyPlannerPeriodRange.end;
+}
+
+function remainingPlannerWorkdays() {
+  const progressDate = state.referenceDate;
+  const end = plannerPeriodEnd();
+  return progressDate > end ? 0 : workdaysBetween(progressDate, end);
+}
+
+function canSaveAntonyGoal() {
+  const email = String(state.profile.email ?? "").toLowerCase();
+  return email === "rigone@socialprofit.de"
+    || state.profile.role === "manager"
+    || state.profile.role === "operator";
+}
+
+function renderAntonyPotential(goal = storedAntonyGoal()) {
+  const container = document.querySelector("#antony-potential-values");
+  const period = document.querySelector("#antony-potential-period");
+  const basis = document.querySelector("#antony-potential-basis");
+  const actual = antonyActuals();
+  const effectiveGoal = goalForAntonyRateMode(goal);
+  const plan = calculateAntonyPlan({ actual, goal: effectiveGoal });
+  const customMode = state.antonyRateMode === "custom";
+  const customerValueAvailable = Number(effectiveGoal.customerValueCents) > 0;
+  const rateDetail = customMode ? "mit eigenen Raten" : "mit aktuellen Ist-Raten";
+  const potential = [
+    ["Michael", number(actual.michaelAppointments), "Termine eingegangen"],
+    ["Felix", number(actual.felixAppointments), "Termine eingegangen"],
+    ["Gemeinsam", number(actual.appointments), "Gesamttermine für Antony"],
+    ["Closer-Termine", decimal(plan.potentialCloserAppointments), "rechnerisches Potenzial"],
+    ["Shows", decimal(plan.potentialCloserCalls), rateDetail],
+    ["Abschlüsse", decimal(plan.potentialCustomers), rateDetail],
+    ["Ist-Umsatz", customerValueAvailable ? euros(plan.achievedRevenueCents) : "—", customerValueAvailable ? "Neukunden × Kundenwert" : "Kundenwert im Rechner eintragen"],
+    ["Erwarteter Umsatz", customerValueAvailable ? euros(plan.potentialRevenueCents) : "—", customerValueAvailable ? rateDetail : "Kundenwert im Rechner eintragen"],
+  ];
+
+  period.textContent = periodCaption();
+  basis.textContent = customMode ? "Prognose: eigene Raten" : "Prognose: aktuelle Raten";
+  container.innerHTML = potential.map(([label, value, detail], index) => `
+    <article class="antony-potential-item ${index === 2 ? "is-total" : ""} ${label === "Erwarteter Umsatz" ? "is-forecast" : ""}">
+      <span>${label}</span>
+      <strong>${value}</strong>
+      <small>${detail}</small>
+    </article>`).join("");
+}
+
+function renderAntonyPlannerResults(goal) {
+  const container = document.querySelector("#antony-plan-results");
+  const actual = antonyPlannerActuals();
+  const plan = calculateAntonyPlan({ actual, goal });
+  const plannerMonth = monthLabel(state.antonyPlannerPeriodRange.start);
+
+  if (plan.requiredCustomers <= 0 || Number(goal.customerValueCents) <= 0) {
+    container.innerHTML = `<p class="antony-plan-empty">Neukunden- oder Umsatzziel und Kundenwert eintragen – die Planung aktualisiert sich sofort.</p>`;
+    return;
+  }
+
+  const missingRates = [
+    ["Termin → Closer-Termin", plan.effectiveRates.appointmentToCloser],
+    ["Showrate", plan.effectiveRates.show],
+    ["Closingrate", plan.effectiveRates.closing],
+  ].filter(([, value]) => value === null).map(([label]) => label);
+
+  const targetParts = [];
+  if (Number(goal.targetNewCustomers) > 0) targetParts.push(`${number(goal.targetNewCustomers)} Neukunden`);
+  if (Number(goal.targetRevenueCents) > 0) targetParts.push(euros(goal.targetRevenueCents));
+
+  if (missingRates.length > 0) {
+    container.innerHTML = `
+      <div class="antony-plan-lead">
+        <span>Monatsziel · ${plannerMonth}</span>
+        <strong>${targetParts.join(" · ")}</strong>
+        <small>Für die Rückwärtsrechnung fehlt noch: ${missingRates.join(", ")}. Auf „Eigene Raten“ umschalten und ergänzen.</small>
+      </div>`;
+    return;
+  }
+
+  const pipeline = [
+    ["Termine von Michael + Felix", plan.requiredAppointments, actual.appointments],
+    ["Closer-Termine", plan.requiredCloserAppointments, actual.closerAppointments],
+    ["Entschiedene Closer Calls", plan.requiredDecidedCloserCalls, actual.decidedCloserCalls],
+    ["Neukunden", plan.requiredCustomers, actual.newCustomers],
+  ];
+  const pipelineMarkup = pipeline.map(([label, required, achieved]) => {
+    const progress = required > 0 ? Math.min(100, (achieved / required) * 100) : 0;
+    const gap = Math.max(0, required - achieved);
+    return `
+      <article class="antony-plan-step">
+        <span>${label}</span>
+        <strong>${number(required)}</strong>
+        <small>${number(achieved)} da · ${gap > 0 ? `noch ${number(gap)}` : "Zielmenge erreicht"}</small>
+        <span class="antony-plan-track"><i style="width:${progress}%"></i></span>
+      </article>`;
+  }).join("");
+
+  const rates = [
+    ["Termin → Closer", plan.effectiveRates.appointmentToCloser, goal.appointmentToCloserRateOverride],
+    ["Showrate", plan.effectiveRates.show, goal.showRateOverride],
+    ["Closingrate", plan.effectiveRates.closing, goal.closingRateOverride],
+  ].map(([label, value, override]) => `
+    <span><b>${decimal(value)} %</b> ${label}<small>${override === null ? "aktuell" : "gesetzt"}</small></span>`).join("");
+
+  const workdays = remainingPlannerWorkdays();
+  const anchor = state.referenceDate === berlinToday() ? "Ab heute" : `Ab ${germanDate(state.referenceDate)}`;
+  const pace = workdays > 0
+    ? `${anchor} bleiben ${number(workdays)} Arbeitstage: Ø ${decimal(plan.gaps.appointments / workdays)} Termine von Michael/Felix und Ø ${decimal(plan.gaps.closerAppointments / workdays)} Closer-Termine pro Arbeitstag.`
+    : `Der gewählte Zeitraum enthält ab dem Stichtag keine weiteren Arbeitstage. Offen bleiben ${number(plan.gaps.appointments)} Termine und ${number(plan.gaps.customers)} Neukunden.`;
+
+  container.innerHTML = `
+    <div class="antony-plan-lead">
+      <span>Monatsziel · ${plannerMonth}</span>
+      <strong>${targetParts.join(" · ")}</strong>
+      <small>Maßgeblich sind ${number(plan.requiredCustomers)} Neukunden – automatisch das strengere Ziel aus Anzahl und Umsatz.</small>
+    </div>
+    <div class="antony-plan-chain">${pipelineMarkup}</div>
+    <div class="antony-plan-rates">${rates}</div>
+    <p class="antony-plan-pace">${pace}</p>`;
+}
+
+function renderAntonyPlanner() {
+  const planner = document.querySelector("#antony-planner");
+  const form = document.querySelector("#antony-plan-form");
+  const storedGoal = storedAntonyGoal();
+  const goal = goalForAntonyRateMode(storedGoal);
+  const actualPlan = calculateAntonyPlan({ actual: antonyPlannerActuals(), goal: {} });
+  const setValue = (name, value) => {
+    form.elements[name].value = value === null || value === undefined ? "" : value;
+  };
+
+  planner.open = state.plannerOpen;
+  setValue("target_new_customers", state.antonyGoal ? storedGoal.targetNewCustomers : "");
+  setValue("target_revenue_eur", state.antonyGoal ? storedGoal.targetRevenueCents / 100 : "");
+  setValue("customer_value_eur", state.antonyGoal ? storedGoal.customerValueCents / 100 : "");
+  setValue("appointment_to_closer_rate_override", storedGoal.appointmentToCloserRateOverride);
+  setValue("show_rate_override", storedGoal.showRateOverride);
+  setValue("closing_rate_override", storedGoal.closingRateOverride);
+
+  document.querySelector("#current-appointment-to-closer-rate").textContent = actualPlan.currentRates.appointmentToCloser === null
+    ? "Aktuell noch keine belastbare Basis"
+    : `Aktuell ${decimal(actualPlan.currentRates.appointmentToCloser)} %`;
+  document.querySelector("#current-show-rate").textContent = actualPlan.currentRates.show === null
+    ? "Aktuell noch keine belastbare Basis"
+    : `Aktuell ${decimal(actualPlan.currentRates.show)} %`;
+  document.querySelector("#current-closing-rate").textContent = actualPlan.currentRates.closing === null
+    ? "Aktuell noch keine belastbare Basis"
+    : `Aktuell ${decimal(actualPlan.currentRates.closing)} %`;
+
+  renderAntonyRateMode();
+
+  const save = document.querySelector("#antony-plan-save");
+  save.hidden = !canSaveAntonyGoal();
+  document.querySelector("#antony-plan-status").textContent = canSaveAntonyGoal()
+    ? ""
+    : "Rechnen ist ohne Speichern möglich. Speichern kann Antony oder die Dashboard-Leitung.";
+  renderAntonyPlannerResults(goal);
+}
+
+function renderAntonyRateMode() {
+  const customMode = state.antonyRateMode === "custom";
+  document.querySelectorAll("[data-antony-rate-mode]").forEach((button) => {
+    const active = button.dataset.antonyRateMode === state.antonyRateMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelector("#antony-custom-rates").hidden = !customMode;
+  document.querySelector("#antony-rate-mode-copy").textContent = customMode
+    ? "Eigene Annahmen überschreiben nur die Monatsraten, die du einträgst."
+    : "Monatsplanung mit den aktuellen Ist-Raten des gewählten Monats.";
+}
+
 // Antony ist eine eigene Arbeitsansicht. Die Mengen stammen vollständig aus
 // der geschützten Datenbankfunktion; die Kreise setzen nur die zugehörigen
 // Zähler und Nenner ins Verhältnis und zeigen die Basis direkt daneben.
@@ -545,6 +833,8 @@ function renderAntony() {
   if (!state.closing) {
     container.innerHTML = `<p class="antony-empty">Für diesen Zeitraum liegen noch keine Closer-Daten vor.</p>`;
     note.textContent = "";
+    renderAntonyPotential();
+    renderAntonyPlanner();
     return;
   }
 
@@ -554,40 +844,39 @@ function renderAntony() {
     {
       label: "Termine", value: closing.appointments,
       rate: ratio(closing.setter_calls, closing.appointments),
-      detail: "davon als Setter Call erfasst",
+      detail: "Termine → Setter Call",
     },
     {
       label: "Setter Calls", value: closing.setter_calls,
-      rate: closing.setter_calls > 0 ? Number(closing.setter_success_rate) : null,
-      detail: "Setter-Showrate · Closer terminiert",
+      rate: ratio(closing.setter_successes, closing.setter_calls),
+      detail: "Closer terminiert ÷ Setter Calls",
     },
     {
-      label: "Closer Calls", value: closing.closer_calls,
+      label: "Closer-Termine", value: closing.setter_successes,
       rate: ratio(closing.closer_calls, closing.setter_successes),
-      detail: "Closer-Showrate · durchgeführt",
+      detail: `${number(closing.closer_calls)} durchgeführt`,
     },
     {
       label: "CC2 vereinbart", value: closing.closer_second_calls,
       rate: ratio(closing.closer_second_calls, closing.closer_calls),
-      detail: "Anteil an allen Closer Calls",
+      detail: "Anteil an durchgeführten Closer Calls",
     },
     {
-      label: "Neukunden", value: closing.new_customers,
-      rate: closing.decided_closer_calls > 0 ? Number(closing.closer_success_rate) : null,
-      detail: "Abschlussquote entschiedener Closer Calls",
+      label: "Abschlüsse", value: closing.closer_sales,
+      rate: ratio(closing.closer_sales, closing.decided_closer_calls),
+      detail: "Abschlüsse ÷ entschiedene Closer Calls",
     },
     {
-      label: "Termin → Closer", value: ratio(closing.closer_calls, closing.appointments),
-      rate: ratio(closing.closer_calls, closing.appointments),
-      detail: "Gesamtconversion vom Termin zum Closer Call",
-      valueIsRate: true,
+      label: "Neukunden gesamt", value: closing.new_customers,
+      rate: ratio(closing.new_customers, closing.appointments),
+      detail: "Gesamtkonversion aus allen Terminen",
     },
   ];
 
   container.innerHTML = charts.map((chart) => {
     const rate = chart.rate === null ? null : Math.max(0, Math.min(100, chart.rate));
     const displayedRate = rate === null ? "—" : percent(rate);
-    const displayedValue = chart.valueIsRate ? displayedRate : number(chart.value);
+    const displayedValue = number(chart.value);
     const aria = `${chart.label}: ${displayedValue}; Quote ${displayedRate}`;
     return `
       <article class="antony-metric">
@@ -604,7 +893,9 @@ function renderAntony() {
       </article>`;
   }).join("");
 
-  note.textContent = "Termine und Setter stammen von Michael und Felix. Closer Calls, CC2 und Verkäufe werden ausschließlich Antony zugeordnet; Neukunden über das Close-Feld 3.03 Closer.";
+  note.textContent = "Termine und Setter stammen von Michael und Felix. Closer-Termine sind erfolgreiche Setter Calls. Closer Calls, CC2 und Abschlüsse werden Antony zugeordnet; Neukunden gesamt über das Close-Feld 3.03 Closer.";
+  renderAntonyPotential();
+  renderAntonyPlanner();
 }
 
 // Zielerreichung getrennt von den Kernwerten: Nicht jede Kennzahl hat ein Ziel,
@@ -1077,7 +1368,8 @@ function showPasswordSetup() {
 }
 
 async function startSession() {
-  state.profile = await data.loadProfile();
+  const [profile, session] = await Promise.all([data.loadProfile(), data.currentSession()]);
+  state.profile = { ...profile, email: session?.user?.email ?? null };
   if (state.forcePasswordSetup || state.profile.mustChangePassword) {
     state.status = "password-setup";
     showPasswordSetup();
@@ -1101,8 +1393,14 @@ async function startSession() {
 function endSession() {
   state.unsubscribe?.();
   state.unsubscribe = null;
-  state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false };
+  state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null };
   state.closing = null;
+  state.antonyGoal = null;
+  state.plannerOpen = false;
+  state.antonyRateMode = "current";
+  state.antonyPlannerMetrics = {};
+  state.antonyPlannerClosing = null;
+  state.antonyPlannerPeriodRange = { start: null, end: null };
   state.forcePasswordSetup = false;
   state.passwordChangeInProgress = false;
   showApp(false);
@@ -1122,6 +1420,15 @@ function readInitialState() {
 }
 
 document.addEventListener("click", (event) => {
+  const antonyRateModeButton = event.target.closest("[data-antony-rate-mode]");
+  if (antonyRateModeButton) {
+    state.antonyRateMode = antonyRateModeButton.dataset.antonyRateMode;
+    renderAntonyRateMode();
+    const goal = plannerGoalFromForm();
+    renderAntonyPlannerResults(goal);
+    renderAntonyPotential(goal);
+    return;
+  }
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
     state.view = viewButton.dataset.view;
@@ -1250,6 +1557,68 @@ document.querySelector("#goal-editor").addEventListener("submit", async (event) 
   setTimeout(() => { status.textContent = ""; }, 4000);
 });
 
+document.querySelector("#antony-planner").addEventListener("toggle", (event) => {
+  state.plannerOpen = event.currentTarget.open;
+});
+
+document.querySelector("#antony-plan-form").addEventListener("input", () => {
+  const goal = plannerGoalFromForm();
+  renderAntonyPlannerResults(goal);
+  renderAntonyPotential(goal);
+});
+
+document.querySelector("#antony-plan-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const status = document.querySelector("#antony-plan-status");
+  const goal = plannerGoalFromForm();
+  const overrides = [
+    goal.appointmentToCloserRateOverride,
+    goal.showRateOverride,
+    goal.closingRateOverride,
+  ];
+
+  if (!canSaveAntonyGoal()) {
+    status.textContent = "Dieser Plan kann nur von Antony oder der Dashboard-Leitung gespeichert werden.";
+    return;
+  }
+  if (!Number.isInteger(goal.targetNewCustomers) || goal.targetNewCustomers < 0) {
+    status.textContent = "Das Neukundenziel muss eine ganze Zahl ab 0 sein.";
+    return;
+  }
+  if (goal.targetNewCustomers <= 0 && goal.targetRevenueCents <= 0) {
+    status.textContent = "Bitte mindestens ein Neukunden- oder Umsatzziel eintragen.";
+    return;
+  }
+  if (goal.customerValueCents <= 0) {
+    status.textContent = "Bitte einen Kundenwert größer als 0 € eintragen.";
+    return;
+  }
+  if (overrides.some((value) => value !== null && (!Number.isFinite(value) || value <= 0 || value > 100))) {
+    status.textContent = "Angepasste Quoten müssen zwischen 0,1 % und 100 % liegen.";
+    return;
+  }
+
+  status.textContent = "Zielplan wird gespeichert …";
+  try {
+    state.antonyGoal = await data.saveAntonyGoal({
+      period_type: "month",
+      period_start: state.antonyPlannerPeriodRange.start,
+      period_end: plannerPeriodEnd(),
+      target_new_customers: goal.targetNewCustomers,
+      target_revenue_cents: goal.targetRevenueCents,
+      customer_value_cents: goal.customerValueCents,
+      appointment_to_closer_rate_override: goal.appointmentToCloserRateOverride,
+      show_rate_override: goal.showRateOverride,
+      closing_rate_override: goal.closingRateOverride,
+    });
+    state.plannerOpen = true;
+    renderAntony();
+    document.querySelector("#antony-plan-status").textContent = "Zielplan gespeichert.";
+  } catch (error) {
+    status.textContent = `Speichern fehlgeschlagen: ${error.message}`;
+  }
+});
+
 function samplePreview() {
   const people = [
     { id: "p1", slug: "michael", display_name: "Michael Giesbrecht", color: "#3b9dff", sort_order: 10 },
@@ -1295,7 +1664,7 @@ function samplePreview() {
       appointments: 58 - index * 37 - monthIndex * 4,
       appointment_rate: 35.2 - index * 13.1 - monthIndex,
     })));
-  state.profile = { displayName: "Vorschau", role: "operator", salesPersonId: null };
+  state.profile = { displayName: "Vorschau", role: "operator", salesPersonId: null, email: null };
   state.closing = {
     appointments: 79,
     setter_calls: 68,
@@ -1308,6 +1677,21 @@ function samplePreview() {
     closer_success_rate: 28.6,
     new_customers: 8,
   };
+  state.antonyGoal = {
+    period_type: "month",
+    period_start: "2026-09-01",
+    period_end: "2026-09-30",
+    target_new_customers: 4,
+    target_revenue_cents: 4_000_000,
+    customer_value_cents: 1_000_000,
+    appointment_to_closer_rate_override: null,
+    show_rate_override: null,
+    closing_rate_override: null,
+  };
+  state.antonyRateMode = "current";
+  state.antonyPlannerMetrics = state.metrics;
+  state.antonyPlannerClosing = state.closing;
+  state.antonyPlannerPeriodRange = { start: "2026-09-01", end: "2026-09-30" };
   state.series = [];
   for (let day = 1; day <= 14; day += 1) {
     const datum = `2026-09-${String(day).padStart(2, "0")}`;

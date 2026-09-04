@@ -581,8 +581,188 @@ tbody td:first-child { font-weight: 620; }
 .antony-metric-copy small { color: var(--muted-2); font-size: 0.7rem; line-height: 1.35; }
 .antony-empty { margin: 0; padding: 20px; color: var(--muted); background: var(--bg); }
 
+.antony-potential {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.antony-potential-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.antony-potential-heading h3 { font-size: 1.08rem; }
+.antony-potential-context { display: grid; gap: 2px; justify-items: end; }
+.antony-potential-context #antony-potential-basis { color: var(--antony); }
+.antony-potential-values {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.antony-potential-item {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: 104px;
+  padding: 16px;
+  background: var(--bg);
+}
+
+.antony-potential-item.is-total { background: color-mix(in srgb, var(--antony) 8%, var(--bg)); }
+.antony-potential-item.is-forecast { box-shadow: inset 0 -3px var(--antony); }
+.antony-potential-item > span { color: var(--muted); font-size: 0.74rem; }
+.antony-potential-item strong { font-size: clamp(1.45rem, 2.4vw, 1.9rem); line-height: 1.1; }
+.antony-potential-item small { color: var(--muted-2); font-size: 0.68rem; line-height: 1.35; }
+
+.antony-planner {
+  margin-top: 24px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--antony) 38%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--antony) 5%, var(--bg));
+}
+
+.antony-planner > summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 20px;
+  list-style: none;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.antony-planner > summary::-webkit-details-marker { display: none; }
+.antony-planner > summary:hover { background: color-mix(in srgb, var(--antony) 7%, transparent); }
+.antony-planner > summary > span { display: grid; }
+.antony-planner > summary strong { font-size: 1.02rem; }
+.antony-planner > summary > small { max-width: 520px; color: var(--muted); font-size: 0.76rem; text-align: right; }
+.antony-planner > summary::after { content: "+"; color: var(--antony); font-size: 1.5rem; line-height: 1; }
+.antony-planner[open] > summary::after { content: "−"; }
+
+.antony-plan-form {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border-top: 1px solid var(--line);
+  animation: planner-in 180ms ease-out;
+}
+
+.antony-rate-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.antony-rate-mode > div:first-child { display: grid; gap: 2px; }
+.antony-rate-mode strong { font-size: 0.86rem; }
+.antony-rate-mode small { color: var(--muted); font-size: 0.72rem; }
+.antony-rate-switch { display: inline-flex; flex: 0 0 auto; gap: 3px; padding: 3px; background: var(--bg); border-radius: 999px; }
+.antony-rate-switch button {
+  padding: 8px 13px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.antony-rate-switch button:hover { color: var(--text); }
+.antony-rate-switch button.active { color: #0b1020; background: var(--antony); font-weight: 680; }
+
+@keyframes planner-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.antony-plan-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.antony-plan-inputs label { display: grid; gap: 6px; color: var(--muted); font-size: 0.76rem; }
+.antony-plan-inputs label > input,
+.money-input,
+.rate-input {
+  min-width: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.antony-plan-inputs label > input { width: 100%; padding: 11px 13px; font: inherit; color-scheme: dark; }
+.money-input, .rate-input { display: flex; align-items: center; }
+.money-input input, .rate-input input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 6px 11px 13px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+}
+
+.money-input > span, .rate-input > span { padding-right: 13px; color: var(--muted-2); }
+.money-input:focus-within, .rate-input:focus-within { outline: 2px solid var(--michael); outline-offset: 2px; }
+.antony-plan-inputs label > small { color: var(--muted-2); font-size: 0.68rem; }
+
+.antony-custom-rates { padding-top: 14px; border-top: 1px solid var(--line); animation: planner-in 160ms ease-out; }
+.antony-custom-rates > p { margin: 0 0 12px; color: var(--muted-2); font-size: 0.72rem; }
+
+.antony-plan-results { min-height: 72px; padding-top: 4px; }
+.antony-plan-empty { margin: 0; padding: 16px 0; color: var(--muted); font-size: 0.82rem; }
+.antony-plan-lead { display: grid; gap: 3px; padding-bottom: 14px; }
+.antony-plan-lead > span { color: var(--muted-2); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.antony-plan-lead strong { font-size: clamp(1.25rem, 2.2vw, 1.75rem); }
+.antony-plan-lead small { color: var(--muted); font-size: 0.76rem; line-height: 1.45; }
+
+.antony-plan-chain {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-block: 1px solid var(--line);
+}
+
+.antony-plan-step { display: grid; gap: 2px; padding: 15px 16px; border-left: 1px solid var(--line); }
+.antony-plan-step:first-child { border-left: 0; }
+.antony-plan-step > span:first-child { color: var(--muted); font-size: 0.72rem; }
+.antony-plan-step strong { font-size: 1.55rem; line-height: 1.15; }
+.antony-plan-step small { color: var(--muted-2); font-size: 0.68rem; }
+.antony-plan-track { height: 5px; margin-top: 8px; overflow: hidden; background: var(--surface-2); border-radius: 4px; }
+.antony-plan-track i { display: block; height: 100%; background: var(--antony); border-radius: inherit; transition: width 240ms ease; }
+
+.antony-plan-rates { display: flex; flex-wrap: wrap; gap: 8px 18px; padding-top: 14px; }
+.antony-plan-rates > span { display: inline-flex; align-items: baseline; gap: 5px; color: var(--muted); font-size: 0.74rem; }
+.antony-plan-rates b { color: var(--text); }
+.antony-plan-rates small { color: var(--muted-2); font-size: 0.62rem; }
+.antony-plan-pace { margin: 12px 0 0; padding: 12px 14px; color: var(--text); background: color-mix(in srgb, var(--antony) 9%, var(--surface)); border-left: 3px solid var(--antony); border-radius: 7px; font-size: 0.8rem; line-height: 1.5; }
+.antony-plan-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.antony-plan-actions .primary-button { margin-top: 0; background: var(--antony); }
+.antony-plan-actions .form-status { flex: 1; }
 @media (max-width: 980px) {
   .antony-donuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .antony-potential-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .antony-plan-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .antony-plan-step:nth-child(3) { border-left: 0; }
 }
 
 /* Verlauf: vier kleine Liniendiagramme nebeneinander. */
@@ -698,6 +878,21 @@ body.is-widget .panel { border-radius: 0; min-height: 100vh; }
   .volume-hour-row .hour-figure { grid-column: 2; }
   .antony-donuts { grid-template-columns: 1fr; }
   .antony-metric { min-height: 112px; }
+  .antony-potential-heading, .antony-planner > summary, .antony-rate-mode { align-items: start; flex-direction: column; }
+  .antony-potential-context { justify-items: start; }
+  .antony-planner > summary { gap: 8px; }
+  .antony-planner > summary > small { text-align: left; }
+  .antony-planner > summary::after { position: absolute; right: 20px; }
+  .antony-plan-inputs, .antony-plan-chain { grid-template-columns: 1fr; }
+  .antony-rate-switch { width: 100%; }
+  .antony-rate-switch button { flex: 1; }
+  .antony-plan-step { border-left: 0; border-top: 1px solid var(--line); }
+  .antony-plan-step:first-child { border-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .antony-plan-form, .antony-custom-rates { animation: none; }
+  .antony-plan-track i, .antony-planner > summary, .antony-rate-switch button { transition: none; }
 }
 
 .trend-hours-heading { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }

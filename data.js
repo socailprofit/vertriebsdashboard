@@ -5,7 +5,7 @@
 // formatiert nur noch.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04e";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04h";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -120,6 +120,38 @@ export async function loadAntonyClosingMetrics(period, referenceDate) {
       p_period: period,
       p_reference_date: referenceDate,
     }),
+  );
+  return rows[0] ?? null;
+}
+
+// Der optionale Rechner speichert nur die Zielannahmen des angemeldeten
+// Antony-/Leitungs-Kontos. Die operativen Close-Daten bleiben unverändert.
+export async function loadAntonyGoal(periodType, periodStart) {
+  const rows = await run(
+    "Anthony-Zielplan laden",
+    requireClient()
+      .from("antony_performance_goals")
+      .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override")
+      .eq("period_type", periodType)
+      .eq("period_start", periodStart)
+      .limit(1),
+  );
+  return rows[0] ?? null;
+}
+
+export async function saveAntonyGoal(goal) {
+  const session = await currentSession();
+  if (!session?.user?.id) throw new Error("Für das Speichern ist eine Anmeldung erforderlich.");
+  const rows = await run(
+    "Anthony-Zielplan speichern",
+    requireClient()
+      .from("antony_performance_goals")
+      .upsert(
+        { ...goal, owner_user_id: session.user.id },
+        { onConflict: "owner_user_id,period_type,period_start" },
+      )
+      .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override")
+      .limit(1),
   );
   return rows[0] ?? null;
 }

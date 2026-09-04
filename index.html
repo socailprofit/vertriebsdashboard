@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-04e" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-04h" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -110,6 +110,74 @@
           </div>
           <div class="antony-donuts" id="antony-donuts"></div>
           <p class="chart-legend" id="antony-note"></p>
+          <section class="antony-potential" aria-labelledby="antony-potential-title">
+            <div class="antony-potential-heading">
+              <div>
+                <p class="eyebrow">Ist-Zustand · Termin-Potenzial</p>
+                <h3 id="antony-potential-title">Was aktuell reinkommt und möglich ist</h3>
+              </div>
+              <div class="antony-potential-context">
+                <p class="section-note" id="antony-potential-period"></p>
+                <p class="section-note" id="antony-potential-basis"></p>
+              </div>
+            </div>
+            <div class="antony-potential-values" id="antony-potential-values"></div>
+          </section>
+
+          <details class="antony-planner" id="antony-planner">
+            <summary>
+              <span><span class="eyebrow">Optional · Monatsplanung</span><strong>Monatsziel-Rechner öffnen</strong></span>
+              <small>Monatsumsatz und Neukunden rückwärts auf die Leistungskette rechnen</small>
+            </summary>
+            <form class="antony-plan-form" id="antony-plan-form">
+              <div class="antony-rate-mode">
+                <div>
+                  <strong>Berechnungsbasis</strong>
+                  <small id="antony-rate-mode-copy">Monatsplanung mit den aktuellen Ist-Raten des gewählten Monats.</small>
+                </div>
+                <div class="antony-rate-switch" role="group" aria-label="Berechnungsbasis auswählen">
+                  <button type="button" data-antony-rate-mode="current" aria-pressed="true">Aktuelle Raten</button>
+                  <button type="button" data-antony-rate-mode="custom" aria-pressed="false">Eigene Raten</button>
+                </div>
+              </div>
+
+              <div class="antony-plan-inputs">
+                <label>Neukundenziel
+                  <input name="target_new_customers" type="number" min="0" step="1" placeholder="4" />
+                </label>
+                <label>Wunschumsatz
+                  <span class="money-input"><input name="target_revenue_eur" type="number" min="0" step="100" placeholder="40000" /><span>€</span></span>
+                </label>
+                <label>Kundenwert
+                  <span class="money-input"><input name="customer_value_eur" type="number" min="1" step="100" placeholder="10000" /><span>€</span></span>
+                </label>
+              </div>
+
+              <div class="antony-custom-rates" id="antony-custom-rates" hidden>
+                <p>Nur geänderte Raten eintragen. Leere Felder übernehmen weiterhin den aktuellen Ist-Wert.</p>
+                <div class="antony-plan-inputs antony-plan-inputs--rates">
+                  <label>Termin → Closer-Termin
+                    <span class="rate-input"><input name="appointment_to_closer_rate_override" type="number" min="0.1" max="100" step="0.1" /><span>%</span></span>
+                    <small id="current-appointment-to-closer-rate"></small>
+                  </label>
+                  <label>Closer-Showrate
+                    <span class="rate-input"><input name="show_rate_override" type="number" min="0.1" max="100" step="0.1" /><span>%</span></span>
+                    <small id="current-show-rate"></small>
+                  </label>
+                  <label>Closingrate
+                    <span class="rate-input"><input name="closing_rate_override" type="number" min="0.1" max="100" step="0.1" /><span>%</span></span>
+                    <small id="current-closing-rate"></small>
+                  </label>
+                </div>
+              </div>
+
+              <div class="antony-plan-results" id="antony-plan-results" aria-live="polite"></div>
+              <div class="antony-plan-actions">
+                <button class="primary-button" id="antony-plan-save" type="submit">Zielplan speichern</button>
+                <p class="form-status" id="antony-plan-status" aria-live="polite"></p>
+              </div>
+            </form>
+          </details>
         </section>
 
         <section class="panel" id="widget-verlauf" data-widget="verlauf" aria-labelledby="series-title">
@@ -228,6 +296,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-04e"></script>
+    <script type="module" src="./app.js?v=2026-09-04h"></script>
   </body>
 </html>
