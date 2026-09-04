@@ -239,6 +239,10 @@ function canViewWeeklyReview() {
   return state.status === "preview" || Boolean(state.profile.email);
 }
 
+function canViewThreeMonthReview() {
+  return state.period === "month" && ["team", "michael", "felix"].includes(state.view);
+}
+
 // --- Daten laden -------------------------------------------------------------
 
 // Eine Zeile aus get_dashboard_metrics auf die Namen bringen, die die Ansicht
@@ -275,12 +279,18 @@ async function loadAll() {
   const weeklyReviewRequest = canViewWeeklyReview()
     ? data.loadLatestWeeklyReview().catch(() => null)
     : Promise.resolve(null);
+  // Der Dreimonatsrueckblick ist nur in der Monatsansicht relevant. Bei Tag
+  // und Woche wird er weder angezeigt noch unnoetig im Hintergrund geladen.
+  const trendsRequest = state.period === "month" ? data.loadTrends() : Promise.resolve([]);
+  const trendHoursRequest = state.period === "month"
+    ? data.loadHourPerformance("trend", state.referenceDate)
+    : Promise.resolve([]);
   const [people, metricRows, hourRows, trends, trendHours, weeklyReview] = await Promise.all([
     data.loadPeople(),
     data.loadMetrics(state.period, state.referenceDate),
     data.loadHourPerformance(state.period, state.referenceDate),
-    data.loadTrends(),
-    data.loadHourPerformance("trend", state.referenceDate),
+    trendsRequest,
+    trendHoursRequest,
     // Der Review ist eine optionale Zusatzanalyse fuer alle freigeschalteten
     // Dashboard-Konten; der RPC prueft den Zugang erneut serverseitig.
     weeklyReviewRequest,
@@ -535,14 +545,20 @@ function renderHeader() {
   document.querySelector("#core-note").textContent = periodCaption();
   document.querySelector("#footer-context").textContent = `Zeitraum: ${periodLabels[state.period]} · ${periodCaption()}`;
 
-  if (state.widget) return;
+  if (state.widget) {
+    if (state.widget === "trend") {
+      document.querySelector("#widget-trend").hidden = !canViewThreeMonthReview();
+    }
+    return;
+  }
   const antonyView = state.view === "antony";
   [
     "#widget-kernwerte", "#widget-verlauf", "#dashboard-analysis-row",
-    "#widget-details", "#widget-trend",
+    "#widget-details",
   ].forEach((selector) => {
     document.querySelector(selector).hidden = antonyView;
   });
+  document.querySelector("#widget-trend").hidden = !canViewThreeMonthReview();
   document.querySelector("#antony-section").hidden = !antonyView;
 
   const role = state.profile.role;
@@ -1588,9 +1604,11 @@ function render() {
   renderSeries();
   renderFunnel();
   renderHours();
-  renderTrendHours();
   renderDetails();
-  renderTrends();
+  if (canViewThreeMonthReview()) {
+    renderTrendHours();
+    renderTrends();
+  }
   renderManager();
   renderSyncBadge();
   updateUrl();
