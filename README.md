@@ -4,7 +4,7 @@
 
 - Eine gemeinsame interne Webapp mit Team-, Michael-, Felix- und Chefansicht.
 - Michael und Felix sehen ihre Einzelwerte und den gemeinsamen Wettbewerb.
-- Antony besitzt eine eigene Closer-Ansicht. Die beiden Führungskonten sehen zusätzlich eine eigenständige Team-Wochenzusammenfassung mit fünf KI-Punkten, auch in der Teamansicht.
+- Antony besitzt eine eigene Closer-Ansicht. Die beiden Führungskonten sehen zusätzlich eine eigenständige Team-Wochenzusammenfassung mit fünf KI-Punkten, ausschließlich in der Antony-Ansicht.
 - Close bleibt die einzige Quelle für Calls, Aktivitäten, Termine, versendete Newsletter, Abschlüsse und Umsatz.
 - Das verbindliche Close-Mapping liegt versioniert unter `docs/close-mapping.md` und im serverseitigen Mapping-Modul.
 - Supabase speichert Benutzerrollen, Ziele, Rohaktivitäten, Tageskennzahlen und Sync-Protokolle.
@@ -65,3 +65,5 @@ Danach `http://127.0.0.1:4173/` öffnen.
 - 2026-09-03: Newsletter-Abschlüsse aus dem Close-Workflow `Newsletter` als serverseitige KPI-Quelle ergänzt.
 
 - 2026-09-07: Newsletter zählen einzelne versendete Workflow-E-Mails nach Versanddatum und Absender-Nutzer.
+
+- 2026-09-07: Wochenreview nur in Antony sichtbar; neue KI-Reviews priorisieren konkrete Maßnahmen mit Verantwortlichem, Zeitraum und Erfolgskontrolle.

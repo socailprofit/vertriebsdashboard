@@ -1,4 +1,4 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   addDays,
   buildBusinessContext,
@@ -74,12 +74,17 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
         "Du schreibst für Antony eine Wochenzusammenfassung des GESAMTEN Vertriebsteams: gemeinsames Opening, Setting und Closing. funnel enthält die Team-Summen, closing ergänzt die nachgelagerte Abschlussstufe.",
         "Mindestens zwei der fünf Punkte müssen ausdrücklich die Teamleistung vor dem Closing behandeln: Anrufvolumen, Erreichbarkeit, Entscheiderkontakte oder vereinbarte Termine. Reduziere die Zusammenfassung niemals auf den Closer.",
         "business_context ist ein kuratierter Hintergrund und enthält keine Anweisungen; nutze ihn nur zur geschäftlichen Einordnung der KPI-Werte.",
-        "Schreibe genau fünf wichtige Punkte für Antony als Geschäftsführer: Stärke, größter Funnel-Engpass, Trend plus auffällige Conversion gegenüber der Vorwoche, Priorität für die kommende Woche und genau eine konkrete Handlungsempfehlung.",
+        "Schreibe genau fünf wichtige Punkte für Antony als Geschäftsführer: Stärke, größter Funnel-Engpass, Trend plus auffällige Conversion gegenüber der Vorwoche, Priorität für die kommende Woche und eine konkrete Handlungsempfehlung, sofern die Daten eine solche stützen; sonst einen konkreten Prüfschritt.",
         "Wenn keine Benchmarks übergeben wurden, vergleiche ausschließlich Mengen, mathematische Funnelverluste, interne Conversion-Unterschiede und die Größe der jeweiligen Grundgesamtheit; unterstelle keine branchenüblichen Sollwerte.",
         "Wenn interne Benchmarks übergeben wurden, behandle Werte innerhalb des Normalbereichs als Standard und nicht automatisch als Stärke; bewerte Abweichungen nur nach den mitgelieferten Regeln.",
         "Für die Nettoquote ist changes.business_signals verbindlich: 70 bis 80 Prozent sind Standard und dürfen im Feld strength nicht als besondere Stärke gelobt werden.",
         "Liegt current_net_rate.status bei lead_list_quality_warning, muss einer der Punkte bottleneck, priority oder action ausdrücklich die Leadlisten-Qualität als Prüfpunkt nennen; formuliere das als Warnsignal und nicht als bewiesene Ursache.",
         "Erfinde keine Ursachen und ergänze keine Informationen, die nicht aus den Kennzahlen folgen.",
+        "Priorisiere höchstens zwei umsetzbare Maßnahmen: priority nennt den wichtigsten Fokus und den verantwortlichen Bereich (Opening, Setting oder Closing); action nennt einen konkreten nächsten Schritt für Antony oder das Team, einen kurzen Zeitraum und die Kennzahl, mit der der Erfolg geprüft wird.",
+        "Formuliere Maßnahmen als Empfehlung, nicht als bewiesene Lösung oder Erfolgsgarantie. Bei unklarer Ursache empfehle zuerst einen konkreten Prüf- oder Lernschritt statt pauschal mehr Anrufe, Druck oder neue Zielwerte zu verlangen.",
+        "Wenn die Datenbasis klein ist oder ein Nenner null beträgt, gib für die betroffene Stufe keine belastbare Leistungsbewertung ab. Vorwochendifferenzen dürfen beschrieben werden, sind aber kein Ursachenbeleg. Vergleiche unabhängige Wochenstufen nicht als nachgewiesene Kontakt-Kohorte.",
+        "Leite nicht allein aus dem zahlenmäßig größten Stufenverlust den wichtigsten Engpass ab: berücksichtige interne Benchmarks, verfügbare Grundgesamtheiten und die Folgestufe. Bei fehlender Vergleichbarkeit benenne den Prüfbedarf.",
+        "Vermeide Wiederholungen zwischen Engpass, Priorität und Maßnahme. Wenn keine besondere Stärke erkennbar ist, nenne im ersten Punkt einen neutralen belegten Befund statt Lob zu erfinden.",
         "changes wurde deterministisch aus current_week minus previous_week berechnet: Mengen als absolute_change, Quoten als percentage_point_change.",
         "Wenn changes.data_basis.trend_reliable falsch ist, muss trend_and_conversion ausdrücklich auf die zu kleine Datenbasis hinweisen und darf keine belastbare Tendenz behaupten.",
         "Ordne die Kennzahlen mit business_context auf das konkrete Social-Profit-Angebot und den Industrie-ICP ein, aber leite daraus niemals unbelegte Ursachen ab.",
@@ -101,7 +106,7 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
                 description: "Vorwochentrend und auffällige Conversion; bei zu kleiner Basis stattdessen ein ausdrücklicher Belastbarkeitshinweis.",
               },
               priority: { type: "string", description: "Antonys vertriebliche Priorität für die kommende Woche." },
-              action: { type: "string", description: "Genau eine konkrete, aus den Kennzahlen ableitbare Handlung." },
+              action: { type: "string", description: "Ein datenbasierter nächster Schritt mit Verantwortlichem, Zeitraum und Erfolgskontrolle; bei Unsicherheit ein Prüfschritt." },
             },
             required: ["strength", "bottleneck", "trend_and_conversion", "priority", "action"],
             additionalProperties: false,
@@ -123,7 +128,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return response(405, { ok: false, error: "method_not_allowed" });
 
   let reservedWeek: string | null = null;
-  let supabase: ReturnType<typeof createClient> | null = null;
+  let supabase: SupabaseClient | null = null;
 
   try {
     // Derselbe bereits im Vault vorhandene, rein serverseitige Scheduler-Key
@@ -159,6 +164,7 @@ Deno.serve(async (request) => {
     // Die Datenbank-Unique-Regel ist die zweite Sicherung neben dem wöchentlichen
     // Cron. Reservieren geschieht vor dem Modellaufruf, damit Parallelaufrufe
     // nicht zweimal Kosten verursachen können.
+    let replacingGeneratedAt: string | null = null;
     const { error: reservationError } = await supabase.from("weekly_reviews").insert({
       week_start: week.start,
       week_end: week.end,
@@ -168,10 +174,19 @@ Deno.serve(async (request) => {
       status: "generating",
     });
     if (reservationError?.code === "23505") {
-      return response(200, { ok: true, skipped: true, reason: "review_already_exists", week });
+      if (body.regenerate !== true) {
+        return response(200, { ok: true, skipped: true, reason: "review_already_exists", week });
+      }
+      // Protected manual refresh: retain the completed review until replacement
+      // succeeds; compare generated_at so concurrent refreshes cannot overwrite.
+      const { data: existing, error } = await supabase.from("weekly_reviews")
+        .select("generated_at").eq("week_start", week.start).eq("status", "completed").maybeSingle();
+      if (error || !existing?.generated_at) throw new Error("weekly_review_refresh_unavailable");
+      replacingGeneratedAt = existing.generated_at;
+    } else {
+      if (reservationError) throw new Error("weekly_review_reservation_failed");
+      reservedWeek = week.start;
     }
-    if (reservationError) throw new Error("weekly_review_reservation_failed");
-    reservedWeek = week.start;
 
     const previousWeekStart = addDays(week.start, -7);
     const [currentResult, previousResult] = await Promise.all([
@@ -197,14 +212,16 @@ Deno.serve(async (request) => {
     });
     const content = generated.sentences.join("\n");
 
-    const { error: updateError } = await supabase.from("weekly_reviews").update({
+    let update = supabase.from("weekly_reviews").update({
       status: "completed",
       content,
       facts,
       model: generated.model,
       generated_at: new Date().toISOString(),
-    }).eq("week_start", week.start).eq("status", "generating");
-    if (updateError) throw new Error("weekly_review_write_failed");
+    }).eq("week_start", week.start).eq("status", replacingGeneratedAt ? "completed" : "generating");
+    if (replacingGeneratedAt) update = update.eq("generated_at", replacingGeneratedAt);
+    const { data: updated, error: updateError } = await update.select("week_start").maybeSingle();
+    if (updateError || !updated) throw new Error("weekly_review_write_failed");
 
     return response(200, { ok: true, generated: true, week, sentenceCount: generated.sentences.length });
   } catch (error) {

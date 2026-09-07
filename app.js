@@ -1,15 +1,15 @@
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-newsletters";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-antony-review";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-newsletters";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-newsletters";
+import * as data from "./data.js?v=2026-09-07-antony-review";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-antony-review";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-newsletters";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-newsletters";
+} from "./call-time-score.mjs?v=2026-09-07-antony-review";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-antony-review";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -1126,7 +1126,7 @@ function renderWeeklyReview() {
   const section = document.querySelector("#weekly-review");
   const content = document.querySelector("#weekly-review-content");
   const period = document.querySelector("#weekly-review-period");
-  const permitted = canViewWeeklyReview();
+  const permitted = state.view === "antony" && canViewWeeklyReview();
   section.hidden = !permitted;
   if (!permitted) {
     content.replaceChildren();
