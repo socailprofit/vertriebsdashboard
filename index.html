@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-07-security" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-07-weekly" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -207,15 +207,6 @@
             </form>
           </details>
 
-          <section class="weekly-review" id="weekly-review" aria-labelledby="weekly-review-title" hidden>
-            <div class="weekly-review-heading">
-              <div>
-                <p class="eyebrow">Analyse</p>
-                <h3 id="weekly-review-title">KI-Wochenreview für Antony</h3>
-              </div>
-              <p class="section-note" id="weekly-review-period"></p>
-            </div>
-            <div id="weekly-review-content" class="weekly-review-content" aria-live="polite"></div>
             <div class="kpi-assistant">
               <div class="kpi-assistant-heading">
                 <div>
@@ -234,8 +225,19 @@
               </form>
               <div id="kpi-assistant-answer" class="kpi-assistant-answer" aria-live="polite" hidden></div>
             </div>
-          </section>
+
         </section>
+
+          <section class="weekly-review" id="weekly-review" aria-labelledby="weekly-review-title" hidden>
+            <div class="weekly-review-heading">
+              <div>
+                <p class="eyebrow">Montags 08:00 Sommer / 09:00 Winter · nur für die Geschäftsführung</p>
+                <h3 id="weekly-review-title">KI-Wochenzusammenfassung · gesamtes Team</h3>
+              </div>
+              <p class="section-note" id="weekly-review-period"></p>
+            </div>
+            <div id="weekly-review-content" class="weekly-review-content" aria-live="polite"></div>
+          </section>
 
         <div class="panel-row" id="dashboard-analysis-row">
           <section class="panel" id="widget-trichter" data-widget="trichter" aria-labelledby="funnel-title">
@@ -360,6 +362,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-07-security"></script>
+    <script type="module" src="./app.js?v=2026-09-07-weekly"></script>
   </body>
 </html>

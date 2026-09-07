@@ -4,7 +4,7 @@
 
 - Eine gemeinsame interne Webapp mit Team-, Michael-, Felix- und Chefansicht.
 - Michael und Felix sehen ihre Einzelwerte und den gemeinsamen Wettbewerb.
-- Antony besitzt eine eigene Closer-Ansicht. Nur sein Konto sieht darin zusätzlich fünf wöchentliche KI-Punkte aus aggregierten Kennzahlen, dem Vorwochenvergleich und einem versionierten, serverseitigen Social-Profit-Profil.
+- Antony besitzt eine eigene Closer-Ansicht. Die beiden Führungskonten sehen zusätzlich eine eigenständige Team-Wochenzusammenfassung mit fünf KI-Punkten, auch in der Teamansicht.
 - Close bleibt die einzige Quelle für Calls, Aktivitäten, Termine, Newsletter-Abschlüsse, Abschlüsse und Umsatz.
 - Das verbindliche Close-Mapping liegt versioniert unter `docs/close-mapping.md` und im serverseitigen Mapping-Modul.
 - Supabase speichert Benutzerrollen, Ziele, Rohaktivitäten, Tageskennzahlen und Sync-Protokolle.
@@ -17,7 +17,7 @@
 - Es gilt ein rollierendes Drei-Monats-Fenster: aktueller Monat plus zwei Vormonate.
 - Beim Monatswechsel werden Rohaktivitäten, Tageswerte, Zusammenfassungen, Ziele und Sync-Protokolle vor diesem Fenster gelöscht.
 - Supabase-Datenmodell, Edge Function und Cron sind produktiv ausgerollt; der Cron-Lauf wurde am 2026-09-03 bestätigt.
-- Der Wochenreview ist serverseitig implementiert und ausgerollt. Für den ersten produktiven KI-Lauf fehlt nur noch `OPENAI_API_KEY` als Supabase Function Secret; anschließend wird der Review automatisch montags erzeugt.
+- Die Team-Wochenzusammenfassung ist produktiv geprüft. Sie entsteht montags um 08:00 Uhr Sommerzeit beziehungsweise 09:00 Uhr Winterzeit (Europe/Berlin) und ist für `rigone@socialprofit.de` und `info@socialprofit.de` sichtbar; Details in `docs/weekly-review.md`.
 
 ### Lokale Vorschau
 

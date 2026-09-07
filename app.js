@@ -1,15 +1,15 @@
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-security";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-weekly";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-security";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-security";
+import * as data from "./data.js?v=2026-09-07-weekly";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-weekly";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-security";
-import { hasAntonyDashboardAccess } from "./access-control.mjs?v=2026-09-07-security";
+} from "./call-time-score.mjs?v=2026-09-07-weekly";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-weekly";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -230,7 +230,7 @@ function canViewAntony() {
 }
 
 function canViewWeeklyReview() {
-  return canViewAntony();
+  return state.status === "preview" || hasWeeklyReviewAccess(state.profile.email);
 }
 
 function canViewThreeMonthReview() {
@@ -271,7 +271,7 @@ async function loadAll() {
   // den Zeitraum. Die Tagesreihen dürfen nicht noch den Bereich der vorher
   // geöffneten Ansicht verwenden, wenn man Tag, Woche oder Monat umschaltet.
   const antonyAccess = canViewAntony();
-  const weeklyReviewRequest = antonyAccess
+  const weeklyReviewRequest = canViewWeeklyReview()
     ? data.loadLatestWeeklyReview().catch(() => null)
     : Promise.resolve(null);
   // Der Dreimonatsrueckblick ist nur in der Monatsansicht relevant. Bei Tag
@@ -286,8 +286,7 @@ async function loadAll() {
     data.loadHourPerformance(state.period, state.referenceDate),
     trendsRequest,
     trendHoursRequest,
-    // Der Review ist eine optionale Zusatzanalyse fuer die beiden explizit
-    // freigegebenen Antony-Konten; der RPC prueft erneut serverseitig.
+    // Der Team-Wochenbericht ist für die beiden Führungskonten; der RPC prüft serverseitig.
     weeklyReviewRequest,
   ]);
 
@@ -945,7 +944,7 @@ function renderAntony() {
     renderAntonyPipeline();
     renderAntonyPotential();
     renderAntonyPlanner();
-    renderWeeklyReview();
+    renderKpiAssistant();
     return;
   }
 
@@ -1009,7 +1008,7 @@ function renderAntony() {
   renderAntonyPipeline();
   renderAntonyPotential();
   renderAntonyPlanner();
-  renderWeeklyReview();
+  renderKpiAssistant();
 }
 
 const antonyPerformanceSeries = Object.freeze([
@@ -1139,14 +1138,12 @@ function renderWeeklyReview() {
   if (!review?.content) {
     period.textContent = "Letzte abgeschlossene Vertriebswoche";
     content.innerHTML = `<p class="weekly-review-empty">Noch kein Wochenreview vorhanden. Der erste Review wird nach dem nächsten erfolgreichen Montagslauf angezeigt.</p>`;
-    renderKpiAssistant();
     return;
   }
 
   period.textContent = `${germanDate(review.week_start)} – ${germanDate(review.week_end)}`;
   const sentences = String(review.content).split("\n").map((sentence) => sentence.trim()).filter(Boolean);
-  content.innerHTML = `<ol>${sentences.map((sentence) => `<li>${escapeHtml(sentence)}</li>`).join("")}</ol>`;
-  renderKpiAssistant();
+  content.innerHTML = `<ul>${sentences.map((sentence) => `<li>${escapeHtml(sentence)}</li>`).join("")}</ul>`;
 }
 
 function renderKpiAssistant() {
@@ -1603,6 +1600,7 @@ function render() {
   }
   renderNav();
   renderHeader();
+  renderWeeklyReview();
   if (state.view === "antony") {
     renderAntony();
     renderSyncBadge();

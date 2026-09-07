@@ -6,3 +6,7 @@ const ANTONY_DASHBOARD_EMAILS = new Set([
 export function hasAntonyDashboardAccess(email) {
   return ANTONY_DASHBOARD_EMAILS.has(String(email ?? "").trim().toLowerCase());
 }
+
+export function hasWeeklyReviewAccess(email) {
+  return hasAntonyDashboardAccess(email);
+}

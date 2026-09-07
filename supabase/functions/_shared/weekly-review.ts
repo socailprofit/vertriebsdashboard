@@ -317,7 +317,7 @@ export function parseReviewSentences(value: string): string[] {
   const sentences = requiredFields.map((field) => {
     const sentence = parsed[field];
     if (typeof sentence !== "string" || !sentence.trim()) throw new Error("openai_output_invalid");
-    return sentence.trim();
+    return sentence.replace(/\s+/g, " ").trim();
   });
   if (sentences.length !== 5) throw new Error("openai_output_invalid");
   if (sentences.some((sentence) => sentence.length > 320)) throw new Error("openai_output_invalid");
