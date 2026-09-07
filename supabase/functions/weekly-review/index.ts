@@ -119,8 +119,15 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
 
   if (!result.ok) throw new Error(`openai_http:${result.status}`);
   const payload = await result.json();
+  const sentences = parseReviewSentences(extractResponseText(payload));
+  if (!input.changes.data_basis.trend_reliable) {
+    const current = input.current_week;
+    const previous = input.previous_week;
+    const delta = input.changes.funnel.appointment_rate.percentage_point_change;
+    sentences[2] = `Vorwochenvergleich eingeschränkt: aktuell ${current.funnel.appointments} Termine und ${current.closing.closer_calls} Closer Calls, zuvor ${previous.funnel.appointments} und ${previous.closing.closer_calls}; die Terminquote veränderte sich rechnerisch um ${delta.toLocaleString("de-DE")} Prozentpunkte.`;
+  }
   return {
-    sentences: parseReviewSentences(extractResponseText(payload)),
+    sentences,
     model: typeof payload.model === "string" ? payload.model : model,
   };
 }
