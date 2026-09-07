@@ -1,15 +1,17 @@
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-charts";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-07-chart-popup";
+installChartPopover();
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-chart-popup";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-charts";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-charts";
+import * as data from "./data.js?v=2026-09-07-chart-popup";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-chart-popup";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-charts";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-charts";
+} from "./call-time-score.mjs?v=2026-09-07-chart-popup";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-chart-popup";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -1072,15 +1074,23 @@ function renderAntonyPerformance() {
     return index === 0 || index === rows.length - 1 || index % interval === 0;
   });
 
+  const hitWidth = (width - pad.left - pad.right) / Math.max(1, rows.length - 1);
+  const hitAreas = rows.map((row, index) => {
+    const time = `${periodCaption()} · ${row.bucket_label}${state.period === "day" ? " Uhr" : ""}`;
+    const payload = { title: "Vertriebsverlauf", time, rows: visibleSeries.map((series) => ({ label: series.label, value: `${number(row[series.key])}` })), note: "Anzahl bis zu diesem Zeitpunkt aufsummiert · Berliner Zeit" };
+    const left = Math.max(pad.left, x(index) - hitWidth / 2);
+    const right = Math.min(width - pad.right, x(index) + hitWidth / 2);
+    return `<rect class="chart-hit-area" x="${left}" y="${pad.top - 7}" width="${right - left}" height="${height - pad.bottom - pad.top + 14}" tabindex="0" role="button" aria-label="${escapeHtml(`Werte anzeigen: ${time}`)}" data-chart-point="${escapeHtml(JSON.stringify(payload))}" />`;
+  }).join("");
   chart.innerHTML = `
     <div class="antony-performance-legend">${visibleSeries.map((series) => {
       const last = rows[rows.length - 1];
       return `<span><i style="background:${series.color}"></i>${series.label}<b>${number(last[series.key])}</b></span>`;
     }).join("")}</div>
     <div class="chart-axis-copy"><span>Anzahl · bis zum jeweiligen Zeitpunkt aufsummiert</span><span>${state.period === "day" ? "Uhrzeit" : "Datum"} · Berlin</span></div>
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Kumulierter Antony-Funnel im gewählten Zeitraum">
+    <svg viewBox="0 0 ${width} ${height}" role="group" aria-label="Kumulierter Antony-Funnel im gewählten Zeitraum">
       <g class="antony-performance-grid">${grid}</g>
-      <g class="antony-performance-lines">${paths}</g>
+      <g class="antony-performance-lines">${paths}</g>${hitAreas}
     </svg>
     <div class="antony-performance-axis">${labels.map(({ label, index }) =>
       `<span style="left:${(index / (rows.length - 1)) * 100}%">${escapeHtml(label)}</span>`).join("")}</div>
@@ -1258,8 +1268,16 @@ function lineChart(points, seriesByPerson, format, pointLabel = "Tage", unit = "
     return `<path class="series-line" d="${d}" style="stroke:${entry.color}"/>` + entry.values.map((value, index) =>
       `<circle cx="${x(index)}" cy="${y(value)}" r="3.5" fill="${entry.color}"><title>${escapeHtml(`${entry.label} · ${labels[index]} · ${format(value)} ${unit}`)}</title></circle>`).join("");
   }).join("");
+  const hitWidth = (width - pad.left - pad.right) / Math.max(1, points.length - 1);
+  const hitAreas = points.map((point, index) => {
+    const time = hourly ? `${germanDate(state.periodRange.start)} · ${labels[index]}` : `${labels[index]} ${String(point).slice(0, 4)}`;
+    const payload = { title: unit, time, rows: series.map((entry) => ({ label: entry.label, value: `${format(entry.values[index])} ${unit}` })), note: `Einzelwert je ${hourly ? "Stunde" : "Kalendertag"} · Berliner Zeit` };
+    const left = Math.max(pad.left, x(index) - hitWidth / 2);
+    const right = Math.min(width - pad.right, x(index) + hitWidth / 2);
+    return `<rect class="chart-hit-area" x="${left}" y="${pad.top - 7}" width="${points.length === 1 ? width - pad.left - pad.right : right - left}" height="${height - pad.bottom - pad.top + 14}" tabindex="0" role="button" aria-label="${escapeHtml(`Werte anzeigen: ${time}`)}" data-chart-point="${escapeHtml(JSON.stringify(payload))}" />`;
+  }).join("");
   return `<div class="chart-axis-copy"><span>${escapeHtml(unit)} je ${hourly ? "Stunde" : "Kalendertag"}</span><span>${hourly ? "Uhrzeit" : "Datum"} · Berlin</span></div>
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`${unit} je ${hourly ? 'Stunde' : 'Tag'}, ${labels[0]} bis ${labels[labels.length - 1]}; jede Farbe steht für eine Person`)}">${grid}${ticks}${lines}</svg>
+    <svg viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(`${unit} je ${hourly ? 'Stunde' : 'Tag'}, ${labels[0]} bis ${labels[labels.length - 1]}; jede Farbe steht für eine Person`)}">${grid}${ticks}${lines}${hitAreas}</svg>
     ${chartValuesTable(labels, series, `${unit} je ${hourly ? "Stunde" : "Tag"}`)}`;
 }
 
@@ -1292,7 +1310,7 @@ function renderSeries() {
         <article class="chart-card">
           <h3>${label}</h3>
           <div class="chart-body">${lineChart(hours, seriesByPerson, number, "Stunden", "Anrufe")}</div>
-          <small>Einzelwerte pro Stunde, nicht aufsummiert. Punkte zeigen den exakten Wert beim Darüberfahren; alle Werte stehen auch in der Tabelle.</small>
+          <small>Einzelwerte pro Stunde, nicht aufsummiert. Auf den Graphen tippen oder klicken, um Zeitpunkt und Werte zu sehen. Alle Werte stehen auch in der Tabelle.</small>
         </article>`;
     }).join("");
     return;
