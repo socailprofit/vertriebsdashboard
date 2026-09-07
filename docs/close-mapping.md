@@ -78,7 +78,7 @@ Berücksichtigte Aktivitätstypen:
 
 | KPI | Regel |
 |---|---|
-| Gatekeeper-Kontakte | Gatekeeper-Ergebnis ist gesetzt und nicht `🛑 Kein Gatekeeper` |
+| Gatekeeper-Kontakte | Bewertbares Ergebnis: `✅ Durchgestellt`, `Nicht durchgestellt`, `E-Mail senden` oder `Kein Interesse`; Nichterreichbarkeit, Mailbox, außerhalb der Geschäftszeiten, direkte Entscheider und unbekannte Ergebnisse ausgeschlossen |
 | Durchstellungen | Gatekeeper-Ergebnis ist exakt `✅ Durchgestellt` |
 | Direkter Entscheider | Gatekeeper-Ergebnis ist exakt `🛑 Kein Gatekeeper` |
 | Entscheider erreicht | Entscheider-Ergebnis ist gesetzt |
@@ -180,3 +180,5 @@ Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es i
 - Nächster Schritt: Einen vollständigen Testtag gegen Close zählen und die erste produktive Stunden-Synchronisierung kontrollieren.
 
 - 2026-09-07: Newsletter-KPI von Workflow-Abschlüssen auf tatsächliche E-Mail-Versandereignisse umgestellt.
+
+- 2026-09-07: Bereinigte Durchstellquote: nur vier bewertbare Vorzimmer-Ergebnisse bilden die Grundgesamtheit. Bestehende Fakten, Tageswerte und aufbewahrte Monatsarchive werden korrigiert; Stunden, Wochen und drei Monate verwenden dieselben Fakten. Datenbank-Trigger schützt die Regel auch bei älteren Importern.

@@ -1,4 +1,4 @@
-export const MAPPING_VERSION = "2026-09-07.newsletter-sends";
+export const MAPPING_VERSION = "2026-09-07.transfer-opportunities";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
 export function metricTimeInReportingTimezone(occurredAt: string) {
@@ -239,7 +239,7 @@ export function mapCustomActivity(activity: CloseCustomActivity): ActivityFact |
     const gatekeeperResult = stringValue(fieldValue(activity, isOpening ? CUSTOM_FIELDS.openingGatekeeperResult : CUSTOM_FIELDS.followUpGatekeeperResult));
     const decisionMakerResult = stringValue(fieldValue(activity, isOpening ? CUSTOM_FIELDS.openingDecisionMakerResult : CUSTOM_FIELDS.followUpDecisionMakerResult));
     fact.productFocus = stringValue(fieldValue(activity, isOpening ? CUSTOM_FIELDS.openingProductFocus : CUSTOM_FIELDS.followUpProductFocus));
-    fact.gatekeeperContacts = gatekeeperResult && gatekeeperResult !== "🛑 Kein Gatekeeper" ? 1 : 0;
+    fact.gatekeeperContacts = isTransferOpportunity(gatekeeperResult) ? 1 : 0;
     fact.connectedCalls = gatekeeperResult === "✅ Durchgestellt" ? 1 : 0;
     fact.directDecisionMakerCalls = gatekeeperResult === "🛑 Kein Gatekeeper" ? 1 : 0;
     fact.decisionMakerContacts = decisionMakerResult ? 1 : 0;
@@ -340,4 +340,10 @@ export function mapNewsletterSend(email: CloseNewsletterEmail) {
     sentAt: email.date_sent,
     mappingVersion: MAPPING_VERSION,
   };
+}
+
+// Only evaluated gatekeeper outcomes form the denominator. Unavailability,
+// mailbox, closed business and unknown future outcomes never count as rejection.
+export function isTransferOpportunity(result: string | null): boolean {
+  return new Set(["✅ Durchgestellt", "Nicht durchgestellt", "E-Mail senden", "Kein Interesse"]).has(result ?? "");
 }

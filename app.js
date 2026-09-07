@@ -1,17 +1,17 @@
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-07-chart-popup";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-07-transfer";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-chart-popup";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-transfer";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-chart-popup";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-chart-popup";
+import * as data from "./data.js?v=2026-09-07-transfer";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-transfer";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-chart-popup";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-chart-popup";
+} from "./call-time-score.mjs?v=2026-09-07-transfer";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-transfer";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -35,9 +35,9 @@ const metricDefinitions = [
   { key: "callsGross", label: "Anrufe brutto", detail: "Ausgehend, endgültiger Status", format: number, target: "calls_gross" },
   { key: "callsNet", label: "Anrufe netto", detail: "Abgeschlossen und angenommen", format: number, target: "calls_net" },
   { key: "netRate", label: "Nettoquote", detail: "Netto-Anrufe ÷ Brutto-Anrufe", format: percent, noTarget: true },
-  { key: "gatekeeper", label: "Vorzimmer", detail: "Gatekeeper erreicht", format: number, target: "gatekeeper_contacts" },
+  { key: "gatekeeper", label: "Vorzimmer (bewertbar)", detail: "Durchstellversuche ohne Nichterreichbarkeit", format: number, target: "gatekeeper_contacts" },
   { key: "connected", label: "Durchstellungen", detail: "Vom Vorzimmer durchgestellt", format: number, target: "connected_calls" },
-  { key: "connectionRate", label: "Durchstellquote", detail: "Durchstellungen ÷ Vorzimmer", format: percent, rateTarget: "transfer_rate_target", ratio: ["connected", "gatekeeper"] },
+  { key: "connectionRate", label: "Durchstellquote", detail: "Durchstellungen ÷ bewertbare Vorzimmer-Ergebnisse", format: percent, rateTarget: "transfer_rate_target", ratio: ["connected", "gatekeeper"] },
   { key: "directDecisionMakers", label: "Entscheider direkt", detail: "Ohne Vorzimmer erreicht", format: number, noTarget: true },
   { key: "decisionMakers", label: "Entscheider gesamt", detail: "Direkt und durchgestellt", format: number, target: "decision_maker_contacts" },
   { key: "appointments", label: "Termine", detail: "Termin vereinbart", format: number, target: "appointments" },
@@ -1353,7 +1353,7 @@ function renderSeries() {
 function renderFunnel() {
   const steps = [
     ["Netto-Anrufe", "callsNet"],
-    ["Vorzimmer", "gatekeeper"],
+    ["Vorzimmer (bewertbar)", "gatekeeper"],
     ["Durchgestellt", "connected"],
     ["Entscheider", "decisionMakers"],
     ["Termine", "appointments"],
@@ -1386,7 +1386,7 @@ function renderFunnel() {
         </span>
         <span class="transfer-donut-copy">
           <b>${escapeHtml(entry.label)}</b>
-          <small>${successes} von ${base} Vorzimmern durchgestellt</small>
+          <small>${successes} von ${base} bewertbaren Vorzimmer-Kontakten durchgestellt</small>
         </span>
       </article>`;
   }).join("");
@@ -1404,7 +1404,7 @@ function renderFunnel() {
     </div>`;
   }).join("");
   document.querySelector("#funnel-note").textContent =
-    "Die Donuts zeigen Durchstellungen ÷ Vorzimmer-Kontakte. Der Teamwert wird aus den Summen berechnet. Direkte Entscheider umgehen das Vorzimmer und bleiben deshalb außerhalb dieser Quote.";
+    "Durchstellquote = „Durchgestellt“ ÷ bewertbare Vorzimmer-Ergebnisse. „CEO nicht erreichbar“, Mailbox, außerhalb der Geschäftszeiten und direkte Entscheidergespräche zählen nicht mit. Ablehnung, „E-Mail senden“ und „Kein Interesse“ zählen als nicht durchgestellt. Der Teamwert entsteht aus den Summen.";
 }
 
 // Das Stundenprofil bleibt dicht: eine Zeile je Uhrzeit, Michael und Felix in
