@@ -1,15 +1,15 @@
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-private-access";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-charts";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-private-access";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-private-access";
+import * as data from "./data.js?v=2026-09-07-charts";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-charts";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-private-access";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-private-access";
+} from "./call-time-score.mjs?v=2026-09-07-charts";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-charts";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -1048,7 +1048,7 @@ function renderAntonyPerformance() {
   const height = 300;
   const pad = { left: 42, right: 20, top: 20, bottom: 28 };
   const values = visibleSeries.flatMap((series) => rows.map((row) => Number(row[series.key] ?? 0)));
-  const maxValue = Math.max(1, ...values);
+  const maxValue = Math.max(4, Math.ceil(Math.max(0, ...values) / 4) * 4);
   const x = (index) => pad.left + (index / Math.max(1, rows.length - 1)) * (width - pad.left - pad.right);
   const y = (value) => height - pad.bottom - (Number(value ?? 0) / maxValue) * (height - pad.top - pad.bottom);
   const grid = Array.from({ length: 5 }, (_, index) => {
@@ -1062,7 +1062,7 @@ function renderAntonyPerformance() {
       `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(row[series.key]).toFixed(1)}`).join(" ");
     const last = rows[rows.length - 1];
     return `<path d="${d}" style="stroke:${series.color}" />
-      <circle cx="${x(rows.length - 1).toFixed(1)}" cy="${y(last[series.key]).toFixed(1)}" r="4" style="fill:${series.color}" />`;
+      ${rows.map((row, index) => `<circle cx="${x(index).toFixed(1)}" cy="${y(row[series.key]).toFixed(1)}" r="4" style="fill:${series.color}"><title>${escapeHtml(`${row.bucket_label} · ${series.label}: ${number(row[series.key])} insgesamt bis zu diesem Zeitpunkt`)}</title></circle>`).join("")}`;
   }).join("");
   const labels = rows.map((row, index) => ({
     label: row.bucket_label,
@@ -1077,16 +1077,18 @@ function renderAntonyPerformance() {
       const last = rows[rows.length - 1];
       return `<span><i style="background:${series.color}"></i>${series.label}<b>${number(last[series.key])}</b></span>`;
     }).join("")}</div>
+    <div class="chart-axis-copy"><span>Anzahl · bis zum jeweiligen Zeitpunkt aufsummiert</span><span>${state.period === "day" ? "Uhrzeit" : "Datum"} · Berlin</span></div>
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Kumulierter Antony-Funnel im gewählten Zeitraum">
       <g class="antony-performance-grid">${grid}</g>
       <g class="antony-performance-lines">${paths}</g>
     </svg>
     <div class="antony-performance-axis">${labels.map(({ label, index }) =>
-      `<span style="left:${(index / (rows.length - 1)) * 100}%">${escapeHtml(label)}</span>`).join("")}</div>`;
+      `<span style="left:${(index / (rows.length - 1)) * 100}%">${escapeHtml(label)}</span>`).join("")}</div>
+    ${chartValuesTable(rows.map((row) => row.bucket_label), visibleSeries.map((series) => ({ label: series.label, values: rows.map((row) => row[series.key]) })), "Anzahl, aufsummiert")}`;
 
   note.textContent = state.period === "day"
-    ? "Kumuliert von 08:00 bis 17:00 Uhr in Europe/Berlin. Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält."
-    : "Kumulierte Funnel-Mengen je Kalendertag. Jeder Punkt baut ausschließlich auf den bis dahin erfassten, gemappten Close-Fakten auf.";
+    ? "Jeder Punkt zeigt die bis zu diesem Stundenabschnitt aufsummierte Anzahl; eine waagerechte Linie bedeutet keinen Zuwachs. Angezeigt werden die Stunden 08 bis 17 Uhr (Berlin). Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält."
+    : "Jeder Punkt zeigt die seit Periodenbeginn aufsummierte Anzahl bis einschließlich dieses Kalendertags. Eine steigende Linie bedeutet neue Ereignisse, eine waagerechte Linie keinen Zuwachs. Die Farben stehen für die Stufen in der Legende; die Werte sind keine Quoten.";
 }
 
 function renderAntonyPipeline() {
@@ -1215,30 +1217,50 @@ function renderGoals() {
 
 // Ein Liniendiagramm ohne Bibliothek. Das ist Voraussetzung dafür, dass ein
 // Abschnitt später als eigenständiges Widget in einer fremden Seite läuft.
-function lineChart(points, seriesByPerson, format, pointLabel = "Tage") {
-  if (points.length < 2) {
-    return `<p class="empty-note">Zu wenig Werte für einen Verlauf.</p>`;
-  }
+function chartValuesTable(labels, series, unit) {
+  return `<details class="chart-values"><summary>Alle Werte anzeigen · ${escapeHtml(unit)}</summary>
+    <div class="chart-table-scroll"><table><caption>Exakte Werte · ${escapeHtml(unit)}</caption>
+    <thead><tr><th scope="col">Zeitpunkt</th>${series.map((entry) => `<th scope="col">${escapeHtml(entry.label)}</th>`).join("")}</tr></thead>
+    <tbody>${labels.map((label, index) => `<tr><th scope="row">${escapeHtml(label)}</th>${series.map((entry) => `<td>${number(entry.values[index])}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
+}
 
-  const width = 320;
-  const height = 96;
-  const padX = 6;
-  const padY = 10;
-  const values = Object.values(seriesByPerson).flat().filter((value) => Number.isFinite(value));
-  const max = Math.max(1, ...values);
-  const stepX = (width - padX * 2) / (points.length - 1);
-  const y = (value) => height - padY - ((value || 0) / max) * (height - padY * 2);
-
-  const lines = Object.entries(seriesByPerson).map(([slug, points]) => {
-    const person = state.people.find((entry) => entry.slug === slug);
-    const d = points.map((value, index) => `${index === 0 ? "M" : "L"}${(padX + index * stepX).toFixed(1)} ${y(value).toFixed(1)}`).join(" ");
-    const last = points[points.length - 1];
-    return `<path class="series-line" d="${d}" style="stroke:${safeColor(person?.color ?? "#8fa3bf")}" />
-            <circle cx="${(padX + (points.length - 1) * stepX).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3" style="fill:${safeColor(person?.color ?? "#8fa3bf")}" />`;
+function lineChart(points, seriesByPerson, format, pointLabel = "Tage", unit = "Anzahl") {
+  if (!points.length) return `<p class="empty-note">Für diesen Zeitraum liegen keine Werte vor.</p>`;
+  const hourly = pointLabel === "Stunden";
+  const labels = points.map((point) => hourly
+    ? `${String(point).padStart(2, "0")}:00–${String(Number(point) + 1).padStart(2, "0")}:00 Uhr`
+    : new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(`${point}T12:00:00Z`)));
+  const width = 440, height = 210;
+  const pad = { left: 44, right: 24, top: 16, bottom: 38 };
+  const values = Object.values(seriesByPerson).flat().filter(Number.isFinite);
+  const max = Math.max(4, Math.ceil(Math.max(0, ...values) / 4) * 4);
+  const x = (index) => points.length === 1 ? (width + pad.left - pad.right) / 2
+    : pad.left + index * (width - pad.left - pad.right) / (points.length - 1);
+  const y = (value) => height - pad.bottom - (Number(value) / max) * (height - pad.top - pad.bottom);
+  const grid = Array.from({ length: 5 }, (_, i) => {
+    const value = max * i / 4;
+    return `<line class="chart-grid" x1="${pad.left}" x2="${width - pad.right}" y1="${y(value)}" y2="${y(value)}"/><text class="chart-tick" x="${pad.left - 8}" y="${y(value) + 4}" text-anchor="end">${format(value)}</text>`;
   }).join("");
-
-  return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"
-            aria-label="Verlauf über ${points.length} ${pointLabel}, Höchstwert ${format(max)}">${lines}</svg>`;
+  const interval = Math.max(1, Math.ceil((points.length - 1) / 4));
+  const ticks = points.map((point, index) => {
+    if (index !== points.length - 1 && index % interval !== 0) return "";
+    // Avoid nearly overlapping labels at the end of a month.
+    if (index !== points.length - 1 && index > points.length - 1 - interval * 0.6) return "";
+    const label = hourly ? `${String(point).padStart(2, "0")}:00` : String(point).slice(8, 10) + "." + String(point).slice(5, 7) + ".";
+    return `<text class="chart-tick" x="${x(index)}" y="${height - 12}" text-anchor="middle">${label}</text>`;
+  }).join("");
+  const series = Object.entries(seriesByPerson).map(([slug, values]) => {
+    const person = state.people.find((entry) => entry.slug === slug);
+    return { label: firstName(person?.display_name ?? slug), values, color: safeColor(person?.color ?? "#8fa3bf") };
+  });
+  const lines = series.map((entry) => {
+    const d = entry.values.map((value, index) => `${index === 0 ? "M" : "L"}${x(index)} ${y(value)}`).join(" ");
+    return `<path class="series-line" d="${d}" style="stroke:${entry.color}"/>` + entry.values.map((value, index) =>
+      `<circle cx="${x(index)}" cy="${y(value)}" r="3.5" fill="${entry.color}"><title>${escapeHtml(`${entry.label} · ${labels[index]} · ${format(value)} ${unit}`)}</title></circle>`).join("");
+  }).join("");
+  return `<div class="chart-axis-copy"><span>${escapeHtml(unit)} je ${hourly ? "Stunde" : "Kalendertag"}</span><span>${hourly ? "Uhrzeit" : "Datum"} · Berlin</span></div>
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`${unit} je ${hourly ? 'Stunde' : 'Tag'}, ${labels[0]} bis ${labels[labels.length - 1]}; jede Farbe steht für eine Person`)}">${grid}${ticks}${lines}</svg>
+    ${chartValuesTable(labels, series, `${unit} je ${hourly ? "Stunde" : "Tag"}`)}`;
 }
 
 function renderSeries() {
@@ -1253,7 +1275,7 @@ function renderSeries() {
     title.textContent = "Aktivität am Tag";
     const hours = Array.from({ length: 10 }, (_, index) => index + 8);
     document.querySelector("#series-note").textContent =
-      `Erfasste Aktivität am ${germanDate(state.periodRange.start)} nach Uhrzeit (08:00–17:00).`;
+      `Erfasste Aktivität am ${germanDate(state.periodRange.start)}: jeder Punkt zählt Anrufe innerhalb einer Stunde (08:00–17:59 Uhr, Berliner Zeit). Werte außerhalb dieses Fensters sind hier nicht dargestellt.`;
     const metrics = [
       ["Anrufe brutto", "calls_gross"],
       ["Anrufe netto", "calls_net"],
@@ -1269,9 +1291,8 @@ function renderSeries() {
       return `
         <article class="chart-card">
           <h3>${label}</h3>
-          <div class="chart-body">${lineChart(hours, seriesByPerson, number, "Stunden")}</div>
-          <div class="hour-axis" aria-hidden="true">${hours.map((hour) => `<span>${hour}</span>`).join("")}</div>
-          <small>08–17 Uhr · je Linie eine Person</small>
+          <div class="chart-body">${lineChart(hours, seriesByPerson, number, "Stunden", "Anrufe")}</div>
+          <small>Einzelwerte pro Stunde, nicht aufsummiert. Punkte zeigen den exakten Wert beim Darüberfahren; alle Werte stehen auch in der Tabelle.</small>
         </article>`;
     }).join("");
     return;
@@ -1304,8 +1325,8 @@ function renderSeries() {
     return `
       <article class="chart-card">
         <h3>${metric.label}</h3>
-        <div class="chart-body">${lineChart(days, seriesByPerson, metric.format)}</div>
-        <small>${days.length > 1 ? `${germanDate(days[0])} – ${germanDate(days[days.length - 1])}` : ""}</small>
+        <div class="chart-body">${lineChart(days, seriesByPerson, metric.format, "Tage", metric.key === "appointments" ? "Termine" : metric.key === "decisionMakers" ? "Entscheiderkontakte" : "Anrufe")}</div>
+        <small>Einzelwerte je Kalendertag, nicht aufsummiert. Die senkrechte Skala zeigt die Anzahl; jede Farbe steht für eine Person.</small>
       </article>`;
   }).join("");
 }
@@ -1377,7 +1398,7 @@ const HOUR_MIN_BASE = 3;
 function renderHours() {
   const rateSwitch = document.querySelector("#hours-rate-switch");
   document.querySelector("#hours-title").textContent = state.period === "day"
-    ? "Anrufzeiten heute"
+    ? `Anrufzeiten am ${germanDate(state.periodRange.start)}`
     : "Beste Anrufzeiten";
   rateSwitch.hidden = false;
   zeichneStunden("#hours-chart", state.hours, state.heatmapRate);
@@ -1423,7 +1444,7 @@ function zeichneStunden(selektor, quelle, mode) {
   }));
 
   const head = `<div class="hour-matrix-head" aria-hidden="true">
-    <span></span>
+    <span>Uhrzeit</span>
     <span class="hour-bars">${people.map((person) => `<b style="--person-color:${safeColor(person.color)}">${escapeHtml(firstName(person.display_name))}</b>`).join("")}</span>
   </div>`;
 
@@ -1450,14 +1471,14 @@ function zeichneStunden(selektor, quelle, mode) {
                 <small class="hour-meta">${quality.calls_gross} Anrufe · ${quality.productive_calls} produktiv · MB ${quality.mailbox_calls} · AG ${quality.outside_business_hours_calls}</small>
               </span>`;
     }).join("");
-    return `<div class="hour-row"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span><span class="hour-bars">${bars}</span></div>`;
+    return `<div class="hour-row"><span class="hour-label">${String(hour).padStart(2, "0")}:00–${String(hour + 1).padStart(2, "0")}:00</span><span class="hour-bars">${bars}</span></div>`;
   }).join("");
 
   const modeCopy = mode === "quality"
     ? "Gesamtqualität: 35 % produktive Erreichbarkeit, 25 % Durchstellung, je 20 % Entscheider- und Terminquote. Kleine Stichproben werden zum persönlichen Periodenmittel geglättet."
     : `${callTimeMetric(calculateCallTimeQuality({}, {}), mode).label}: sichtbare Treffer geteilt durch ihre jeweilige Grundgesamtheit.`;
   container.innerHTML = head + rows +
-    `<p class="chart-legend">${modeCopy} MB = Mailbox, AG = außerhalb der Geschäftszeiten; beide mindern nur hier die produktive Erreichbarkeit. „Beste“ benötigt mindestens ${HOUR_MIN_BASE} Fälle. Grundlage ist die tatsächliche Close-Stunde in Europe/Berlin.</p>`;
+    `<p class="chart-legend">Jede Zeile fasst die Anrufe in diesem Stundenfenster über den gewählten Zeitraum zusammen (Berliner Zeit). ${mode === "quality" ? "Die Balken zeigen Qualitätspunkte von 0 bis 100, keine Prozentquote." : "Die Balken zeigen eine Quote von 0 bis 100 Prozent."} ${modeCopy} MB = Mailbox, AG = außerhalb der Geschäftszeiten; beide mindern nur hier die produktive Erreichbarkeit. „Beste“ benötigt mindestens ${HOUR_MIN_BASE} Fälle. Grundlage ist die tatsächliche Close-Stunde in Europe/Berlin.</p>`;
 }
 
 // --- Details -----------------------------------------------------------------

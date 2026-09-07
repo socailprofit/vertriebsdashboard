@@ -1125,3 +1125,30 @@ body.is-widget .panel { border-radius: 0; min-height: 100vh; }
 
 .trend-hours-heading { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .trend-hours-heading h3 { font-size: 1.05rem; letter-spacing: -0.01em; }
+
+/* Readable time axes and exact values for hourly/daily charts. */
+.chart-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); }
+.chart-body svg { height: auto; min-height: 150px; }
+.chart-axis-copy { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-tick { fill: var(--muted); font-size: 12px; }
+.chart-body circle, .antony-performance-lines circle { cursor: help; }
+.chart-values { margin-top: 12px; color: var(--muted); font-size: .75rem; }
+.chart-values summary { cursor: pointer; padding: 7px 0; }
+.chart-table-scroll { overflow-x: auto; max-height: 280px; }
+.chart-values table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+.chart-values th, .chart-values td { padding: 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.chart-values th:first-child { text-align: left; }
+.chart-values caption { text-align: left; padding: 8px 0; }
+.hour-matrix-head, .hour-row { grid-template-columns: 88px 1fr; }
+.hour-label { font-size: .68rem; white-space: nowrap; }
+.hour-meta { white-space: normal; line-height: 1.5; }
+.chart-card small { line-height: 1.55; }
+#series-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .8rem; }
+#series-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.chart-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 700px) { .chart-row { grid-template-columns: minmax(0, 1fr); } }
+main { grid-template-columns: minmax(0, 1fr); }
+.chart-card, #widget-verlauf, #antony-section { min-width: 0; }
+.panel-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
