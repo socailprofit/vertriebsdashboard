@@ -117,10 +117,10 @@ Von 42 Zahlen auf der ersten Ebene auf 12 reduziert, Diagramme statt Kachelflute
 
 | E-Mail | Rolle | Person |
 |---|---|---|
-| `m.giesbrecht@socialprofit.de` | `sales` | michael |
-| `f.wenk@socialprofit.de` | `sales` | felix |
-| `rigone@socialprofit.de` | `manager` | — |
-| `info@socialprofit.de` | `operator` | — |
+| `sales-one@example.invalid` | `sales` | michael |
+| `sales-two@example.invalid` | `sales` | felix |
+| `leadership-one@example.invalid` | `manager` | — |
+| `leadership-two@example.invalid` | `operator` | — |
 
 ⚠️ **Alle vier teilen dasselbe Passwort.** Das hebelt die Rollentrennung aus und gehört geändert.
 

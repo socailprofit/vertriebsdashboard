@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 
 -- Eine einzige serverseitige Entscheidung fuer alle Antony-Funktionen. Die
@@ -18,8 +20,8 @@ as $$
     where u.id = auth.uid()
       and p.must_change_password = false
       and lower(coalesce(u.email, '')) in (
-        'rigone@socialprofit.de',
-        'info@socialprofit.de'
+        'leadership-one@example.invalid',
+        'leadership-two@example.invalid'
       )
   );
 $$;

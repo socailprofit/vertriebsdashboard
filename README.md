@@ -17,7 +17,7 @@
 - Es gilt ein rollierendes Drei-Monats-Fenster: aktueller Monat plus zwei Vormonate.
 - Beim Monatswechsel werden Rohaktivitäten, Tageswerte, Zusammenfassungen, Ziele und Sync-Protokolle vor diesem Fenster gelöscht.
 - Supabase-Datenmodell, Edge Function und Cron sind produktiv ausgerollt; der Cron-Lauf wurde am 2026-09-03 bestätigt.
-- Die Team-Wochenzusammenfassung ist produktiv geprüft. Sie entsteht montags um 08:00 Uhr Sommerzeit beziehungsweise 09:00 Uhr Winterzeit (Europe/Berlin) und ist für `rigone@socialprofit.de` und `info@socialprofit.de` sichtbar; Details in `docs/weekly-review.md`.
+- Die Team-Wochenzusammenfassung ist produktiv geprüft. Sie entsteht montags um 08:00 Uhr Sommerzeit beziehungsweise 09:00 Uhr Winterzeit (Europe/Berlin) und ist für `leadership-one@example.invalid` und `leadership-two@example.invalid` sichtbar; Details in `docs/weekly-review.md`.
 
 ### Lokale Vorschau
 

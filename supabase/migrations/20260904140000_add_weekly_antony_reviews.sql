@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 
 -- Das Business-Profil wird manuell gepflegt, versioniert und niemals aus Close
@@ -78,7 +80,7 @@ begin
        select 1
        from auth.users u
        where u.id = auth.uid()
-         and lower(coalesce(u.email, '')) = 'rigone@socialprofit.de'
+         and lower(coalesce(u.email, '')) = 'leadership-one@example.invalid'
      ) then
     raise exception 'Nicht berechtigt' using errcode = '42501';
   end if;

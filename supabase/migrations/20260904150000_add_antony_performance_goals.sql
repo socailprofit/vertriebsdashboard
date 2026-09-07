@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 
 -- Der Zielrechner ist optional. Die operativen Close-Kennzahlen bleiben davon
@@ -57,7 +59,7 @@ with check (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 );
@@ -70,7 +72,7 @@ using (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 )
@@ -78,7 +80,7 @@ with check (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 );
@@ -91,7 +93,7 @@ using (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 );

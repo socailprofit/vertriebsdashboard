@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 do $$
 declare item record; rejected boolean;
@@ -12,7 +14,7 @@ begin
      or public.is_team_review_time('2026-09-08 06:00:00+00') then
     raise exception 'Summer/winter schedule regression';
   end if;
-  for item in select u.id,u.email from auth.users u join public.profiles p on p.user_id=u.id loop
+  for item in select u.id, exists(select 1 from private.antony_permissions a where a.user_id=u.id) as allowed from auth.users u join public.profiles p on p.user_id=u.id loop
     update public.profiles set must_change_password=false where user_id=item.id;
     perform set_config('request.jwt.claim.sub',item.id::text,true);
     rejected := false;
@@ -20,7 +22,7 @@ begin
       perform public.get_latest_weekly_review();
     exception when insufficient_privilege then rejected := true;
     end;
-    if rejected <> (lower(item.email) not in ('rigone@socialprofit.de','info@socialprofit.de')) then
+    if rejected <> (not item.allowed) then
       raise exception 'Weekly review account authorization regression';
     end if;
     update public.profiles set must_change_password=true where user_id=item.id;

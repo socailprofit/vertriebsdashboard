@@ -5,7 +5,7 @@
 // den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-07-antony-review";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-07-private-access";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -81,7 +81,10 @@ export async function loadProfile() {
   );
   const profile = rows[0];
   if (!profile) return { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: true };
+  const { data: antonyAccess, error: accessError } = await requireClient().rpc("has_antony_access");
+  if (accessError) throw new Error("Zugriffsberechtigung konnte nicht geladen werden. Bitte erneut anmelden.");
   return {
+    antonyAccess: antonyAccess === true,
     displayName: profile.display_name,
     role: profile.role,
     salesPersonId: profile.sales_person_id,
@@ -113,7 +116,7 @@ export async function loadMetrics(period, referenceDate) {
 }
 
 // Diese Auswertung ist ausschließlich für die vollständig eingerichteten
-// Konten rigone@ und info@ freigegeben. Der RPC erzwingt das serverseitig.
+// Leitungskonten freigegeben. Der RPC erzwingt das serverseitig.
 export async function loadAntonyClosingMetrics(period, referenceDate) {
   const rows = await run(
     "Closer-Kennzahlen laden",

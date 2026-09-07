@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 
 -- CC2 ist eine offene Fortsetzung und darf nicht wie ein verlorener Closer
@@ -40,7 +42,7 @@ set search_path = ''
 as $$
 begin
   if auth.uid() is null
-     or lower(coalesce(auth.jwt() ->> 'email', '')) <> 'rigone@socialprofit.de'
+     or lower(coalesce(auth.jwt() ->> 'email', '')) <> 'leadership-one@example.invalid'
      or not public.has_dashboard_access() then
     raise exception 'Nicht berechtigt' using errcode = '42501';
   end if;

@@ -1,12 +1,9 @@
-const ANTONY_DASHBOARD_EMAILS = new Set([
-  "rigone@socialprofit.de",
-  "info@socialprofit.de",
-]);
-
-export function hasAntonyDashboardAccess(email) {
-  return ANTONY_DASHBOARD_EMAILS.has(String(email ?? "").trim().toLowerCase());
+// UI visibility follows the authenticated server RPC. Supabase separately
+// enforces data access even if browser state is manipulated.
+export function hasAntonyDashboardAccess(profile) {
+  return profile?.antonyAccess === true && profile?.mustChangePassword === false;
 }
 
-export function hasWeeklyReviewAccess(email) {
-  return hasAntonyDashboardAccess(email);
+export function hasWeeklyReviewAccess(profile) {
+  return hasAntonyDashboardAccess(profile);
 }

@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 
 -- auth.jwt() wird als initplan einmal je Abfrage ausgewertet. Das behaelt die
@@ -10,7 +12,7 @@ with check (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 );
@@ -23,7 +25,7 @@ using (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 )
@@ -31,7 +33,7 @@ with check (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 );
@@ -44,7 +46,7 @@ using (
   owner_user_id = (select auth.uid())
   and (select public.has_dashboard_access())
   and (
-    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'rigone@socialprofit.de'
+    lower(coalesce((select auth.jwt()) ->> 'email', '')) = 'leadership-one@example.invalid'
     or (select public.current_app_role()) in ('manager', 'operator')
   )
 );

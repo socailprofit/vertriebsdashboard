@@ -1,15 +1,15 @@
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-antony-review";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-private-access";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-antony-review";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-antony-review";
+import * as data from "./data.js?v=2026-09-07-private-access";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-private-access";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-antony-review";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-antony-review";
+} from "./call-time-score.mjs?v=2026-09-07-private-access";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-private-access";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -226,11 +226,11 @@ function safeRate(numerator, denominator) {
 }
 
 function canViewAntony() {
-  return state.status === "preview" || hasAntonyDashboardAccess(state.profile.email);
+  return state.status === "preview" || hasAntonyDashboardAccess(state.profile);
 }
 
 function canViewWeeklyReview() {
-  return state.status === "preview" || hasWeeklyReviewAccess(state.profile.email);
+  return state.status === "preview" || hasWeeklyReviewAccess(state.profile);
 }
 
 function canViewThreeMonthReview() {

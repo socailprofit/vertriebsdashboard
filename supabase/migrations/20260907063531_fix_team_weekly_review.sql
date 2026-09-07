@@ -1,3 +1,5 @@
+-- Privacy: historical account addresses are non-routable placeholders.
+-- Current grants are managed privately in private.antony_permissions.
 begin;
 
 create or replace function public.get_latest_weekly_review()
@@ -7,7 +9,7 @@ as $$
 begin
   if not public.has_dashboard_access() or not exists (
     select 1 from auth.users u where u.id = auth.uid()
-      and lower(coalesce(u.email, '')) = 'rigone@socialprofit.de'
+      and lower(coalesce(u.email, '')) = 'leadership-one@example.invalid'
   ) then
     raise exception 'Nicht berechtigt' using errcode = '42501';
   end if;
