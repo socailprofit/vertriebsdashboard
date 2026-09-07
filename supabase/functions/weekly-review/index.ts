@@ -123,7 +123,7 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
   if (!input.changes.data_basis.trend_reliable) {
     const current = input.current_week;
     const previous = input.previous_week;
-    const delta = input.changes.funnel.appointment_rate.percentage_point_change;
+    const delta = Math.round((current.funnel.appointment_rate - previous.funnel.appointment_rate) * 100) / 100;
     sentences[2] = `Vorwochenvergleich eingeschränkt: aktuell ${current.funnel.appointments} Termine und ${current.closing.closer_calls} Closer Calls, zuvor ${previous.funnel.appointments} und ${previous.closing.closer_calls}; die Terminquote veränderte sich rechnerisch um ${delta.toLocaleString("de-DE")} Prozentpunkte.`;
   }
   return {
