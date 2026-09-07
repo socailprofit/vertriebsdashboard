@@ -1,14 +1,15 @@
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-security";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-04k";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-04k";
+import * as data from "./data.js?v=2026-09-07-security";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-security";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-04k";
-import { hasAntonyDashboardAccess } from "./access-control.mjs?v=2026-09-04m";
+} from "./call-time-score.mjs?v=2026-09-07-security";
+import { hasAntonyDashboardAccess } from "./access-control.mjs?v=2026-09-07-security";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -170,16 +171,6 @@ function initials(displayName) {
 
 function firstName(displayName) {
   return displayName.split(/\s+/)[0];
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#039;",
-  })[character]);
 }
 
 function renderPersonAvatar({ slug, name, initials: avatarInitials, image }) {
@@ -658,11 +649,11 @@ function renderCore() {
     }).join("");
 
     return `
-      <article class="core-card" style="--person-color:${entry.color}">
+      <article class="core-card" style="--person-color:${safeColor(entry.color)}">
         <header>
           <span class="core-identity">
             ${renderDashboardAvatar(entry.slug, entry.label)}
-            <span class="core-name">${entry.label}</span>
+            <span class="core-name">${escapeHtml(entry.label)}</span>
           </span>
           <span class="core-score ${performanceClass(score)}">${score === null ? "" : `${score}%`}</span>
         </header>
@@ -1002,7 +993,7 @@ function renderAntony() {
       <article class="antony-metric">
         <div class="donut ${rate === null ? "is-empty" : ""}"
              style="--donut-value:${rate ?? 0}"
-             role="img" aria-label="${aria}">
+             role="img" aria-label="${escapeHtml(aria)}">
           <span>${displayedRate}</span>
         </div>
         <div class="antony-metric-copy">
@@ -1212,8 +1203,8 @@ function renderGoals() {
       const anteil = attainment(ist, ziel);
       return [`
         <div class="goal-item ${performanceClass(anteil)}">
-          <span class="goal-head"><b>${entry.label}</b> · ${label}</span>
-          <span class="goal-track"><i style="width:${Math.min(100, anteil)}%;background:${entry.color}"></i></span>
+          <span class="goal-head"><b>${escapeHtml(entry.label)}</b> · ${label}</span>
+          <span class="goal-track"><i style="width:${Math.min(100, anteil)}%;background:${safeColor(entry.color)}"></i></span>
           <span class="goal-figure">${format(ist)} <small>von ${format(ziel)} · ${Math.round(anteil)} %</small></span>
         </div>`];
     }));
@@ -1245,8 +1236,8 @@ function lineChart(points, seriesByPerson, format, pointLabel = "Tage") {
     const person = state.people.find((entry) => entry.slug === slug);
     const d = points.map((value, index) => `${index === 0 ? "M" : "L"}${(padX + index * stepX).toFixed(1)} ${y(value).toFixed(1)}`).join(" ");
     const last = points[points.length - 1];
-    return `<path class="series-line" d="${d}" style="stroke:${person?.color ?? "#8fa3bf"}" />
-            <circle cx="${(padX + (points.length - 1) * stepX).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3" style="fill:${person?.color ?? "#8fa3bf"}" />`;
+    return `<path class="series-line" d="${d}" style="stroke:${safeColor(person?.color ?? "#8fa3bf")}" />
+            <circle cx="${(padX + (points.length - 1) * stepX).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3" style="fill:${safeColor(person?.color ?? "#8fa3bf")}" />`;
   }).join("");
 
   return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"
@@ -1256,7 +1247,7 @@ function lineChart(points, seriesByPerson, format, pointLabel = "Tage") {
 function renderSeries() {
   const title = document.querySelector("#series-title");
   const legend = orderedPeople().map((person) => `
-    <span><i class="legend-dot" style="background:${person.color}"></i>${firstName(person.display_name)}</span>`).join("");
+    <span><i class="legend-dot" style="background:${safeColor(person.color)}"></i>${escapeHtml(firstName(person.display_name))}</span>`).join("");
   document.querySelector("#series-legend").innerHTML = legend;
 
   // Ein Tag ist kein 14-Tage-Rückblick. Die großen Diagramme zeigen deshalb
@@ -1353,12 +1344,12 @@ function renderFunnel() {
       ? `${entry.label}: keine Vorzimmer-Kontakte`
       : `${entry.label}: ${Math.round(rate)} Prozent Durchstellquote, ${successes} von ${base}`;
     return `
-      <article class="transfer-donut-card" style="--donut-color:${entry.color}">
-        <span class="transfer-donut" style="--donut-rate:${safeRateValue}" role="img" aria-label="${aria}">
+      <article class="transfer-donut-card" style="--donut-color:${safeColor(entry.color)}">
+        <span class="transfer-donut" style="--donut-rate:${safeRateValue}" role="img" aria-label="${escapeHtml(aria)}">
           <strong>${rate === null ? "–" : `${Math.round(rate)} %`}</strong>
         </span>
         <span class="transfer-donut-copy">
-          <b>${entry.label}</b>
+          <b>${escapeHtml(entry.label)}</b>
           <small>${successes} von ${base} Vorzimmern durchgestellt</small>
         </span>
       </article>`;
@@ -1367,7 +1358,7 @@ function renderFunnel() {
   document.querySelector("#funnel").innerHTML = steps.map(([label, key], index) => {
     const bars = people.map((person) => {
       const value = state.metrics[person.slug][key];
-      return `<i style="width:${(value / widest) * 100}%;background:${person.color}" title="${firstName(person.display_name)}: ${number(value)}"></i>`;
+      return `<i style="width:${(value / widest) * 100}%;background:${safeColor(person.color)}" title="${escapeHtml(firstName(person.display_name))}: ${number(value)}"></i>`;
     }).join("");
     return `
       <div class="funnel-row">
@@ -1436,7 +1427,7 @@ function zeichneStunden(selektor, quelle, mode) {
 
   const head = `<div class="hour-matrix-head" aria-hidden="true">
     <span></span>
-    <span class="hour-bars">${people.map((person) => `<b style="--person-color:${person.color}">${firstName(person.display_name)}</b>`).join("")}</span>
+    <span class="hour-bars">${people.map((person) => `<b style="--person-color:${safeColor(person.color)}">${escapeHtml(firstName(person.display_name))}</b>`).join("")}</span>
   </div>`;
 
   const rows = hours.map((hour) => {
@@ -1452,9 +1443,9 @@ function zeichneStunden(selektor, quelle, mode) {
         : `${firstName(person.display_name)}, ${hour}:00 Uhr · Qualität ${Math.round(quality.quality)} von 100 · erreichbar ${hourRateText(quality.rates.productive)} · durchgestellt ${hourRateText(quality.rates.connection)} · Entscheider ${hourRateText(quality.rates.decision)} · Termine ${hourRateText(quality.rates.appointment)} · Mailbox ${quality.mailbox_calls} · außerhalb Geschäftszeit ${quality.outside_business_hours_calls}`;
 
       return `<span class="hour-bar ${missing ? "is-missing" : ""} ${thin ? "is-thin" : ""} ${best ? "is-best" : ""}"
-                style="--person-color:${person.color}" title="${title}">
+                style="--person-color:${safeColor(person.color)}" title="${escapeHtml(title)}">
                 <span class="hour-bar-top">
-                  <span class="hour-person">${firstName(person.display_name)}</span>
+                  <span class="hour-person">${escapeHtml(firstName(person.display_name))}</span>
                   <b>${missing ? "–" : visibleValue}</b>
                   ${best ? "<em>Beste</em>" : ""}
                 </span>
@@ -1488,8 +1479,8 @@ function renderDetails() {
         </div>`;
     }).join("");
     return `
-      <details class="detail-block" style="--person-color:${entry.color}">
-        <summary>${entry.label}</summary>
+      <details class="detail-block" style="--person-color:${safeColor(entry.color)}">
+        <summary>${escapeHtml(entry.label)}</summary>
         <div class="detail-lines">${rows}</div>
       </details>`;
   }).join("");
@@ -1511,7 +1502,7 @@ function renderTrends() {
     const row = state.trends.find((entry) => entry.month_start === month && entry.slug === person.slug);
     if (!row) return "";
     const cells = columns.map(([key, , format]) => `<td>${format(Number(row[key]))}</td>`).join("");
-    return `<tr><td>${monthLabel(month)}</td><td><span class="status-chip" style="color:${person.color}">${firstName(person.display_name)}</span></td>${cells}</tr>`;
+    return `<tr><td>${monthLabel(month)}</td><td><span class="status-chip" style="color:${safeColor(person.color)}">${escapeHtml(firstName(person.display_name))}</span></td>${cells}</tr>`;
   })).join("");
 
   document.querySelector("#trend-head").innerHTML =
@@ -1531,15 +1522,15 @@ function renderManager() {
     const inputs = state.people.map((person) => {
       const existing = state.targets.find((target) => target.sales_person_id === person.id);
       const value = existing?.[column] ?? "";
-      return `<input id="goal-${person.slug}-${column}" name="${person.id}--${column}" type="number" min="0" step="any" value="${value}" placeholder="${firstName(person.display_name)}" aria-label="${label}, Ziel für ${person.display_name}" />`;
+      return `<input id="goal-${escapeHtml(person.slug)}-${column}" name="${escapeHtml(person.id)}--${column}" type="number" min="0" step="any" value="${escapeHtml(value)}" placeholder="${escapeHtml(firstName(person.display_name))}" aria-label="${label}, Ziel für ${escapeHtml(person.display_name)}" />`;
     }).join("");
-    return `<div class="goal-field"><label for="goal-${state.people[0]?.slug}-${column}">${label}</label>${inputs}</div>`;
+    return `<div class="goal-field"><label for="goal-${escapeHtml(state.people[0]?.slug)}-${column}">${label}</label>${inputs}</div>`;
   }).join("");
 
   if (state.profile.role !== "operator") return;
   const sync = state.syncRun;
   document.querySelector("#sync-detail").innerHTML = sync
-    ? `<span>Status: <strong>${sync.status}</strong></span><span>${sync.completed_at ? germanDate(sync.completed_at.slice(0, 10)) : "läuft"}</span><span>${number(sync.fetched_records ?? 0)} gelesen</span><span>${number(sync.upserted_records ?? 0)} gespeichert</span>`
+    ? `<span>Status: <strong>${escapeHtml(sync.status)}</strong></span><span>${sync.completed_at ? germanDate(sync.completed_at.slice(0, 10)) : "läuft"}</span><span>${number(sync.fetched_records ?? 0)} gelesen</span><span>${number(sync.upserted_records ?? 0)} gespeichert</span>`
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
 }
 
@@ -1584,7 +1575,7 @@ function renderSyncBadge() {
 
   document.querySelector(".sync-status").innerHTML =
     `<span class="sync-dot ${state.status === "live" ? "is-live" : ""}" aria-hidden="true"></span>
-     <span title="${titel}"><strong>${label}</strong><small>${note}</small></span>`;
+     <span title="${escapeHtml(titel)}"><strong>${label}</strong><small>${escapeHtml(note)}</small></span>`;
 }
 
 function updateUrl() {

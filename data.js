@@ -4,8 +4,8 @@
 // Datenbankfunktionen. Der Browser formatiert sie und bildet daraus lediglich
 // den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-04k";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-07-security";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -53,9 +53,8 @@ export async function updatePassword(password) {
   if (error) throw new Error(error.message);
 }
 
-// Die Datenbank lässt erst nach diesem serverseitigen Abschluss Dashboard-
-// Daten zu. Der Aufruf folgt ausschließlich auf einen erfolgreichen
-// auth.updateUser()-Aufruf im selben Browserablauf.
+// Der Auth-Trigger hebt die Sperre nach einem echten Passwortwechsel auf.
+// Dieser RPC bestätigt nur den Zustand und kann die Sperre nicht selbst lösen.
 export async function completePasswordSetup() {
   const { error } = await requireClient().rpc("complete_personal_password_setup");
   if (error) throw new Error(error.message);
@@ -73,9 +72,12 @@ export function onAuthChange(handler) {
 // Start im Fokus steht. Fehlt es, bleibt es bei der Vertriebsrolle ohne
 // eigene Zuordnung — dann ist nur die Teamansicht sinnvoll.
 export async function loadProfile() {
+  const { data: userData, error: userError } = await requireClient().auth.getUser();
+  if (userError || !userData.user) throw new Error("Anmeldung erforderlich.");
   const rows = await run(
     "Profil laden",
-    requireClient().from("profiles").select("display_name, role, sales_person_id, must_change_password").limit(1),
+    requireClient().from("profiles").select("display_name, role, sales_person_id, must_change_password")
+      .eq("user_id", userData.user.id).limit(1),
   );
   const profile = rows[0];
   if (!profile) return { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: true };
