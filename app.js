@@ -254,7 +254,7 @@ function toPerson(row) {
     talkMinutes: Number(row.talk_seconds) / 60,
     gatekeeper: Number(row.gatekeeper_contacts),
     connected: Number(row.connected_calls),
-    connectionRate: Number(row.connection_rate),
+    connectionRate: Number(row.gatekeeper_contacts) > 0 ? Number(row.connection_rate) : null,
     directDecisionMakers: Number(row.direct_decision_maker_calls),
     decisionMakers: Number(row.decision_maker_contacts),
     appointments: Number(row.appointments),
@@ -610,7 +610,7 @@ function teamEntry() {
   // Team-Quoten aus den Summen, nicht als Mittel der Einzelquoten — sonst zählte
   // jemand mit wenigen Gesprächen genauso schwer wie jemand mit vielen.
   metrics.netRate = safeRate(metrics.callsNet, metrics.callsGross);
-  metrics.connectionRate = safeRate(metrics.connected, metrics.gatekeeper);
+  metrics.connectionRate = metrics.gatekeeper > 0 ? safeRate(metrics.connected, metrics.gatekeeper) : null;
   metrics.appointmentRate = safeRate(metrics.appointments, metrics.decisionMakers);
   return { slug: "team", label: "Team", color: "#9fb4d0", targetId: people.map((p) => p.id), metrics };
 }
@@ -1537,7 +1537,7 @@ function renderTrends() {
   const rows = months.flatMap((month) => orderedPeople().map((person) => {
     const row = state.trends.find((entry) => entry.month_start === month && entry.slug === person.slug);
     if (!row) return "";
-    const cells = columns.map(([key, , format]) => `<td>${format(Number(row[key]))}</td>`).join("");
+    const cells = columns.map(([key, , format]) => `<td>${format(key === "connection_rate" && Number(row.gatekeeper_contacts) === 0 ? null : Number(row[key]))}</td>`).join("");
     return `<tr><td>${monthLabel(month)}</td><td><span class="status-chip" style="color:${safeColor(person.color)}">${escapeHtml(firstName(person.display_name))}</span></td>${cells}</tr>`;
   })).join("");
 
