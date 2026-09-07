@@ -1,17 +1,17 @@
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-07-transfer";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-07-gf-outcome";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-transfer";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-gf-outcome";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-transfer";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-transfer";
+import * as data from "./data.js?v=2026-09-07-gf-outcome";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-gf-outcome";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-transfer";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-transfer";
+} from "./call-time-score.mjs?v=2026-09-07-gf-outcome";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-gf-outcome";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -1404,7 +1404,7 @@ function renderFunnel() {
     </div>`;
   }).join("");
   document.querySelector("#funnel-note").textContent =
-    "Durchstellquote = „Durchgestellt“ ÷ bewertbare Vorzimmer-Ergebnisse. „CEO nicht erreichbar“, Mailbox, außerhalb der Geschäftszeiten und direkte Entscheidergespräche zählen nicht mit. Ablehnung, „E-Mail senden“ und „Kein Interesse“ zählen als nicht durchgestellt. Der Teamwert entsteht aus den Summen.";
+    "Durchstellquote = „Durchgestellt“ ÷ bewertbare Vorzimmer-Ergebnisse. „CEO/GF nicht erreichbar“, Mailbox, außerhalb der Geschäftszeiten und direkte Entscheidergespräche zählen nicht mit. Ablehnung, „E-Mail senden“ und „Kein Interesse“ zählen als nicht durchgestellt. Der Teamwert entsteht aus den Summen.";
 }
 
 // Das Stundenprofil bleibt dicht: eine Zeile je Uhrzeit, Michael und Felix in
@@ -1496,7 +1496,7 @@ function zeichneStunden(selektor, quelle, mode) {
     ? "Gesamtqualität: 35 % produktive Erreichbarkeit, 25 % Durchstellung, je 20 % Entscheider- und Terminquote. Kleine Stichproben werden zum persönlichen Periodenmittel geglättet."
     : `${callTimeMetric(calculateCallTimeQuality({}, {}), mode).label}: sichtbare Treffer geteilt durch ihre jeweilige Grundgesamtheit.`;
   container.innerHTML = head + rows +
-    `<p class="chart-legend">Jede Zeile fasst die Anrufe in diesem Stundenfenster über den gewählten Zeitraum zusammen (Berliner Zeit). ${mode === "quality" ? "Die Balken zeigen Qualitätspunkte von 0 bis 100, keine Prozentquote." : "Die Balken zeigen eine Quote von 0 bis 100 Prozent."} ${modeCopy} MB = Mailbox, AG = außerhalb der Geschäftszeiten; beide mindern nur hier die produktive Erreichbarkeit. „Beste“ benötigt mindestens ${HOUR_MIN_BASE} Fälle. Grundlage ist die tatsächliche Close-Stunde in Europe/Berlin.</p>`;
+    `<p class="chart-legend">Jede Zeile fasst die Anrufe in diesem Stundenfenster über den gewählten Zeitraum zusammen (Berliner Zeit). ${mode === "quality" ? "Die Balken zeigen Qualitätspunkte von 0 bis 100, keine Prozentquote." : "Die Balken zeigen eine Quote von 0 bis 100 Prozent."} ${mode === "connection" || mode === "quality" ? "Für die Durchstellquote bleiben CEO/GF nicht erreichbar, Mailbox und außerhalb der Geschäftszeiten ausgeschlossen." : ""} ${modeCopy} MB = Mailbox, AG = außerhalb der Geschäftszeiten; beide mindern nur hier die produktive Erreichbarkeit. „Beste“ benötigt mindestens ${HOUR_MIN_BASE} Fälle. Grundlage ist die tatsächliche Close-Stunde in Europe/Berlin.</p>`;
 }
 
 // --- Details -----------------------------------------------------------------

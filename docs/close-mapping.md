@@ -182,3 +182,5 @@ Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es i
 - 2026-09-07: Newsletter-KPI von Workflow-Abschlüssen auf tatsächliche E-Mail-Versandereignisse umgestellt.
 
 - 2026-09-07: Bereinigte Durchstellquote: nur vier bewertbare Vorzimmer-Ergebnisse bilden die Grundgesamtheit. Bestehende Fakten, Tageswerte und aufbewahrte Monatsarchive werden korrigiert; Stunden, Wochen und drei Monate verwenden dieselben Fakten. Datenbank-Trigger schützt die Regel auch bei älteren Importern.
+
+- 2026-09-07: „GF nicht erreichbar“ wird wie „CEO nicht erreichbar“ aus der Grundgesamtheit der Durchstellquote ausgeschlossen. Das gilt automatisch für alle Zeiträume und Stundenanalysen; der Anrufversuch bleibt in der Anrufanzahl enthalten.
