@@ -49,19 +49,21 @@ Im ersten produktiven Stand werden nur folgende Werte sichtbar gemacht:
 5. Durchstellungen und Durchstellquote
 6. Entscheiderkontakte, zusätzlich getrennt nach direkt erreicht und durchgestellt
 7. Termine und Terminquote
-8. Newsletter-Abschlüsse
+8. Newsletter versendet
 
 Die Einzelquoten bleiben umschaltbar. Die Gesamtqualität beantwortet die Steuerungsfrage, wann aus einem Anruf mit belastbarer Basis am ehesten ein produktiver Entscheiderkontakt und Termin entsteht.
 
 Deals und Umsatz werden weiterhin importiert und in Supabase vorgehalten, aber **nicht angezeigt**. Die offene Frage nach Vertragswert, MRR oder ARR bei `monthly`/`annual` bleibt damit vertagt, bis der Umsatz sichtbar werden soll.
 
-### Newsletter-Abschlüsse
+### Newsletter versendet
 
-- Quelle ist ausschließlich der Close-Workflow `Newsletter` (`seq_1CghCZOXaNSlwDSOIpljTy`).
-- Ein Abschluss zählt nur, wenn der Status im Close-Report `goal` (Ziel erreicht, etwa eine Antwort) oder `finished` (Workflow vollständig durchlaufen) ist.
-- Der KPI-Tag ist `date_updated`, also der Zeitpunkt des Abschluss-Statuswechsels, in `Europe/Berlin`.
-- Die Zuordnung erfolgt über `created_by_id`: Wer den Kontakt in den Newsletter-Workflow aufgenommen hat, erhält den Abschluss.
-- Einträge von Antony oder anderen Personen bleiben für den technischen Abgleich gespeichert, zählen aber nicht zu Michael oder Felix, solange keine entsprechende `sales_people`-Zuordnung existiert.
+- Quelle sind ausgehende E-Mail-Aktivitäten des Close-Workflows `Newsletter` (`seq_1CghCZOXaNSlwDSOIpljTy`) mit `status=sent` und gültigem `date_sent`.
+- Jede eindeutige E-Mail-ID zählt einmal. Mehrere versendete Schritte desselben Workflows zählen einzeln; Anmeldungen, Ziele und Workflow-Abschlüsse zählen nicht.
+- Der KPI-Tag ist das tatsächliche Versanddatum `date_sent` in `Europe/Berlin`, die Zuordnung erfolgt über den E-Mail-Nutzer `user_id`.
+- Entwürfe, geplante, wartende, fehlgeschlagene und eingehende E-Mails sowie andere Workflows bleiben ausgeschlossen. Versand bedeutet nicht bestätigte Zustellung.
+- Nur Versandmetadaten werden gelesen; Nachrichteninhalte und Empfänger werden nicht importiert. Die vollständige paginierte Metadatenabfrage erfasst auch spät versendete alte Entwürfe. Bei mehr als 20.000 E-Mails bricht der Import ohne Teilabgleich ab.
+- Ein atomarer Abgleich ersetzt die Versandereignisse und ausschließlich die Newsletter-KPI der rollierenden drei Monate. Bereits archivierte volle Monate dieses Fensters erhalten korrigierte Newsletter-Summen; andere Kennzahlen bleiben erhalten.
+- E-Mails ohne passende `sales_people`-Zuordnung werden nicht willkürlich einem Vertriebler zugerechnet.
 
 Leistungsfarben stützen sich auf `sales_targets`. Die Tabelle wurde um `calls_gross`, `gatekeeper_contacts`, `transfer_rate_target` und `appointment_rate_target` erweitert, damit jede sichtbare Zahl ein eigenes Ziel bekommen kann. Die beiden Quotenziele sind nullable: kein Ziel ist etwas anderes als ein Ziel von null Prozent. Ohne gesetztes Ziel bleibt eine Zahl neutral eingefärbt statt rot.
 
@@ -135,7 +137,7 @@ Der Puffer von zwei Tagen ist am 2026-09-02 festgelegt worden, weil Protokolle g
 1. `close_raw_activities`: gekürzte Close-Rohantwort zur Nachprüfung.
 2. `close_activity_facts`: pro Aktivität normalisierte KPI-Flags mit Mapping-Version.
 3. `close_opportunity_facts`: gewonnene Opportunity mit Opener-/Setter-/Closer-Zuordnung.
-4. `close_newsletter_subscriptions`: Status des freigegebenen Newsletter-Workflows, ausschließlich serverseitig lesbar.
+4. `close_newsletter_sends`: tatsächlich versendete Newsletter-E-Mails, ausschließlich serverseitig lesbar. `close_newsletter_subscriptions` bleibt als Altbestand erhalten und ist keine KPI-Quelle mehr.
 5. `daily_sales_metrics`: verdichtete Tageswerte pro Vertriebler.
 6. `monthly_kpi_snapshots`: unveränderlicher Monatsabschluss mit acht relevanten Roh-KPIs für das gesamte Team.
 7. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
@@ -144,7 +146,7 @@ Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormona
 
 ### Monatsabschlüsse
 
-Die operative Tabelle `daily_sales_metrics` wird nach drei Monaten bereinigt. Unabhängig davon wird einmal je abgeschlossenem Monat ein fester Datensatz für das **gesamte Team** in `monthly_kpi_snapshots` angelegt. Er enthält: Brutto-Anrufe, Netto-Anrufe, Vorzimmer-Kontakte, Durchstellungen, direkte Entscheider, Entscheider gesamt, Termine und Newsletter-Abschlüsse. Netto-, Durchstell- und Terminquote bleiben daraus stets exakt berechenbar. Die Tabelle ist Backend-only und wird vom Dashboard nicht abgefragt.
+Die operative Tabelle `daily_sales_metrics` wird nach drei Monaten bereinigt. Unabhängig davon wird einmal je abgeschlossenem Monat ein fester Datensatz für das **gesamte Team** in `monthly_kpi_snapshots` angelegt. Er enthält: Brutto-Anrufe, Netto-Anrufe, Vorzimmer-Kontakte, Durchstellungen, direkte Entscheider, Entscheider gesamt, Termine und versendete Newsletter. Netto-, Durchstell- und Terminquote bleiben daraus stets exakt berechenbar. Die Tabelle ist Backend-only und wird vom Dashboard nicht abgefragt.
 
 Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es in `Europe/Berlin` der erste Kalendertag ist. So wird der vollständige Vormonat nach dem letzten stündlichen Close-Sync gesichert. Bereits vorhandene abgeschlossene Monate werden bei Einführung einmalig nachgezogen; vorhandene Snapshots werden nicht überschrieben.
 
@@ -154,6 +156,8 @@ Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es i
 - Brutto-/Netto-Regel und Opportunity-Zuordnung müssen anhand eines vollständigen manuellen Testtags bestätigt werden.
 
 ## Sources
+
+- Close E-Mail-API: https://developer.close.com/api/resources/activities/emails/list (am 2026-09-07 geprüft).
 
 - Close Plugin: aktive Organisationsbenutzer am 2026-09-02.
 - Close Plugin: Call-Felder und reale Call-Beispiele von Michael und Felix am 2026-09-01 und 2026-09-02.
@@ -174,3 +178,5 @@ Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es i
 - 2026-09-03: Dauerhafte Monatsabschlüsse als eigene, schlanke Backend-Tabelle für das gesamte Team festgelegt; der automatische Lauf sichert den Vormonat am ersten lokalen Kalendertag.
 - 2026-09-04: Closer-Stufe als eigener vierter Reiter neben Felix vorläufig für alle Dashboard-Nutzer freigegeben; kompakte Kreisdiagramme bilden Setter-, Closer-, CC2- und Gesamtconversion ab. CC2 bleibt aus dem Abschlussquoten-Nenner entfernt.
 - Nächster Schritt: Einen vollständigen Testtag gegen Close zählen und die erste produktive Stunden-Synchronisierung kontrollieren.
+
+- 2026-09-07: Newsletter-KPI von Workflow-Abschlüssen auf tatsächliche E-Mail-Versandereignisse umgestellt.

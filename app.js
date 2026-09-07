@@ -1,15 +1,15 @@
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-weekly";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-newsletters";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-weekly";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-weekly";
+import * as data from "./data.js?v=2026-09-07-newsletters";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-newsletters";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-weekly";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-weekly";
+} from "./call-time-score.mjs?v=2026-09-07-newsletters";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-newsletters";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -42,7 +42,7 @@ const metricDefinitions = [
   { key: "appointmentRate", label: "Terminquote", detail: "Termine ÷ Entscheider", format: percent, rateTarget: "appointment_rate_target", ratio: ["appointments", "decisionMakers"] },
   { key: "mailbox", label: "Mailbox", detail: "Close-Outcome 📮 Mailbox", format: number, noTarget: true },
   { key: "outsideBusinessHours", label: "Außerhalb Geschäftszeit", detail: "Close-Outcome außerhalb der Geschäftszeiten", format: number, noTarget: true },
-  { key: "newsletters", label: "Newsletter-Abschlüsse", detail: "Close-Workflow: Ziel erreicht oder beendet", format: count, noTarget: true },
+  { key: "newsletters", label: "Newsletter versendet", detail: "Tatsächlich versendete E-Mails im Newsletter-Workflow", format: count, noTarget: true },
 ];
 
 // Zielspalten, die der Chef pflegen kann. Die Reihenfolge bestimmt das Formular.

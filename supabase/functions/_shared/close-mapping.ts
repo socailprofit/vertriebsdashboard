@@ -1,4 +1,4 @@
-export const MAPPING_VERSION = "2026-09-04.v3";
+export const MAPPING_VERSION = "2026-09-07.newsletter-sends";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
 export function metricTimeInReportingTimezone(occurredAt: string) {
@@ -316,6 +316,28 @@ export function mapNewsletterCompletion(
     closeUserId: subscription.created_by_id ?? null,
     completedAt: subscription.date_updated,
     status: subscription.status as NewsletterCompletion["status"],
+    mappingVersion: MAPPING_VERSION,
+  };
+}
+
+// Each sent workflow email is one event; enrollment/completion is not a send.
+export type CloseNewsletterEmail = {
+  id: string;
+  sequence_id?: string | null;
+  user_id?: string | null;
+  date_sent?: string | null;
+  direction?: string | null;
+  status: string;
+};
+
+export function mapNewsletterSend(email: CloseNewsletterEmail) {
+  if (email.sequence_id !== NEWSLETTER_WORKFLOW.id || email.direction !== "outgoing"
+    || email.status !== "sent" || !email.id || !email.date_sent
+    || Number.isNaN(Date.parse(email.date_sent))) return null;
+  return {
+    emailId: email.id,
+    closeUserId: email.user_id ?? null,
+    sentAt: email.date_sent,
     mappingVersion: MAPPING_VERSION,
   };
 }

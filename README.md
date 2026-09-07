@@ -5,12 +5,12 @@
 - Eine gemeinsame interne Webapp mit Team-, Michael-, Felix- und Chefansicht.
 - Michael und Felix sehen ihre Einzelwerte und den gemeinsamen Wettbewerb.
 - Antony besitzt eine eigene Closer-Ansicht. Die beiden Führungskonten sehen zusätzlich eine eigenständige Team-Wochenzusammenfassung mit fünf KI-Punkten, auch in der Teamansicht.
-- Close bleibt die einzige Quelle für Calls, Aktivitäten, Termine, Newsletter-Abschlüsse, Abschlüsse und Umsatz.
+- Close bleibt die einzige Quelle für Calls, Aktivitäten, Termine, versendete Newsletter, Abschlüsse und Umsatz.
 - Das verbindliche Close-Mapping liegt versioniert unter `docs/close-mapping.md` und im serverseitigen Mapping-Modul.
 - Supabase speichert Benutzerrollen, Ziele, Rohaktivitäten, Tageskennzahlen und Sync-Protokolle.
 - Der schreibfreie End-to-End-Sync-Test und ein manuell freigegebener Ein-Tages-Schreibimport für 2026-09-01 sind am 2026-09-02 erfolgreich gelaufen; der Abgleich der Zahlen gegen Close steht noch aus.
 - KPIs, Quoten und Vorwochendifferenzen werden deterministisch berechnet; KI formuliert ausschließlich den Wochenreview aus aggregierten Zahlen.
-- Der erste sichtbare KPI-Umfang ist auf Brutto-/Netto-Calls, beste Anrufzeiten, Vorzimmer, Durchstellungen, direkte und gesamte Entscheiderkontakte, Termine, Terminquote und Newsletter-Abschlüsse begrenzt.
+- Der erste sichtbare KPI-Umfang ist auf Brutto-/Netto-Calls, beste Anrufzeiten, Vorzimmer, Durchstellungen, direkte und gesamte Entscheiderkontakte, Termine, Terminquote und versendete Newsletter begrenzt.
 - Michael wird blau und Felix orange dargestellt; Leistungsfarben richten sich später nach den von Antony gesetzten Zielen.
 - Tag zeigt exakt den Berliner Kalendertag. Woche zeigt Montag bis Stichtag (am Wochenende bis Freitag), Monat den 1. bis Stichtag. Ohne bewusst gewählten historischen Stichtag folgt die Ansicht automatisch dem neuen Berliner Tag.
 - Die Trendansicht zeigt den aktuellen Monat und die zwei Vormonate mit den wichtigsten KPIs.
@@ -63,3 +63,5 @@ Danach `http://127.0.0.1:4173/` öffnen.
 - 2026-09-02: Fünf lokale Mapping-Tests für Brutto/Netto, Vorzimmer, Entscheider, Termin und Deal-Zuordnung bestanden.
 - 2026-09-03: Supabase Cron erfolgreich ausgeführt und damit die produktive Cloud-Synchronisierung bestätigt.
 - 2026-09-03: Newsletter-Abschlüsse aus dem Close-Workflow `Newsletter` als serverseitige KPI-Quelle ergänzt.
+
+- 2026-09-07: Newsletter zählen einzelne versendete Workflow-E-Mails nach Versanddatum und Absender-Nutzer.

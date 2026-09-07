@@ -1,22 +1,21 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
   CUSTOM_FIELDS,
   MAPPING_VERSION,
-  NEWSLETTER_WORKFLOW,
   REPORTING_TIMEZONE,
   SALES_PIPELINE,
   leadAttribution,
   mapCall,
   mapCustomActivity,
-  mapNewsletterCompletion,
+  mapNewsletterSend,
   mapWonOpportunity,
   metricTimeInReportingTimezone,
   type ActivityFact,
   type CloseCall,
   type CloseCustomActivity,
   type CloseOpportunity,
-  type CloseSequenceSubscription,
+  type CloseNewsletterEmail,
 } from "../_shared/close-mapping.ts";
 
 const CLOSE_API_BASE = "https://api.close.com/api/v1";
@@ -267,21 +266,9 @@ function activityFactRow(fact: ActivityFact) {
   };
 }
 
-function newsletterSubscriptionRow(record: CloseSequenceSubscription) {
-  return {
-    close_subscription_id: record.id,
-    workflow_id: record.sequence_id,
-    created_by_close_user_id: record.created_by_id ?? null,
-    subscription_created_at: record.date_created,
-    subscription_updated_at: record.date_updated,
-    status: record.status,
-    mapping_version: MAPPING_VERSION,
-    payload: record,
-  };
-}
 
 async function upsertBatches(
-  supabase: ReturnType<typeof createClient>, table: string, rows: JsonRecord[], onConflict: string,
+  supabase: SupabaseClient, table: string, rows: JsonRecord[], onConflict: string,
 ) {
   for (let index = 0; index < rows.length; index += 500) {
     const { error } = await supabase.from(table).upsert(rows.slice(index, index + 500), { onConflict });
@@ -292,7 +279,7 @@ async function upsertBatches(
 function summarize(
   facts: ActivityFact[],
   deals: Array<NonNullable<ReturnType<typeof mapWonOpportunity>>>,
-  newsletterCompletions: Array<NonNullable<ReturnType<typeof mapNewsletterCompletion>>>,
+  newsletterSends: Array<NonNullable<ReturnType<typeof mapNewsletterSend>>>,
   startTimestamp: string,
   endTimestamp: string,
 ) {
@@ -300,8 +287,8 @@ function summarize(
   for (const [slug, userId] of Object.entries({ michael: CLOSE_USERS.michael, felix: CLOSE_USERS.felix })) {
     const ownFacts = facts.filter((fact) => fact.closeUserId === userId);
     const ownDeals = deals.filter((deal) => deal.openerCloseUserId === userId);
-    const ownNewsletterCompletions = newsletterCompletions.filter((completion) => {
-      const completedAt = Date.parse(completion.completedAt);
+    const ownNewsletterSends = newsletterSends.filter((completion) => {
+      const completedAt = Date.parse(completion.sentAt);
       return completion.closeUserId === userId
         && completedAt >= Date.parse(startTimestamp)
         && completedAt < Date.parse(endTimestamp);
@@ -316,7 +303,7 @@ function summarize(
       decisionMakerContacts: sum("decisionMakerContacts"),
       appointments: sum("appointments"),
       dealsWon: ownDeals.length,
-      newsletters: ownNewsletterCompletions.length,
+      newsletters: ownNewsletterSends.length,
     };
   }
   return result;
@@ -335,7 +322,7 @@ Deno.serve(async (request) => {
   }
   if (request.method !== "POST") return response(405, { ok: false, error: "method_not_allowed" });
 
-  let supabase: ReturnType<typeof createClient> | null = null;
+  let supabase: SupabaseClient | null = null;
   let syncRunId: string | null = null;
 
   try {
@@ -357,6 +344,7 @@ Deno.serve(async (request) => {
     const mode: SyncMode = body.mode === "write" ? "write" : "dry-run";
     const trigger = syncTrigger(body.trigger);
     const scheduled = trigger === "supabase-cron";
+    const newsletterOnly = body.newsletterOnly === true;
     const nextDate = addDays(endDate, 1);
     const startTimestamp = berlinMidnightUtc(startDate);
     const endTimestamp = berlinMidnightUtc(nextDate);
@@ -389,26 +377,24 @@ Deno.serve(async (request) => {
     // custom_activity_type filter together with a single lead_id, which a daily
     // export across all leads cannot supply. mapCustomActivity drops the types
     // it does not know, so the type selection happens during mapping instead.
-    // Der Workflow-Report zählt nur abgeschlossene Kontakte. Die Close-API
-    // liefert deren aktuellen Status am Sequence-Subscription-Endpunkt; weil
-    // ein Workflow klein ist, lesen wir die eine freigegebene Sequenz vollständig
-    // und schreiben sie idempotent. So werden Statuswechsel mitgenommen.
+    // Fetch only metadata. Scan all creation dates: a previously scheduled email
+    // may be sent much later. Fail closed at the pagination safety limit.
     const [callResult, customResult, opportunityResult, newsletterResult] = await Promise.all([
-      settle(closeList<JsonRecord>(closeApiKey, "/activity/call/", {
+      settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/call/", {
         ...activityWindow,
         user_id: SALES_USER_IDS.join(","),
       })),
-      settle(closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
+      settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
         ...activityWindow,
         user_id: CUSTOM_ACTIVITY_USER_IDS.join(","),
       })),
-      settle(closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
+      settle(newsletterOnly ? Promise.resolve([]) : closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
         status_id__in: [...SALES_PIPELINE.wonStatusIds].join(","),
         date_won__gte: startDate,
         date_won__lt: nextDate,
       })),
-      settle(closeList<CloseSequenceSubscription>(closeApiKey, "/sequence_subscription/", {
-        sequence_id: NEWSLETTER_WORKFLOW.id,
+      settle(closeList<CloseNewsletterEmail>(closeApiKey, "/activity/email/", {
+        _fields: "id,sequence_id,user_id,date_sent,direction,status",
       })),
     ]);
 
@@ -441,18 +427,13 @@ Deno.serve(async (request) => {
     const rawCustomActivities = customResult.value.filter(withinReportingWindow);
     const opportunities = opportunityResult.value;
     const retentionStart = rollingRetentionStart(endDate);
-    let invalidNewsletterSubscriptions = 0;
-    const newsletterSubscriptions = newsletterResult.value.filter((subscription) => {
-      const updatedAt = Date.parse(subscription.date_updated);
-      if (Number.isNaN(updatedAt) || Number.isNaN(Date.parse(subscription.date_created))) {
-        invalidNewsletterSubscriptions += 1;
-        return false;
-      }
-      return dateInBerlin(new Date(updatedAt)) >= retentionStart;
-    });
-    const newsletterCompletions = newsletterSubscriptions
-      .map(mapNewsletterCompletion)
-      .filter((completion): completion is NonNullable<typeof completion> => completion !== null);
+    const newsletterSends = [...new Map(newsletterResult.value
+      .map(mapNewsletterSend)
+      .filter((send): send is NonNullable<typeof send> => send !== null)
+      .filter((send) => {
+        const day = metricTimeInReportingTimezone(send.sentAt).metricDate;
+        return day >= retentionStart && day <= endDate;
+      }).map((send) => [send.emailId, send])).values()];
 
     const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
     const customFacts = rawCustomActivities.map(normalizeCustomActivity).map(mapCustomActivity)
@@ -483,9 +464,9 @@ Deno.serve(async (request) => {
     if (activitiesWithoutTimestamp > 0) {
       warnings.push(`${activitiesWithoutTimestamp} activities were skipped because activity_at could not be read.`);
     }
-    if (invalidNewsletterSubscriptions > 0) {
-      warnings.push(`${invalidNewsletterSubscriptions} newsletter subscriptions were skipped because Close timestamps could not be read.`);
-    }
+    const unassignedNewsletterSends = newsletterSends.filter((send) =>
+      !Object.values(CLOSE_USERS).includes(send.closeUserId as typeof CLOSE_USERS.michael)).length;
+    if (unassignedNewsletterSends) warnings.push(`${unassignedNewsletterSends} newsletter sends have no known sales user.`);
 
     if (mode === "write" && supabase) {
       const rawRows = [
@@ -493,7 +474,10 @@ Deno.serve(async (request) => {
         ...rawCustomActivities.map((record) => rawActivityRow(record, "custom_activity")),
       ];
       const factRows = activityFacts.map(activityFactRow);
-      const newsletterRows = newsletterSubscriptions.map(newsletterSubscriptionRow);
+      const newsletterRows = newsletterSends.map((send) => ({
+        close_email_id: send.emailId, close_user_id: send.closeUserId,
+        sent_at: send.sentAt, mapping_version: send.mappingVersion,
+      }));
       const opportunityRows = deals.map((deal) => {
         const source = opportunities.find((opportunity) => opportunity.id === deal.opportunityId);
         return {
@@ -514,18 +498,18 @@ Deno.serve(async (request) => {
       await upsertBatches(supabase, "close_raw_activities", rawRows, "close_activity_id");
       await upsertBatches(supabase, "close_activity_facts", factRows, "source_activity_id");
       await upsertBatches(supabase, "close_opportunity_facts", opportunityRows, "opportunity_id");
-      await upsertBatches(supabase, "close_newsletter_subscriptions", newsletterRows, "close_subscription_id");
-      const newsletterMetricDates = newsletterCompletions
-        .map((completion) => metricTimeInReportingTimezone(completion.completedAt).metricDate)
-        .filter((metricDate) => metricDate >= retentionStart && metricDate <= endDate);
-      const metricsStartDate = newsletterMetricDates.reduce(
-        (earliest, metricDate) => metricDate < earliest ? metricDate : earliest,
-        startDate,
-      );
-      const { error: recalculateError } = await supabase.rpc("recalculate_daily_sales_metrics", {
-        p_start_date: metricsStartDate, p_end_date: endDate,
+      // One atomic replacement also removes deleted/reassigned sends and old
+      // completion counts. Only the newsletter KPI is backfilled historically.
+      const { error: newsletterError } = await supabase.rpc("replace_newsletter_sends", {
+        p_start_date: retentionStart, p_end_date: endDate, p_sends: newsletterRows,
       });
-      if (recalculateError) throw supabaseError("rpc recalculate_daily_sales_metrics", recalculateError);
+      if (newsletterError) throw supabaseError("rpc replace_newsletter_sends", newsletterError);
+      if (!newsletterOnly) {
+        const { error: recalculateError } = await supabase.rpc("recalculate_daily_sales_metrics", {
+          p_start_date: startDate, p_end_date: endDate,
+        });
+        if (recalculateError) throw supabaseError("rpc recalculate_daily_sales_metrics", recalculateError);
+      }
       const { error: cleanupError } = await supabase.rpc("cleanup_dashboard_history");
       if (cleanupError) throw supabaseError("rpc cleanup_dashboard_history", cleanupError);
       const { error: runError } = await supabase.from("sync_runs").update({
@@ -544,21 +528,22 @@ Deno.serve(async (request) => {
       wroteData: mode === "write",
       trigger,
       scheduled,
+      newsletterOnly,
       range: { startDate, endDate, timezone: REPORTING_TIMEZONE },
       mappingVersion: MAPPING_VERSION,
       fetched: {
         calls: callResult.value.length,
         customActivities: customResult.value.length,
         wonOpportunities: opportunities.length,
-        newsletterSubscriptions: newsletterResult.value.length,
+        emailMetadata: newsletterResult.value.length,
       },
       inWindow: {
         calls: rawCalls.length,
         customActivities: rawCustomActivities.length,
-        newsletterSubscriptions: newsletterSubscriptions.length,
+        newsletterSends: newsletterSends.length,
       },
-      mapped: { activities: activityFacts.length, deals: deals.length, newsletterCompletions: newsletterCompletions.length },
-      people: summarize(activityFacts, deals, newsletterCompletions, startTimestamp, endTimestamp),
+      mapped: { activities: activityFacts.length, deals: deals.length, newsletterSends: newsletterSends.length },
+      people: summarize(activityFacts, deals, newsletterSends, startTimestamp, endTimestamp),
       warnings,
       syncRunId,
     });
