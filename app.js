@@ -17,9 +17,9 @@ import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-contro
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
 // oder einem nicht ladbaren Bild bleibt automatisch der Initialen-Platzhalter.
 const PROFILE_IMAGES = Object.freeze({
-  michael: null,
+  michael: "./assets/profiles/michael.png",
   felix: null,
-  antony: null,
+  antony: "./assets/profiles/antony.png",
 });
 
 const PROFILE_INITIALS = Object.freeze({
