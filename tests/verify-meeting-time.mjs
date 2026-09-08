@@ -12,7 +12,7 @@ create function has_antony_access() returns boolean language sql as $$select tru
 create or replace function pg_catalog.now() returns timestamptz language sql stable as $$select '2026-09-10T12:00Z'::timestamptz$$;`);
 await db.exec(read('fixtures/kpi-schema.sql'));
 await db.exec('create table antony_performance_goals(id integer);');
-for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey','20260908085704_fix_booking_cohort_filters','20260908093505_optimize_cohort_report_plan','20260908124152_store_calendar_meetings','20260908124321_calendar_snapshot_safe_update','20260908124714_use_meeting_time_for_antony'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
+for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey','20260908085704_fix_booking_cohort_filters','20260908093505_optimize_cohort_report_plan','20260908124152_store_calendar_meetings','20260908124321_calendar_snapshot_safe_update','20260908124714_use_meeting_time_for_antony','20260908125538_retain_pre_meeting_cancellations'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
 const M='user_PtDJ2ZbYSQx82Dht5CRc2QBLcDfRjvXKjQuOi1N5lzy',F='user_thRspTxlj3UlN5P4ALk2vGwdSh2KlFxPth8OldN3pq4',A='user_0ppgt8ZGdSGuoTvR7KE4UZPUqP6OJhLmQOkxizfacgR';
 await db.exec("insert into close_reconciliation_state values('custom_and_won','2026-09-10T11:15Z');");
 const metricDate=at=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));
@@ -65,6 +65,20 @@ for(const period of ['day','week','month']){
 assert.equal((await metrics('2026-09-10','2026-09-10')).future,1);
 assert.equal((await db.query("select * from get_antony_closing_metrics_internal('month','2026-10-31')")).rows[0].setter_calls,0);
 console.log('PASS exact source cutoff for calls/No-Shows/day chart; future events excluded in all performance periods.');
+
+for(const [id,status] of [['early-cancel','⛔ Abgesagt'],['early-move','🔄 Termin verschoben']]){
+ await meeting(id,'2026-09-10T11:00Z');
+ await db.query("insert into close_booking_history values($1,$2,$3,'2026-09-10T08:00Z','2026-09-10')",['booking-'+id,id,F]);
+ await db.query("insert into close_activity_facts(source_activity_id,source_type,lead_id,close_user_id,occurred_at,metric_date,metric_hour,cancellations,rescheduled_appointments,mapping_version) values($1,'custom_activity',$5,$2,'2026-09-10T10:00Z','2026-09-10',12,$3,$4,'test')",[id+'-outcome',M,status==='⛔ Abgesagt'?1:0,status==='🔄 Termin verschoben'?1:0,id]);
+ await db.query("insert into close_raw_activities(close_activity_id,activity_type,lead_id,close_user_id,occurred_at,payload) values($1,'custom_activity',$4,$2,'2026-09-10T10:00Z',$3)",[id+'-outcome',M,JSON.stringify({'custom_activity_type_id':'actitype_6dnbcILqqeo0iGpRCEjOas','custom.cf_tVzfPTMC6NzmyIvUg2gtxeyiMLfDEwlGudAV0qWuygz':status}),id]);
+}
+const cancelled=(await db.query("select get_antony_process_metrics_internal('day','2026-09-10') j")).rows[0].j;
+assert.equal(cancelled.booking_cohort.reduce((n,r)=>n+r.cancelled,0),1);
+assert.equal(cancelled.booking_cohort.reduce((n,r)=>n+r.rescheduled,0),1);
+const open=(await db.query("select get_antony_pipeline_snapshot('2026-09-10') j")).rows[0].j;
+assert.equal(open.counts.rescheduled_setter,1);
+assert.equal(open.counts.setter_pending,1); // only today-observed, not the cancelled/rescheduled meetings.
+console.log('PASS pre-meeting cancellations/reschedules remain visible and do not reopen when scheduled start passes.');
 
 // Advancing the source clock activates already stored meetings; no new INSERT.
 const nBefore=Number((await db.query('select count(*) n from close_meetings')).rows[0].n);
