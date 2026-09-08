@@ -1,4 +1,4 @@
-export const MAPPING_VERSION = "2026-09-07.transfer-opportunities";
+export const MAPPING_VERSION = "2026-09-07.antony-reconciliation";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
 export function metricTimeInReportingTimezone(occurredAt: string) {
@@ -43,10 +43,13 @@ export const CUSTOM_FIELDS = {
   closerResult: "cf_voRgeFZ9DSbfWqrwRSAfzr5ApVvUIzAyLOnkLdOp7qn",
   setterNoShow: "cf_tVzfPTMC6NzmyIvUg2gtxeyiMLfDEwlGudAV0qWuygz",
   closerNoShow: "cf_t4uNVPJbWYqRTGSVq7IZ3emn5vQAbKySFp9jT1koe1q",
+  leadSource: "cf_2CMz3g4iGjEjeWmrbouveHjdBsMHaLttdpV4vrgVurd",
   leadOpener: "cf_TSACbW8OM7JYd1ibwAOqZgot7DNRVETNZDNDP6qhhBS",
   leadSetter: "cf_szgwxBHGiT3kNPNFmmCXXrI8MZcdFKQsoLEQfiJt0Bg",
   leadCloser: "cf_BfV6Ozp3GtXASgWErLR0y4XGKGg0krhQ64zts9yJSZE",
 } as const;
+
+export const LEAD_SOURCES = new Set(["Cold Calling", "Cold E-Mail", "DMC", "E-Mail", "Empfehlung", "Inbound LinkedIn Ads", "LinkedIn", "LinkedIn Cold Calls", "LinkedIn Follow Up", "Messe", "North Data", "Website", "Willi Liste", "Xing"]);
 
 export const SALES_PIPELINE = {
   id: "pipe_42eLhfS7p2vd5Fjw2ou2Sw",
@@ -73,6 +76,12 @@ const FINAL_CALL_STATUSES = new Set(["completed", "no-answer", "busy", "failed",
 const APPOINTMENT_RESULTS = new Set([
   "4: ✅ Termin vereinbart",
   "Entscheider: Termin vereinbart",
+]);
+const DECISION_MAKER_RESULTS = new Set([
+  ...APPOINTMENT_RESULTS,
+  "1: 🟢⁠ Interesse bekundet", "2: 🟡 Follow Up", "3: 🔴 kein Interesse",
+  "Entscheider: Follow Up", "Entscheider: Interesse", "Entscheider: kein Interesse",
+  "Entscheider: unqualifiziert", "Kein Interesse",
 ]);
 const SETTER_SUCCESS_RESULTS = new Set(["✅ Closer terminiert"]);
 const CLOSER_SALE_RESULTS = new Set([
@@ -156,6 +165,7 @@ export type ActivityFact = {
   setterSuccesses: number;
   closerCalls: number;
   closerSecondCalls: number;
+  closerDecidedCalls: number;
   closerSales: number;
   noShows: number;
   cancellations: number;
@@ -189,6 +199,7 @@ function emptyActivityFact(
     setterSuccesses: 0,
     closerCalls: 0,
     closerSecondCalls: 0,
+    closerDecidedCalls: 0,
     closerSales: 0,
     noShows: 0,
     cancellations: 0,
@@ -242,7 +253,7 @@ export function mapCustomActivity(activity: CloseCustomActivity): ActivityFact |
     fact.gatekeeperContacts = isTransferOpportunity(gatekeeperResult) ? 1 : 0;
     fact.connectedCalls = gatekeeperResult === "✅ Durchgestellt" ? 1 : 0;
     fact.directDecisionMakerCalls = gatekeeperResult === "🛑 Kein Gatekeeper" ? 1 : 0;
-    fact.decisionMakerContacts = decisionMakerResult ? 1 : 0;
+    fact.decisionMakerContacts = decisionMakerResult && DECISION_MAKER_RESULTS.has(decisionMakerResult) ? 1 : 0;
     fact.appointments = decisionMakerResult && APPOINTMENT_RESULTS.has(decisionMakerResult) ? 1 : 0;
     return fact;
   }
@@ -259,6 +270,7 @@ export function mapCustomActivity(activity: CloseCustomActivity): ActivityFact |
     fact.closerCalls = 1;
     fact.closerSecondCalls = closerResult && CLOSER_SECOND_CALL_RESULTS.has(closerResult) ? 1 : 0;
     fact.closerSales = closerResult && CLOSER_SALE_RESULTS.has(closerResult) ? 1 : 0;
+    fact.closerDecidedCalls = fact.closerSales || closerResult === "4. ❌ Nicht verkauft" ? 1 : 0;
     return fact;
   }
 
@@ -287,7 +299,11 @@ export function leadAttribution(customFields: Array<{ id: string; value: CustomV
 export function mapWonOpportunity(opportunity: CloseOpportunity, attribution: LeadAttribution) {
   const isSalesPipeline = !opportunity.pipeline_id || opportunity.pipeline_id === SALES_PIPELINE.id;
   const isWon = opportunity.status_type === "won" && SALES_PIPELINE.wonStatusIds.has(opportunity.status_id);
-  if (!isSalesPipeline || !isWon || !opportunity.date_won || !attribution.openerUserId) return null;
+  if (!isSalesPipeline || !isWon || !opportunity.date_won) return null;
+  const wonAt = opportunity.date_won.length === 10
+    ? `${opportunity.date_won}T12:00:00.000Z` : opportunity.date_won;
+  if (Number.isNaN(Date.parse(wonAt))) return null;
+  if (opportunity.date_won.length === 10 && new Date(wonAt).toISOString().slice(0, 10) !== opportunity.date_won) return null;
 
   return {
     opportunityId: opportunity.id,
@@ -295,9 +311,8 @@ export function mapWonOpportunity(opportunity: CloseOpportunity, attribution: Le
     openerCloseUserId: attribution.openerUserId,
     setterCloseUserId: attribution.setterUserId,
     closerCloseUserId: attribution.closerUserId,
-    wonAt: opportunity.date_won.length === 10
-      ? `${opportunity.date_won}T12:00:00.000Z`
-      : opportunity.date_won,
+    wonAt,
+    wonDate: metricTimeInReportingTimezone(wonAt).metricDate,
     valueCents: Math.max(0, opportunity.value ?? 0),
     valuePeriod: opportunity.value_period,
     mappingVersion: MAPPING_VERSION,

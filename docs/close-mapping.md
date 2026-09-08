@@ -2,6 +2,17 @@
 
 ## Current Truth
 
+### Release 2026-09-08: KPI-Abgleich und Vertriebspipeline
+
+Der Nutzer hat die produktive Übernahme am 08.09. ausdrücklich freigegeben. Mapping `2026-09-07.antony-reconciliation` ist als `close-sync` Version 77 ausgerollt, `weekly-review` als Version 11 und `kpi-assistant` als Version 4. Migrationen: `20260908071339_reconcile_antony_kpis.sql`, `20260908071341_add_antony_process_metrics.sql`, `20260908071707_fix_lead_snapshot_delete_guard.sql`. Die Dateinamen entsprechen den tatsächlich angewandten Migrationen.
+
+Vollständiger Dry Run erfolgreich. Nach Anpassung an die produktive Safe-Update-Regel wurde der Abgleich vom 01.07. bis 08.09. erfolgreich geschrieben. Der erste echte Cron-Lauf mit dem neuen Mapping startete am 08.09. um 09:22 Uhr Berlin und endete um 09:23 Uhr erfolgreich. Cron läuft unverändert alle 15 Minuten. Die Berechtigungen wurden live mit Antony, info und zwei anderen Konten geprüft: nur die bestehenden zwei Freigaben können das neue Prozess-RPC verwenden. Die bereinigte Durchstellquote einschließlich „GF nicht erreichbar“ bleibt erhalten.
+
+Die Oberfläche dieses Releases stellt den Prozess als fünf verbundene, aufklappbare Stufen dar. Quelle und Terminlieferant lassen sich filtern; auf schmalen Bildschirmen läuft die Pipeline vertikal. Zusatzresultate vor/im Setter und vollständige Tabellen bleiben zugänglich. Die Hauptlinie zählt nur im Zeitraum gebuchte Leads, nicht sämtliche Periodenergebnisse aus früheren Buchungen. Cache-Tag: `2026-09-08-sales-pipeline`.
+
+Close bleibt alleinige operative Quelle. Das Sheet dient zur Prüfung der fachlichen Definitionen, wird nicht importiert und löst keine zusätzliche manuelle Pflege aus. Details zum Quellenvergleich und die private Backfill-Vorschau liegen im Prüfbericht der aktuellen Aufgabe; sensible Einzeldaten gehören nicht in dieses Repository.
+
+
 ### Personen und Attribution
 
 | Dashboard | Close-Benutzer | ID |
@@ -29,14 +40,14 @@
 ### Zeit- und Zeitraumlogik
 
 - Der Tag einer Aktivität und ihre Stunde stammen aus Close `activity_at`, vor dem Speichern nach `Europe/Berlin` umgerechnet. Die Uhrzeit des stündlichen Syncs verändert keine Kennzahl.
-- **Tag** zeigt exakt den ausgewählten Kalendertag. Der Tagesverlauf listet jede operative Stunde von **08:00 bis 17:00** – auch dann, wenn keine Aktivität vorliegt.
-- **Woche** zeigt Montag bis Freitag der Kalenderwoche; Samstag und Sonntag gehören nicht in die Vertriebswoche.
-- **Monat** beginnt immer am Ersten und endet am letzten Kalendertag des ausgewählten Monats. Die Trendtabelle zeigt den aktuellen sowie die zwei vorherigen Monate.
+- **Tag** zeigt exakt den ausgewählten Kalendertag. Antonys Tagesverlauf enthält mindestens **08:00 bis 17:00** und erweitert sich bis zur frühesten/spätesten tatsächlich vorhandenen Aktivität. Leere Stunden bleiben sichtbar.
+- **Woche** zeigt Montag bis Stichtag, maximal Freitag; Samstag und Sonntag gehören nicht in die Vertriebswoche.
+- **Monat** beginnt am Ersten und endet am Stichtag, bei einem abgeschlossenen Monat am letzten Kalendertag. Die Trendtabelle zeigt den aktuellen sowie die zwei vorherigen Monate.
 - Nettoquote = Summe Netto-Anrufe / Summe Brutto-Anrufe. Durchstellquote = Summe Durchstellungen / Summe Vorzimmer-Kontakte. Terminquote = Summe Termine / Summe Entscheiderkontakte. Das Dashboard bildet nie Mittelwerte aus Einzelquoten.
 - Stunden ohne Grundgesamtheit zeigen bei Quoten einen Strich statt `0 %`. Stunden mit weniger als drei Kontakten bleiben sichtbar, werden aber als zu kleine Basis gedämpft und nicht als Empfehlung behandelt.
 - Die Stunden-Gesamtqualität gewichtet produktive Erreichbarkeit mit 35 %, Durchstellung mit 25 % sowie Entscheider- und Terminquote mit je 20 %. `Mailbox` und `außerhalb der Geschäftszeiten` werden dabei von den technisch als beantwortet gemeldeten Calls abgezogen. Diese Klassifizierung gilt ausschließlich für die Stundenempfehlung und verändert Anrufe brutto, Anrufe netto oder deren Quote nicht.
 
-`created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die stündliche Überlappung werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
+`created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die überlappenden Sync-Fenster werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
 
 ### KPI-Umfang des ersten Dashboards
 
@@ -78,10 +89,10 @@ Berücksichtigte Aktivitätstypen:
 
 | KPI | Regel |
 |---|---|
-| Gatekeeper-Kontakte | Bewertbares Ergebnis: `✅ Durchgestellt`, `Nicht durchgestellt`, `E-Mail senden` oder `Kein Interesse`; Nichterreichbarkeit, Mailbox, außerhalb der Geschäftszeiten, direkte Entscheider und unbekannte Ergebnisse ausgeschlossen |
+| Gatekeeper-Kontakte | Bewertbares Ergebnis: `✅ Durchgestellt`, `Nicht durchgestellt`, `E-Mail senden` oder `Kein Interesse`; Nichterreichbarkeit einschließlich GF/CEO nicht erreichbar, Mailbox, außerhalb der Geschäftszeiten, direkte Entscheider und unbekannte Ergebnisse ausgeschlossen |
 | Durchstellungen | Gatekeeper-Ergebnis ist exakt `✅ Durchgestellt` |
 | Direkter Entscheider | Gatekeeper-Ergebnis ist exakt `🛑 Kein Gatekeeper` |
-| Entscheider erreicht | Entscheider-Ergebnis ist gesetzt |
+| Entscheider erreicht | Ausschließlich die in `DECISION_MAKER_RESULTS` explizit erlaubten Ergebnisse; Trennlinien, leere und unbekannte Werte zählen nicht |
 | Termine | Entscheider-Ergebnis ist `4: ✅ Termin vereinbart` oder `Entscheider: Termin vereinbart` |
 | Produkt/Kampagne | Bedarf aus `Entscheider Info: Welcher Bedarf?` |
 
@@ -91,7 +102,7 @@ Quoten:
 - Entscheiderquote = Entscheider erreicht / Netto-Calls
 - Terminquote = Termine / Entscheider erreicht
 
-### Technisch vorbereitet, zunächst nicht sichtbar
+### Setter-/Closer-Ereignisse
 
 | KPI | Close-Quelle | Regel |
 |---|---|---|
@@ -115,22 +126,60 @@ Absagen und verschobene Termine werden nicht als No Show gewertet.
 
 ### Closer-Stufe für Antony
 
-- `Antony` ist der vierte Ansichtsreiter direkt neben `Felix`. Die Vertriebs-Kernwerte bleiben dadurch unverändert; Antonys eigener Reiter zeigt ausschließlich die Strecke Termine → Setter Calls → Closer terminiert → Closer Calls → CC2 → verkauft → Neukunden.
-- Setter- und Terminwerte stammen aus Michael/Felix-Aktivitäten. Closer Calls, CC2 und Verkäufe zählen nur Aktivitäten von Antony Rigone. Neukunden zählen gewonnene Opportunities mit Antony als `3.03 Closer`.
-- Setter-Showrate = `Closer terminiert ÷ Setter Calls`. Closer-Showrate = `Closer Calls ÷ Closer terminiert`. CC2-Quote = `CC2 vereinbart ÷ Closer Calls`. Gesamtconversion Termin → Closer = `Closer Calls ÷ Termine`.
-- `2. 🔥 CC2 vereinbart` ist eine offene Fortsetzung. Die Closer-Abschlussquote lautet deshalb `Verkauft ÷ (Closer Calls − CC2 vereinbart)`.
-- Die Datenbankfunktion verlangt weiterhin ein angemeldetes Konto mit abgeschlossener persönlicher Passworteinrichtung. Vorläufig sehen alle Dashboard-Nutzer das Feld; die spätere Sperre auf Antony wird serverseitig ergänzt.
-- Freitextfelder aus Close werden für diese Ansicht weder ausgewertet noch an den Browser übertragen.
+- Termine und Setter zählen die veröffentlichten Aktivitäten von Michael, Felix **und Antony**, zugeordnet über `activity.user_id`. Die Michael/Felix-Wettbewerbsansichten behalten ihren bisherigen Personenumfang.
+- Closer Calls, CC2 und Verkäufe zählen nur Antonys veröffentlichte Closer-Aktivitäten. Jede eindeutige Activity-ID zählt einmal; mehrere reale Gespräche desselben Leads bleiben mehrere Ereignisse.
+- Setter-Conversion = `Closer terminiert / Setter Calls`. Eine echte Teilnahmequote hätte die für den Terminzeitraum angesetzten Gespräche als Nenner. Diese Termin-Kohorte ist aus den geprüften Daten nicht vollständig verfügbar.
+- `Closer durchgeführt / Closer terminiert`, `Setter Calls / neue Termine` und `Neukunden / neue Termine` sind **Zeitraumverhältnisse**, keine Teilnahme- oder Kohortenquoten. Gespräche und Buchungen können aus verschiedenen Perioden stammen; Werte über 100 % werden nicht abgeschnitten.
+- CC2-Quote = `CC2 vereinbart / Closer Calls`. `2. 🔥 CC2 vereinbart` ist eine offene Fortsetzung, kein Verkauf und kein Verlust.
+- Am 08.09. vom Nutzer bestätigte fachliche Regel: Closer-Abschlussquote = `Verkauft / explizit entschiedene Closer Calls`. Nur die zwei Verkauft-Ergebnisse und `4. ❌ Nicht verkauft` sind entschieden; fehlende Ergebnisse zählen nicht als Verlust. Die davon abweichende CC1-Basis im Sheet wird ausdrücklich nicht übernommen.
+- Neukunden zählen Won-Opportunities mit Status `Kunde` und Antony im Lead-Feld `3.03 Closer`. `Upsell/Verlängerung` zählt weiterhin im gespeicherten Deal-/Umsatzbestand, aber nicht als Neukunde. Die Zähleinheit ist die eindeutige Opportunity-ID; sie ist keine belegte Erstkundenhistorie pro Firma.
+- Fehlender Opener darf einen zugeordneten Closer-Abschluss nicht löschen. Der Opener bleibt dann null; es wird kein Wettbewerbsergebnis erfunden.
+- Alle Ereignisse werden nach `activity_at`, Won-Ergebnisse nach `date_won`, in `Europe/Berlin` eingeordnet. Ein datumsloser Abschluss wird nicht geschätzt. Date-only-Won-Werte haben keine belegte Abschlussuhrzeit und werden im Tagesgraphen nicht künstlich einer Stunde zugerechnet.
+- Quoten ohne Nenner sind null und erscheinen als Strich. Ein echter Zähler von null bei vorhandenem Nenner bleibt 0 %.
+- Die bestehende serverseitige Berechtigung über `has_antony_access()` und private Freigaben bleibt unverändert. Kein Zugriff allein durch Auswahl des Antony-Reiters.
 
-### Abruf aus Close
+### Pipeline, Monatsmodell und KI
 
-Die Typ-Endpunkte `/activity/call/` und `/activity/custom/` sortieren fest nach `date_created` und kennen keinen `_order_by`-Parameter. Ein `activity_at`-Filter wird deshalb mit `400` abgelehnt: `"activity_at" filtering can not be used together with "date_created" sorting`. Sortierung nach `-activity_at` ist laut Close-Doku nur beim Abruf eines einzelnen Leads möglich.
+Die offene Strecke ist eine aus den aufbewahrten Ereignissen abgeleitete Momentaufnahme pro Lead, keine vollständige Opportunity-Pipeline oder historische Statuschronik. Spätere Durchführung, Absage oder No-Show beendet den früheren offenen Terminstatus; ein späterer Abschluss beendet den offenen CC2-Status. Won-Leads werden ausgeschlossen. Das Alter wird nach Berliner Kalenderdatum bestimmt. Außerhalb des Aufbewahrungsfensters entstandene offene Fälle können fehlen.
 
-Der Sync ruft daher nach `date_created` ab, mit zwei Tagen Puffer vor und nach dem Berichtszeitraum, und entscheidet die Tageszuordnung anschließend selbst anhand von `activity_at`. Die fachliche Regel bleibt damit unverändert: Eine Kennzahl zählt an dem Tag, an dem das Gespräch stattfand, nicht an dem Tag, an dem es erfasst wurde.
+Das Monatsmodell ist eine Simulation aus Ereigniszahlen, Arbeitstagstempo und eingegebenem Kundenwert. „Modellwert bisher“ = Neukunden × Kundenwert, kein tatsächlicher CRM-Umsatz. Es beweist keine kausale Conversion zwischen unabhängigen Monatsereignissen. Ohne belastbare Modellrate wird keine Prognose erfunden.
 
-Der Puffer von zwei Tagen ist am 2026-09-02 festgelegt worden, weil Protokolle grundsätzlich direkt nach dem Gespräch und in jedem Fall am selben Tag erfasst werden. Er deckt verspätete Einträge und den Versatz zwischen `Europe/Berlin` und UTC ab.
+Wochenbericht und KPI-Assistent erhalten dieselben deterministisch berechneten Zähler und Regeln (`KPI_RULES`). Setter-Erfolg heißt `setter_conversion_rate`, keine Showrate. Zeitraumverhältnisse werden entsprechend benannt; fehlende Nenner erzeugen weder 0-%-Bewertungen noch Prozentpunkttrends. Auch fehlende Mengen bleiben null; ein unvollständiger Personenbestand wird nicht als vollständige Teamsumme ausgegeben. Die KI darf aus periodenfremden Mengen keinen belegten Funnelverlust ableiten. Der bestehende Zeitplan, fünf Bulletpoints und die private Anzeige werden nicht verändert.
 
-`custom_activity_type_id` lässt sich nicht als Filter verwenden: Close verlangt dafür zwingend ein einzelnes `lead_id`. Die Typauswahl passiert deshalb beim Mapping, nicht beim Abruf.
+### Leadqualität und vollständiger Prozess bis zum Neukunden
+
+Fachlich am 08.09. bestätigt: Die Abschlussquote verwendet **entschiedene Gespräche**. Leadqualität bewertet die **Vorqualifizierung des Terminlieferanten**: Welche seiner gebuchten Leads kommen tatsächlich in den Setter und mit welchem Ergebnis? Auswertung nach Leadquelle und Terminlieferant; der Platzhalter „Leadqualität ????“ ist keine unbekannte zusätzliche Person.
+
+Die neue geschützte Funktion `get_antony_process_metrics` liefert für Tag, Woche, Kalendermonat und `three_months` dieselben Ereignisse in Berlin. Der Drei-Monats-Bereich umfasst den gewählten Monat und die zwei Vormonate bis zum Stichtag und erscheint in Antony nur in der Monatsansicht. Zwei Betrachtungen bleiben ausdrücklich getrennt:
+
+| Betrachtung | Zählung / Zuordnung | Aussage |
+|---|---|---|
+| Gebuchte Leads | Pro Zeitraum eindeutige `lead_id`, erste dokumentierte Buchung im Zeitraum; deren `user_id` ist Terminlieferant. Gleichzeitige widersprüchliche Bucher bleiben nicht zugeordnet. | Gebucht → tatsächlich im Setter → qualifiziert / Follow-up / disqualifiziert / Ergebnis fehlt. Ergebnisse nur nach Buchung und bis Stichtag. Wiederholte Buchungen zählen einmal. |
+| Anteil im Setter | Eindeutige gebuchte Leads mit späterem Setter / eindeutige gebuchte Leads | Fortschritt dieser Buchungsgruppe, keine bereinigte Showrate: Noch nicht fällige Termine können enthalten sein. |
+| Alle bearbeiteten Setter-Leads | Letztes Setter-Ergebnis je eindeutigem Lead im Zeitraum, auch aus älteren Buchungen; letzter dokumentierter vorheriger Terminbucher ist Lieferant | Qualifiziert / im Setter verwendet diese eindeutigen Leads; mehrere Setter-Follow-ups blähen die Grundgesamtheit nicht auf. Gleichzeitige widersprüchliche Ergebnisse bleiben unbewertet. |
+| Ersatzzuordnung | Fehlt eine frühere Buchungsaktivität im gespeicherten Fenster: aktuelles `3.01 Opener`, sichtbar als „Aktueller Opener (Ersatz)“ | Keine behauptete historische Activity-Owner-Zuordnung. Andere CRM-Nutzer werden als weitere Terminlieferanten zusammengefasst, unbekannte Zuordnungen bleiben unbekannt. |
+| Leadquelle | Aktuelles `1.02 Leadquelle`, Feld `cf_2CMz3g4iGjEjeWmrbouveHjdBsMHaLttdpV4vrgVurd`; nur bekannte Auswahlwerte, sonst nicht zugeordnet | Kein Rückschluss auf eine historisch andere Quelle; keine frei erfundene Qualitätsnote. |
+| Noch nicht im Setter | Letzter dokumentierter Setter-Terminstatus nach Buchung: nicht erschienen / abgesagt / verschoben / noch kein Setter oder Status | Frühere No-Shows zählen hier nicht mehr als Ausfall, sobald der Lead später im Setter war. Keiner dieser Zustände gilt automatisch als disqualifiziert. |
+| Weitere Stufen der Buchungsgruppe | Später durchgeführter Closer, explizit verkaufter Closer Call, Won-Status `Kunde` nach Buchung und bis Stichtag; je Lead einmal | Tatsächlich verknüpfte Prozessfortschritte; Verkauf laut Gespräch und Won sind getrennte Nachweise und können voneinander abweichen. |
+| Periodenereignisse | Follow-up-Kontakte mit vier getrennten Ergebnissen; Setter-Ergebnisse; No-Show/Absage/Verschiebung jeweils Setter und Closer; CC1-Verkäufe, CC2-Vereinbarungen, CC2-Verkäufe, explizit nicht verkauft, fehlendes Ergebnis | Aktivitäten zählen einzeln. Offene Follow-ups und CC2 sind keine Verluste; eine Vereinbarung beweist nicht, dass sie heute noch offen ist. |
+
+Aktivitäten umfassen die drei bekannten Nutzer. Die Closer-Periodenkennzahlen betreffen weiterhin Antony. Für den Terminpfad werden Folgestufen desselben Leads aus den drei Nutzern verfolgt; Won zählt dort pro Lead, während die bestehenden Antony-Kundenabschlüsse Opportunities mit `3.03 Closer=Antony` zählen. Keine globale Erstkundenhistorie wird behauptet.
+
+`close_lead_reporting` speichert nur Lead-ID, aktuelle Quellkategorie, Opener-ID und Abrufzeit. Sie hat RLS, keine Browser-Leserechte und wird zusammen mit Custom/Won atomar ersetzt. Für jeden Setter-, Buchungs- und Won-Lead muss der Metadatenabruf abgeschlossen sein; Fehler verhindern den Abgleich. Das Aggregat-RPC verwendet denselben serverseitigen Antony-Zugang wie die bestehenden privaten Auswertungen. Es werden keine Berechtigungen erweitert.
+
+Die KI erhält nur freigegebene Kategorien, aggregierte Mengen und deterministisch berechnete Quoten dieses Moduls. Keine Lead-IDs, Namen, E-Mails oder Notizen gehen ans Modell. KI-Assistent und Wochenbericht lesen dieselben Prozess-RPCs und dürfen offene Termine oder kleine Stichproben nicht als bewiesene schlechte Vorqualifizierung auslegen.
+
+### Abruf und wiederholbarer Abgleich aus Close
+
+Calls behalten den bestehenden Abruf nach Erstellungsdatum mit zwei Tagen Puffer; die Zuordnung erfolgt ausschließlich nach `activity_at`. Der Typ-Endpunkt akzeptierte im geprüften Setup keine davon abweichende `activity_at`-Sortierung über mehrere Leads.
+
+**Custom Activities:** Alle Seiten für die drei bekannten Benutzer werden ohne Erstellungsdatum-Grenze geladen, nur mit den benötigten IDs, Zeitstempeln, Status- und Auswahlfeldern. Danach wird anhand von `activity_at` auf den aktuellen Monat plus zwei Vormonate bis einschließlich heute in Berlin gefiltert. Eine am 26.08. angelegte und erst am 03.09. veröffentlichte Aktivität belegt, dass der bisherige Zwei-Tage-Puffer hierfür nicht genügt. Typen werden anhand stabiler IDs lokal ausgewählt.
+
+**Won-Opportunities:** Beide Won-Status werden für das Retentionsfenster einschließlich UTC-Randpuffer gelesen, die endgültige Grenze bestimmt das Berliner Won-Datum. Attribution wird anhand der aktuellen Lead-Felder gelesen. Fehlende Opener bleiben null; ungültige oder unvollständig geladene Datensätze brechen den Abgleich ab.
+
+Erst nach vollständiger Pagination und Validierung ersetzt die ausschließlich für `service_role` aufrufbare Funktion `reconcile_close_custom_and_won` die Custom-/Won-Daten des gesamten Retentionsfensters atomar. Auch ein manueller Call-Import für einen einzelnen historischen Tag gleicht Custom/Won stets bis **heute** ab; dadurch bleiben auf andere Tage verschobene Ereignisse konsistent. Entwürfe, Löschungen, neue Zuordnungen und nicht mehr gewonnene Opportunities verschwinden aus dem betroffenen Faktenbestand. Eindeutige IDs verhindern Duplikate. Eine Transaktionssperre und Snapshot-Reihenfolge verhindern, dass ein älterer Abruf neuere Daten überschreibt. Pagination-/Validierungsfehler ergeben keinen Teilabgleich. Calls und Newsletter behalten ihre separaten Quellen.
+
+Ein Schreibimport ist kein reines Neuberechnen alter Summen: Fehlende Aktivitäten müssen zuerst aus Close nachgeladen werden. `scripts/preview-closing-backfill.mjs` ist eine ausschließlich lokale, lesende Vergleichsvorschau für den geprüften Juli–September-2026-Datensatz. Dieser reduzierte Setter-/Closer-Datensatz darf **nicht** als vollständiger produktiver Importpayload verwendet werden.
 
 ### Supabase-Ebenen
 
@@ -139,23 +188,36 @@ Der Puffer von zwei Tagen ist am 2026-09-02 festgelegt worden, weil Protokolle g
 3. `close_opportunity_facts`: gewonnene Opportunity mit Opener-/Setter-/Closer-Zuordnung.
 4. `close_newsletter_sends`: tatsächlich versendete Newsletter-E-Mails, ausschließlich serverseitig lesbar. `close_newsletter_subscriptions` bleibt als Altbestand erhalten und ist keine KPI-Quelle mehr.
 5. `daily_sales_metrics`: verdichtete Tageswerte pro Vertriebler.
-6. `monthly_kpi_snapshots`: unveränderlicher Monatsabschluss mit acht relevanten Roh-KPIs für das gesamte Team.
+6. `monthly_kpi_snapshots`: Monatsabschluss mit acht relevanten Roh-KPIs für das gesamte Team.
 7. Dashboard-Funktionen: exakte Tag-, Woche- und Monatswerte sowie Drei-Monats-Trend.
 
-Alle Ebenen nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormonaten.
+Operative Rohdaten, Facts und Tageswerte nutzen ein rollierendes Fenster aus aktuellem Monat und zwei Vormonaten. Die getrennten Monatsarchive bleiben darüber hinaus erhalten.
 
 ### Monatsabschlüsse
 
 Die operative Tabelle `daily_sales_metrics` wird nach drei Monaten bereinigt. Unabhängig davon wird einmal je abgeschlossenem Monat ein fester Datensatz für das **gesamte Team** in `monthly_kpi_snapshots` angelegt. Er enthält: Brutto-Anrufe, Netto-Anrufe, Vorzimmer-Kontakte, Durchstellungen, direkte Entscheider, Entscheider gesamt, Termine und versendete Newsletter. Netto-, Durchstell- und Terminquote bleiben daraus stets exakt berechenbar. Die Tabelle ist Backend-only und wird vom Dashboard nicht abgefragt.
 
-Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es in `Europe/Berlin` der erste Kalendertag ist. So wird der vollständige Vormonat nach dem letzten stündlichen Close-Sync gesichert. Bereits vorhandene abgeschlossene Monate werden bei Einführung einmalig nachgezogen; vorhandene Snapshots werden nicht überschrieben.
+Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es in `Europe/Berlin` der erste Kalendertag ist. So wird der vollständige Vormonat nach dem letzten Close-Sync gesichert. Bereits vorhandene abgeschlossene Monate werden bei Einführung einmalig nachgezogen; vorhandene Snapshots werden im normalen Abschlussjob nicht überschrieben. Der freizugebende Korrekturabgleich aktualisiert ausschließlich die Custom-KPIs vollständig enthaltener Monate innerhalb der Retention. Anruf- und Newsletter-Archivwerte bleiben dabei erhalten. Ältere Archive werden nicht verändert.
 
 ## Missing Context
+
+- Das Sheet enthält aggregierte Wochenwerte und manuelle Eingaben, keine vollständigen täglichen Termin-Kohorten mit stabilen Lead-IDs. Eine echte historische Teilnahme-/Kohortenquote ist damit nicht durchgehend nachweisbar.
+- Historische Rollenwechsel, gelöschte Aktivitäten und frühere Opportunity-Status außerhalb der Retention sind aus dem aktuellen CRM-Zustand allein nicht rekonstruierbar. Ein Backfill kann nur die heute noch vorhandenen Quellen herstellen.
+- Ein zusätzliches Close-Feld für das ursprüngliche Datum existiert; in den geprüften Beispielen widerspricht es `activity_at` nicht. Ein zukünftiger Widerspruch darf nicht still durch einen Datumstausch aufgelöst werden.
+- Vollständiger Import und echter Cron-Lauf sind am 08.09. geprüft (rund 82–86 Sekunden). Die feste Grenze von 20.000 Datensätzen pro Ressource bleibt ein Abbruchschutz; bei weiterem Wachstum ist die Abrufstrategie erneut zu prüfen.
 
 - Falls künftig Opportunities mit `monthly` oder `annual` auftreten, muss festgelegt werden, ob das Dashboard Vertragswert, MRR oder ARR zeigt.
 - Brutto-/Netto-Regel und Opportunity-Zuordnung müssen anhand eines vollständigen manuellen Testtags bestätigt werden.
 
 ## Sources
+
+- Nutzerantworten vom 08.09.: entschiedene Closer-Gespräche als Basis; Leadqualität je Quelle und tatsächlichem Terminlieferant bis in den Setter.
+- Close-Leadfelder und Setter/Closer/Follow-up/No-Show-Auswahlwerte am 08.09. erneut lesend geprüft; reales Beispiel Terminbuchung Michael am 02.09. → Setter Antony am 04.09. (LinkedIn, Setter Follow Up).
+- `supabase/migrations/20260908071341_add_antony_process_metrics.sql`: private Prozessauswertung mit Buchungskohorten.
+
+- [Social Profit GmbH – CRM & KPI Liste 2026](https://docs.google.com/spreadsheets/d/1uV9njfRCZvHPFEocLe3Bd6Mww7hcmS2HG2WcYRuorrA/edit): Tabs `Leads & Umsatz`, `Setter Erreichbarkeit`, `Setter Quote`, `Closer Qoute`, Formeln und Werte read-only am 07.09.2026 geprüft.
+- [Close Activity API](https://developer.close.com/api/resources/activities/list) und [Custom Activities](https://developer.close.com/api/resources/activities/custom-activities/list); tatsächliche Felder, Benutzer, Aktivitäts-IDs und Won-Opportunities read-only geprüft.
+- `supabase/functions/_shared/close-reconciliation.ts`, `supabase/migrations/20260908071339_reconcile_antony_kpis.sql`, `tests/kpi-reconciliation.test.ts`, `tests/verify-kpi-sql.mjs`.
 
 - Close E-Mail-API: https://developer.close.com/api/resources/activities/emails/list (am 2026-09-07 geprüft).
 
@@ -184,3 +246,10 @@ Der Datenbank-Job startet täglich um 00:05 UTC und schreibt nur dann, wenn es i
 - 2026-09-07: Bereinigte Durchstellquote: nur vier bewertbare Vorzimmer-Ergebnisse bilden die Grundgesamtheit. Bestehende Fakten, Tageswerte und aufbewahrte Monatsarchive werden korrigiert; Stunden, Wochen und drei Monate verwenden dieselben Fakten. Datenbank-Trigger schützt die Regel auch bei älteren Importern.
 
 - 2026-09-07: „GF nicht erreichbar“ wird wie „CEO nicht erreichbar“ aus der Grundgesamtheit der Durchstellquote ausgeschlossen. Das gilt automatisch für alle Zeiträume und Stundenanalysen; der Anrufversuch bleibt in der Anrufanzahl enthalten.
+
+- 2026-09-07/08: Antony-KPI-Audit gegen Sheet-Formeln, Close-Einzelaktivitäten und produktive SQL-Definitionen. Lokale Korrektur einschließlich Retentionsabgleich, Rollen, Nullquoten, CC2-Entscheidungen, später Stunden und KI-Regeln vorbereitet; keine produktive Übernahme.
+
+- 2026-09-08: Fachliche Antworten aufgenommen, Leadqualität je Quelle/Terminlieferant und gesamter dokumentierter Prozess ergänzt. 57 Node-Tests, beide lokalen SQL-Migrationen, echte Buchung/Setter-Verknüpfung, vier Zeiträume, private Rechte, KI-Whitelist und Browserdarstellung geprüft; weiterhin nicht produktiv.
+
+- 2026-09-08: Nutzerfreigabe zur Live-Übernahme. Backend-Migrationen und drei Edge Functions ausgerollt; einmaliger Retentionsabgleich und erster automatischer Cron-Lauf erfolgreich. Die produktive Safe-Update-Erweiterung verlangte beim vollständigen Metadatenersatz eine WHERE-Klausel; eigener Nachtrag angewandt. Der zuvor fehlgeschlagene atomare Versuch wurde zurückgerollt.
+- 2026-09-08: Auf Nutzerwunsch übersichtliche, filterbare Pipeline ergänzt. Browserprüfung: fünf Stufen, Tastaturdetails, kombinierte Quellen-/Lieferantenfilter, Null-/fehlende Daten, echte SQL-Aggregate, 900/390 px ohne Seitenüberlauf, bestehende Graph-Popups und Team-Isolation.

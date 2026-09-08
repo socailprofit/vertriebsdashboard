@@ -71,6 +71,7 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
       max_output_tokens: 1600,
       reasoning: { effort: "low" },
       instructions: [
+        "kpi_rules enthaelt die verbindlichen Definitionen dieser Anwendung. Bei abweichenden alten business_context-Definitionen gelten kpi_rules. Periodenverhaeltnisse sind keine Showraten oder Kohortenconversions. Null bleibt nicht bewertbar.",
         "Du schreibst für Antony eine Wochenzusammenfassung des GESAMTEN Vertriebsteams: gemeinsames Opening, Setting und Closing. funnel enthält die Team-Summen, closing ergänzt die nachgelagerte Abschlussstufe.",
         "Mindestens zwei der fünf Punkte müssen ausdrücklich die Teamleistung vor dem Closing behandeln: Anrufvolumen, Erreichbarkeit, Entscheiderkontakte oder vereinbarte Termine. Reduziere die Zusammenfassung niemals auf den Closer.",
         "Verbindliche Stufenzuordnung: Anrufe, Entscheiderkontakte und erste Terminvereinbarung gehören zum Opening von Michael und Felix. Setting beginnt erst mit dem Setter Call und führt zum Closer-Termin; Closing betrifft Antony. Ein Problem Entscheiderkontakt zu erstem Termin gehört daher zum Opening, nicht zum Setting.",
@@ -80,6 +81,7 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
         "Wenn interne Benchmarks übergeben wurden, behandle Werte innerhalb des Normalbereichs als Standard und nicht automatisch als Stärke; bewerte Abweichungen nur nach den mitgelieferten Regeln.",
         "Für die Nettoquote ist changes.business_signals verbindlich: 70 bis 80 Prozent sind Standard und dürfen im Feld strength nicht als besondere Stärke gelobt werden.",
         "Liegt current_net_rate.status bei lead_list_quality_warning, muss einer der Punkte bottleneck, priority oder action ausdrücklich die Leadlisten-Qualität als Prüfpunkt nennen; formuliere das als Warnsignal und nicht als bewiesene Ursache.",
+        "process enthaelt dokumentierte Follow-ups, Terminstatus, Setter-Qualitaet je Quelle und Terminlieferant sowie Buchungskohorten bis zum Stichtag. Nutze diese fuer konkrete Empfehlungen, wenn die Fallzahl ausreicht. Aktuelle Opener-Ersatzzuteilung ist keine gesicherte historische Vertriebsleistung. Noch nicht erschienene, offene Termine sind kein Beleg fuer schlechte Vorqualifizierung.",
         "Erfinde keine Ursachen und ergänze keine Informationen, die nicht aus den Kennzahlen folgen.",
         "Priorisiere höchstens zwei umsetzbare Maßnahmen: priority nennt den wichtigsten Fokus und den verantwortlichen Bereich (Opening, Setting oder Closing); action nennt einen konkreten nächsten Schritt für Antony oder das Team, einen kurzen Zeitraum und die Kennzahl, mit der der Erfolg geprüft wird.",
         "Formuliere Maßnahmen als Empfehlung, nicht als bewiesene Lösung oder Erfolgsgarantie. Bei unklarer Ursache empfehle zuerst einen konkreten Prüf- oder Lernschritt statt pauschal mehr Anrufe, Druck oder neue Zielwerte zu verlangen.",
@@ -123,8 +125,12 @@ async function createReview(apiKey: string, model: string, input: ReviewInput) {
   if (!input.changes.data_basis.trend_reliable) {
     const current = input.current_week;
     const previous = input.previous_week;
-    const delta = Math.round((current.funnel.appointment_rate - previous.funnel.appointment_rate) * 100) / 100;
-    sentences[2] = `Vorwochenvergleich eingeschränkt: aktuell ${current.funnel.appointments} Termine und ${current.closing.closer_calls} Closer Calls, zuvor ${previous.funnel.appointments} und ${previous.closing.closer_calls}; die Terminquote veränderte sich rechnerisch um ${delta.toLocaleString("de-DE")} Prozentpunkte.`;
+    const currentRate = current.funnel.appointment_rate;
+    const previousRate = previous.funnel.appointment_rate;
+    const trend = currentRate === null || previousRate === null
+      ? "die Terminquote ist ohne Grundgesamtheit nicht vergleichbar"
+      : `die Terminquote veränderte sich rechnerisch um ${(Math.round((currentRate - previousRate) * 100) / 100).toLocaleString("de-DE")} Prozentpunkte`;
+    sentences[2] = `Vorwochenvergleich eingeschränkt: aktuell ${current.funnel.appointments ?? "unbekannt viele"} Termine und ${current.closing.closer_calls ?? "unbekannt viele"} Closer Calls, zuvor ${previous.funnel.appointments ?? "unbekannt viele"} und ${previous.closing.closer_calls ?? "unbekannt viele"}; ${trend}.`;
   }
   return {
     sentences,
@@ -197,19 +203,21 @@ Deno.serve(async (request) => {
     }
 
     const previousWeekStart = addDays(week.start, -7);
-    const [currentResult, previousResult] = await Promise.all([
+    const [currentResult, previousResult, currentProcess, previousProcess] = await Promise.all([
       supabase.rpc("get_weekly_review_kpis", { p_week_start: week.start }),
       supabase.rpc("get_weekly_review_kpis", { p_week_start: previousWeekStart }),
+      supabase.rpc("get_antony_process_metrics_internal", { p_period: "week", p_reference_date: week.end }),
+      supabase.rpc("get_antony_process_metrics_internal", { p_period: "week", p_reference_date: addDays(previousWeekStart, 4) }),
     ]);
     if (
-      currentResult.error || previousResult.error
-      || !currentResult.data || !previousResult.data
+      currentResult.error || previousResult.error || currentProcess.error || previousProcess.error
+      || !currentResult.data || !previousResult.data || !currentProcess.data || !previousProcess.data
     ) {
       throw new Error("weekly_review_facts_failed");
     }
 
-    const currentWeek = buildModelInput(currentResult.data);
-    const previousWeek = buildModelInput(previousResult.data);
+    const currentWeek = buildModelInput({...currentResult.data, process: currentProcess.data});
+    const previousWeek = buildModelInput({...previousResult.data, process: previousProcess.data});
     const changes = buildWeeklyComparison(currentWeek, previousWeek);
     const facts = { current_week: currentWeek, previous_week: previousWeek, changes };
     const generated = await createReview(requiredEnvironment("OPENAI_API_KEY"), model, {

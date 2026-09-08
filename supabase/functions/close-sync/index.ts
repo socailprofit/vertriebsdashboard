@@ -1,19 +1,19 @@
+import { CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
+  LEAD_SOURCES,
   CUSTOM_FIELDS,
   MAPPING_VERSION,
   REPORTING_TIMEZONE,
   SALES_PIPELINE,
   leadAttribution,
   mapCall,
-  mapCustomActivity,
   mapNewsletterSend,
   mapWonOpportunity,
   metricTimeInReportingTimezone,
   type ActivityFact,
   type CloseCall,
-  type CloseCustomActivity,
   type CloseOpportunity,
   type CloseNewsletterEmail,
 } from "../_shared/close-mapping.ts";
@@ -23,10 +23,8 @@ const SALES_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
 const CUSTOM_ACTIVITY_USER_IDS = [...SALES_USER_IDS, CLOSE_USERS.antony];
 const MAX_RANGE_DAYS = 31;
 const RETENTION_MONTHS = 3;
-// /activity/call/ and /activity/custom/ sort by date_created and expose no
-// _order_by, so an activity_at filter is refused. Fetch a wider creation-time
-// window and pick the reporting day from activity_at below. Logging happens on
-// the day of the call, so two days absorb late entries and the Berlin offset.
+// Call imports retain the existing creation-time buffer. Custom activities
+// are fully paginated without a creation cutoff and reconciled by activity_at.
 const ACTIVITY_FETCH_BUFFER_DAYS = 2;
 const PAGE_SIZE = 100;
 const MAX_RECORDS_PER_RESOURCE = 20_000;
@@ -211,18 +209,6 @@ async function settle<T>(request: Promise<T[]>): Promise<{ value: T[]; failure: 
   }
 }
 
-function normalizeCustomActivity(record: JsonRecord): CloseCustomActivity {
-  return {
-    id: String(record.id),
-    lead_id: String(record.lead_id),
-    user_id: typeof record.user_id === "string" ? record.user_id : null,
-    activity_at: String(record.activity_at),
-    custom_activity_type_id: String(record.custom_activity_type_id),
-    status: record.status === "draft" ? "draft" : "published",
-    custom_fields: customFieldsFrom(record),
-  };
-}
-
 function rawActivityRow(record: JsonRecord, type: "call" | "custom_activity") {
   return {
     close_activity_id: String(record.id),
@@ -256,6 +242,7 @@ function activityFactRow(fact: ActivityFact) {
     setter_successes: fact.setterSuccesses,
     closer_calls: fact.closerCalls,
     closer_second_calls: fact.closerSecondCalls,
+    closer_decided_calls: fact.closerDecidedCalls,
     closer_sales: fact.closerSales,
     no_shows: fact.noShows,
     cancellations: fact.cancellations,
@@ -345,6 +332,13 @@ Deno.serve(async (request) => {
     const trigger = syncTrigger(body.trigger);
     const scheduled = trigger === "supabase-cron";
     const newsletterOnly = body.newsletterOnly === true;
+    const snapshotStartedAt = new Date().toISOString();
+    const today = dateInBerlin(new Date());
+    const retentionStart = rollingRetentionStart(today);
+    const reconciliationEnd = today;
+    if (startDate < retentionStart || endDate > today) {
+      return response(400, { ok: false, error: "outside_retention_window", retentionStart, today });
+    }
     const nextDate = addDays(endDate, 1);
     const startTimestamp = berlinMidnightUtc(startDate);
     const endTimestamp = berlinMidnightUtc(nextDate);
@@ -385,13 +379,14 @@ Deno.serve(async (request) => {
         user_id: SALES_USER_IDS.join(","),
       })),
       settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
-        ...activityWindow,
         user_id: CUSTOM_ACTIVITY_USER_IDS.join(","),
+        _fields: CUSTOM_RECONCILIATION_FIELDS.join(","),
       })),
       settle(newsletterOnly ? Promise.resolve([]) : closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
         status_id__in: [...SALES_PIPELINE.wonStatusIds].join(","),
-        date_won__gte: startDate,
-        date_won__lt: nextDate,
+        // Date-only values and UTC timestamps both map to a Berlin date below.
+        date_won__gte: addDays(retentionStart, -1),
+        date_won__lt: addDays(reconciliationEnd, 2),
       })),
       settle(closeList<CloseNewsletterEmail>(closeApiKey, "/activity/email/", {
         _fields: "id,sequence_id,user_id,date_sent,direction,status",
@@ -424,9 +419,10 @@ Deno.serve(async (request) => {
       return activityAt >= startMilliseconds && activityAt < endMilliseconds;
     };
     const rawCalls = callResult.value.filter(withinReportingWindow);
-    const rawCustomActivities = customResult.value.filter(withinReportingWindow);
+    const reconciled = prepareCustomReconciliation(customResult.value, retentionStart, reconciliationEnd);
+    const rawCustomActivities = reconciled.raw;
     const opportunities = opportunityResult.value;
-    const retentionStart = rollingRetentionStart(endDate);
+
     const newsletterSends = [...new Map(newsletterResult.value
       .map(mapNewsletterSend)
       .filter((send): send is NonNullable<typeof send> => send !== null)
@@ -436,29 +432,32 @@ Deno.serve(async (request) => {
       }).map((send) => [send.emailId, send])).values()];
 
     const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
-    const customFacts = rawCustomActivities.map(normalizeCustomActivity).map(mapCustomActivity)
-      .filter((fact): fact is ActivityFact => fact !== null);
+    const customFacts = reconciled.facts;
     const activityFacts = [...callFacts, ...customFacts];
 
-    const leadIds = [...new Set(opportunities.map((opportunity) => opportunity.lead_id))];
+    const leadIds = [...new Set([...opportunities.map((opportunity) => opportunity.lead_id),
+      ...customFacts.filter(fact => fact.setterCalls === 1 || fact.appointments === 1).map(fact => fact.leadId).filter((id): id is string => id !== null)])];
+    const leadReportingRows: Array<{lead_id:string;opener_close_user_id:string|null;lead_source:string|null}> = [];
     const leadAttributions = new Map<string, ReturnType<typeof leadAttribution>>();
     for (let index = 0; index < leadIds.length; index += 10) {
       await Promise.all(leadIds.slice(index, index + 10).map(async (leadId) => {
         const lead = await closeRequest<JsonRecord>(closeApiKey, `/lead/${leadId}/`, {
-          _fields: ["id", `custom.${CUSTOM_FIELDS.leadOpener}`, `custom.${CUSTOM_FIELDS.leadSetter}`, `custom.${CUSTOM_FIELDS.leadCloser}`].join(","),
+          _fields: ["id", `custom.${CUSTOM_FIELDS.leadOpener}`, `custom.${CUSTOM_FIELDS.leadSetter}`, `custom.${CUSTOM_FIELDS.leadCloser}`, `custom.${CUSTOM_FIELDS.leadSource}`].join(","),
         });
-        leadAttributions.set(leadId, leadAttribution(customFieldsFrom(lead)));
+        const fields = customFieldsFrom(lead);
+        const attribution = leadAttribution(fields);
+        leadAttributions.set(leadId, attribution);
+        const source = fields.find(field => field.id === CUSTOM_FIELDS.leadSource)?.value;
+        leadReportingRows.push({lead_id:leadId, opener_close_user_id:attribution.openerUserId,
+          lead_source:typeof source === "string" && LEAD_SOURCES.has(source) ? source : null});
       }));
     }
 
-    const mappedDeals = opportunities.map((opportunity) => mapWonOpportunity(
-      opportunity,
-      leadAttributions.get(opportunity.lead_id) ?? { openerUserId: null, setterUserId: null, closerUserId: null },
-    ));
-    const deals = mappedDeals.filter((deal): deal is NonNullable<typeof deal> => deal !== null);
+    const deals = prepareWonReconciliation(opportunities, leadAttributions, retentionStart, reconciliationEnd);
+    const leadReporting = prepareLeadReportingSnapshot(leadReportingRows, customFacts, deals);
     const warnings: string[] = [];
-    const unassignedDeals = opportunities.length - deals.length;
-    if (unassignedDeals > 0) warnings.push(`${unassignedDeals} won opportunities could not be assigned to an opener.`);
+    const unassignedDeals = deals.filter(deal => !deal.openerCloseUserId).length;
+    if (unassignedDeals > 0) warnings.push(`${unassignedDeals} won opportunities have no opener; closer attribution is retained.`);
     const recurringValueDeals = deals.filter((deal) => deal.valuePeriod !== "one_time").length;
     if (recurringValueDeals > 0) warnings.push(`${recurringValueDeals} recurring opportunities count as deals but not as one-time revenue.`);
     if (activitiesWithoutTimestamp > 0) {
@@ -487,7 +486,7 @@ Deno.serve(async (request) => {
           setter_close_user_id: deal.setterCloseUserId,
           closer_close_user_id: deal.closerCloseUserId,
           won_at: deal.wonAt,
-          won_date: deal.wonAt.slice(0, 10),
+          won_date: deal.wonDate,
           status_id: source?.status_id,
           value_cents: deal.valueCents,
           value_period: deal.valuePeriod,
@@ -495,9 +494,21 @@ Deno.serve(async (request) => {
           payload: source ?? {},
         };
       });
-      await upsertBatches(supabase, "close_raw_activities", rawRows, "close_activity_id");
-      await upsertBatches(supabase, "close_activity_facts", factRows, "source_activity_id");
-      await upsertBatches(supabase, "close_opportunity_facts", opportunityRows, "opportunity_id");
+      // Calls keep their explicitly requested daily range. Custom activities
+      // and Won records reconcile the entire retained window atomically.
+      await upsertBatches(supabase, "close_raw_activities", rawRows.filter(row => row.activity_type === "call"), "close_activity_id");
+      await upsertBatches(supabase, "close_activity_facts", factRows.filter(row => row.source_type === "call"), "source_activity_id");
+      if (!newsletterOnly) {
+        const { error } = await supabase.rpc("reconcile_close_custom_and_won", {
+          p_start_date: retentionStart, p_end_date: reconciliationEnd,
+          p_snapshot_started_at: snapshotStartedAt,
+          p_raw: rawRows.filter(row => row.activity_type === "custom_activity"),
+          p_facts: factRows.filter(row => row.source_type === "custom_activity"),
+          p_opportunities: opportunityRows,
+          p_leads: leadReporting,
+        });
+        if (error) throw supabaseError("rpc reconcile_close_custom_and_won", error);
+      }
       // One atomic replacement also removes deleted/reassigned sends and old
       // completion counts. Only the newsletter KPI is backfilled historically.
       const { error: newsletterError } = await supabase.rpc("replace_newsletter_sends", {
@@ -506,7 +517,7 @@ Deno.serve(async (request) => {
       if (newsletterError) throw supabaseError("rpc replace_newsletter_sends", newsletterError);
       if (!newsletterOnly) {
         const { error: recalculateError } = await supabase.rpc("recalculate_daily_sales_metrics", {
-          p_start_date: startDate, p_end_date: endDate,
+          p_start_date: retentionStart, p_end_date: reconciliationEnd,
         });
         if (recalculateError) throw supabaseError("rpc recalculate_daily_sales_metrics", recalculateError);
       }
@@ -543,7 +554,13 @@ Deno.serve(async (request) => {
         newsletterSends: newsletterSends.length,
       },
       mapped: { activities: activityFacts.length, deals: deals.length, newsletterSends: newsletterSends.length },
-      people: summarize(activityFacts, deals, newsletterSends, startTimestamp, endTimestamp),
+      reconciliationRange: { startDate: retentionStart, endDate: reconciliationEnd },
+      leadReporting: {total:leadReporting.length, missingSource:leadReporting.filter(row => !row.lead_source).length, missingOpener:leadReporting.filter(row => !row.opener_close_user_id).length},
+      closingReconciliation: closingReconciliationTotals(customFacts, retentionStart, reconciliationEnd),
+      people: summarize(activityFacts.filter(fact => {
+        const day = metricTimeInReportingTimezone(fact.occurredAt).metricDate;
+        return day >= startDate && day <= endDate;
+      }), deals.filter(deal => deal.wonDate >= startDate && deal.wonDate <= endDate), newsletterSends, startTimestamp, endTimestamp),
       warnings,
       syncRunId,
     });

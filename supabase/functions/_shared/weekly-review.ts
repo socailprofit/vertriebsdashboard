@@ -1,3 +1,23 @@
+import { LEAD_SOURCES } from "./close-mapping.ts";
+
+export function kpiRate(numerator: unknown, denominator: unknown): number | null {
+  const n = kpiCount(numerator), d = kpiCount(denominator);
+  return n !== null && d !== null && d > 0 ? Math.round(n / d * 10000) / 100 : null;
+}
+
+export const KPI_RULES = [
+  "Durchstellung: nur exakt durchgestellt / bewertbare Vorzimmerkontakte; GF/CEO nicht erreichbar, Mailbox, ausserhalb Geschaeftszeit und direkte Entscheider ausgeschlossen. Anrufzahlen bleiben erhalten.",
+  "Setter-Conversion: Closer terminiert / durchgefuehrte Setter Calls; Michael, Felix und Antony nach Aktivitaetsnutzer. Keine Showrate.",
+  "Closer: Antony nach Aktivitaetsnutzer. Abschlussquote: Verkauft / explizite Entscheidungen (Verkauft oder Nicht verkauft). Offene CC2 und fehlende Ergebnisse sind keine Entscheidungen.",
+  "Periodenverhaeltnisse verbinden unterschiedliche Ereignisse desselben Zeitraums; keine Kohortenconversion und keine Teilnahmequote. Werte ueber 100 Prozent sind moeglich. Keine Ursache oder Funnelverluste daraus behaupten.",
+  "Kundenabschluesse: Won-Datum und Lead-Feld 3.03 Closer; Status Kunde, keine Upsells. Aeltere Termine koennen erst jetzt gewonnen werden.",
+  "Null bedeutet keine Grundgesamtheit. Weder null noch fehlende Historie als 0 Prozent oder Leistungsverlust bewerten.",
+  "Leadqualitaet: letztes Setter-Ergebnis je eindeutigem Lead, getrennt nach Quelle und Terminlieferant. Terminlieferant aus Buchungsaktivitaet, nur explizit gekennzeichnete Ersatzzuordnung aus aktuellem Opener-Feld. Aktuelle Leadquelle ist keine historische Zuordnung.",
+  "Buchungskohorte: eindeutige Leads mit Terminbuchung im Zeitraum und danach dokumentierte Ergebnisse bis Stichtag. Wiederholte Buchungen zaehlen einmal. Anteil im Setter ist Fortschritt bis Stichtag, keine bereinigte Showrate; offene Termine, No-Shows und Absagen sind keine Disqualifikationen.",
+  "Follow-up-Kontakte, Setter-Follow-ups und CC2-Vereinbarungen sind protokollierte Ereignisse; nicht automatisch aktuell offen. Leadqualitaet auf kleinen Stichproben nicht als endgueltige Rangliste bewerten.",
+  "Pipeline ist eine aus gespeicherten Ereignissen abgeleitete Momentaufnahme, keine vollstaendige aktuelle Close-Pipeline.",
+];
+
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 
 type JsonRecord = Record<string, unknown>;
@@ -13,9 +33,10 @@ function record(value: unknown): JsonRecord {
   return typeof value === "object" && value !== null ? value as JsonRecord : {};
 }
 
-function number(value: unknown): number {
+export function kpiCount(value: unknown): number | null {
+  if ((typeof value !== "number" && typeof value !== "string") || value === "" || (typeof value === "string" && !value.trim())) return null;
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function boolean(value: unknown): boolean {
@@ -96,34 +117,78 @@ export function buildModelInput(source: unknown) {
       timezone: REPORTING_TIMEZONE,
     },
     funnel: {
-      calls_gross: number(funnel.calls_gross),
-      calls_net: number(funnel.calls_net),
-      net_rate: number(funnel.net_rate),
-      gatekeeper_contacts: number(funnel.gatekeeper_contacts),
-      connected_calls: number(funnel.connected_calls),
-      transfer_rate: number(funnel.transfer_rate),
-      decision_maker_contacts: number(funnel.decision_maker_contacts),
-      appointments: number(funnel.appointments),
-      appointment_rate: number(funnel.appointment_rate),
+      calls_gross: kpiCount(funnel.calls_gross),
+      calls_net: kpiCount(funnel.calls_net),
+      net_rate: kpiRate(funnel.calls_net, funnel.calls_gross),
+      gatekeeper_contacts: kpiCount(funnel.gatekeeper_contacts),
+      connected_calls: kpiCount(funnel.connected_calls),
+      transfer_rate: kpiRate(funnel.connected_calls, funnel.gatekeeper_contacts),
+      decision_maker_contacts: kpiCount(funnel.decision_maker_contacts),
+      appointments: kpiCount(funnel.appointments),
+      appointment_rate: kpiRate(funnel.appointments, funnel.decision_maker_contacts),
     },
+    kpi_rules: KPI_RULES,
+    process: buildProcessInput(root.process),
     closing: {
-      setter_calls: number(closing.setter_calls),
-      setter_successes: number(closing.setter_successes),
-      setter_show_rate: number(closing.setter_show_rate),
-      closer_calls: number(closing.closer_calls),
-      closer_show_rate: number(closing.closer_show_rate),
-      cc2_agreed: number(closing.cc2_agreed),
-      cc2_rate: number(closing.cc2_rate),
-      decided_closer_calls: number(closing.decided_closer_calls),
-      closer_sales: number(closing.closer_sales),
-      closer_close_rate: number(closing.closer_close_rate),
-      new_customers: number(closing.new_customers),
-      appointment_to_closer_rate: number(closing.appointment_to_closer_rate),
+      appointments: kpiCount(closing.appointments),
+      setter_calls: kpiCount(closing.setter_calls),
+      setter_successes: kpiCount(closing.setter_successes),
+      setter_conversion_rate: kpiRate(closing.setter_successes, closing.setter_calls),
+      closer_calls: kpiCount(closing.closer_calls),
+      closer_period_ratio: kpiRate(closing.closer_calls, closing.setter_successes),
+      cc2_agreed: kpiCount(closing.cc2_agreed),
+      cc2_rate: kpiRate(closing.cc2_agreed, closing.closer_calls),
+      decided_closer_calls: kpiCount(closing.decided_closer_calls),
+      closer_sales: kpiCount(closing.closer_sales),
+      closer_close_rate: kpiRate(closing.closer_sales, closing.decided_closer_calls),
+      new_customers: kpiCount(closing.new_customers),
+      appointment_to_closer_period_ratio: kpiRate(closing.closer_calls, closing.appointments),
     },
     data_basis: {
-      too_small: boolean(basis.too_small),
+      too_small: boolean(basis.too_small) || kpiCount(funnel.appointments) === null || kpiCount(closing.closer_calls) === null,
       rule: "Zu klein bei weniger als 5 Terminen oder weniger als 5 Closer Calls.",
     },
+  };
+}
+
+export const PROCESS_COUNT_KEYS = [
+  "followup_contacts", "further_followups", "followup_appointments", "followup_disqualified", "followup_no_interest",
+  "setter_calls", "setter_qualified", "setter_followups", "setter_disqualified", "setter_unrated",
+  "setter_no_shows", "setter_cancellations", "setter_rescheduled", "closer_no_shows", "closer_cancellations", "closer_rescheduled",
+  "closer_calls", "cc1_sales", "cc2_sales", "cc2_agreed", "closer_lost", "closer_unrated",
+] as const;
+const QUALITY_KEYS = ["assessed_leads", "qualified", "followup", "disqualified", "unrated"] as const;
+const COHORT_KEYS = ["booked_leads", "setter_arrived", "not_in_setter", "pending", "no_show", "cancelled", "rescheduled", "qualified", "followup", "disqualified", "unrated", "closer_arrived", "sold_leads", "new_customers"] as const;
+function counts(source: unknown, keys: readonly string[]) {
+  const row = record(source);
+  return Object.fromEntries(keys.map(key => [key, kpiCount(row[key])]));
+}
+function safeQualityDimensions(source: unknown) {
+  const row = record(source);
+  return {
+    source: typeof row.source === "string" && LEAD_SOURCES.has(row.source) ? row.source : "Nicht zugeordnet",
+    owner: ["michael", "felix", "antony", "other", "unassigned"].includes(String(row.owner)) ? String(row.owner) : "unassigned",
+  };
+}
+// Only categorical labels and aggregates: never lead IDs, names, notes or email.
+export function buildProcessInput(source: unknown) {
+  const root = record(source), period = record(root.period);
+  return {
+    period: {start: dateString(period.start), end: dateString(period.end), timezone: REPORTING_TIMEZONE},
+    activity: counts(root.activity, PROCESS_COUNT_KEYS),
+    lead_quality: counts(root.lead_quality, QUALITY_KEYS),
+    quality_by_source: (Array.isArray(root.quality_by_source) ? root.quality_by_source : []).slice(0,225).map(value => {
+      const row = record(value);
+      return {...safeQualityDimensions(row), ...counts(row, QUALITY_KEYS),
+        attribution: ["booking_activity", "current_opener", "unassigned"].includes(String(row.attribution)) ? row.attribution : "unassigned",
+        qualified_share: kpiRate(row.qualified, row.assessed_leads)};
+    }),
+    booking_cohort: (Array.isArray(root.booking_cohort) ? root.booking_cohort : []).slice(0,75).map(value => {
+      const row = record(value);
+      return {...safeQualityDimensions(row), ...counts(row, COHORT_KEYS),
+        setter_arrival_progress: kpiRate(row.setter_arrived, row.booked_leads),
+        qualified_share_of_arrivals: kpiRate(row.qualified, row.setter_arrived)};
+    }),
   };
 }
 
@@ -138,15 +203,15 @@ export function buildPipelineInput(source: unknown) {
     as_of: dateString(root.as_of),
     timezone: REPORTING_TIMEZONE,
     window_start: dateString(root.window_start),
-    retention_months: number(root.retention_months),
+    retention_months: kpiCount(root.retention_months),
     counts: {
-      total_open: number(counts.total_open),
-      setter_pending: number(counts.setter_pending),
-      closer_scheduled: number(counts.closer_scheduled),
-      rescheduled_closer: number(counts.rescheduled_closer),
-      pending_decision_cc2: number(counts.pending_decision_cc2),
-      from_previous_months: number(counts.from_previous_months),
-      older_than_14_days: number(counts.older_than_14_days),
+      total_open: kpiCount(counts.total_open),
+      setter_pending: kpiCount(counts.setter_pending),
+      closer_scheduled: kpiCount(counts.closer_scheduled),
+      rescheduled_closer: kpiCount(counts.rescheduled_closer),
+      pending_decision_cc2: kpiCount(counts.pending_decision_cc2),
+      from_previous_months: kpiCount(counts.from_previous_months),
+      older_than_14_days: kpiCount(counts.older_than_14_days),
     },
     oldest_open_date: dateString(root.oldest_open_date),
     interpretation: "Punktuelle, aggregierte offene Funnel-Stufen aus dem rollierenden Drei-Monats-Fenster; keine Ursachen oder aktiven Close-Opportunity-Statuswerte.",
@@ -175,14 +240,15 @@ const CLOSING_COUNT_KEYS = [
 ] as const;
 
 const CLOSING_RATE_KEYS = [
-  "setter_show_rate",
-  "closer_show_rate",
+  "setter_conversion_rate",
+  "closer_period_ratio",
   "cc2_rate",
   "closer_close_rate",
-  "appointment_to_closer_rate",
+  "appointment_to_closer_period_ratio",
 ] as const;
 
-function roundedDelta(current: number, previous: number) {
+function roundedDelta(current: number | null, previous: number | null) {
+  if (current === null || previous === null) return null;
   return Math.round((current - previous) * 100) / 100;
 }
 
@@ -190,11 +256,11 @@ function roundedDelta(current: number, previous: number) {
 // sind bei Social Profit der normale Arbeitsbereich und damit keine besondere
 // Staerke. Unter 70 Prozent entsteht ein konkreter Pruefhinweis fuer die
 // Leadlistenqualitaet; eine Ursache wird daraus weiterhin nicht behauptet.
-export function classifyNetRate(netRate: number, callsGross: number) {
-  if (callsGross <= 0) {
+export function classifyNetRate(netRate: number | null, callsGross: number | null) {
+  if (callsGross === null || callsGross <= 0 || netRate === null) {
     return {
       status: "no_data",
-      interpretation: "Keine Brutto-Anrufe; die Nettoquote ist nicht bewertbar.",
+      interpretation: "Keine belastbare Grundgesamtheit; die Nettoquote ist nicht bewertbar.",
     };
   }
   if (netRate < 70) {

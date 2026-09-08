@@ -1,17 +1,17 @@
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-07-gf-outcome";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-sales-pipeline";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-07-gf-outcome";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-sales-pipeline";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-07-gf-outcome";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-07-gf-outcome";
+import * as data from "./data.js?v=2026-09-08-sales-pipeline";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-sales-pipeline";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-07-gf-outcome";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-07-gf-outcome";
+} from "./call-time-score.mjs?v=2026-09-08-sales-pipeline";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-sales-pipeline";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -62,7 +62,7 @@ const targetFields = [
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  antony: ["Closer-Strecke", "Antony im Fokus", "Termine von Michael und Felix bis zum Neukunden kompakt nachverfolgt."],
+  antony: ["Closer-Strecke", "Antony im Fokus", "Termine und Setter des Teams bis zum Neukunden kompakt nachverfolgt."],
   chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
   betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
@@ -82,6 +82,9 @@ const state = {
   targets: [],
   closing: null,
   antonyPipeline: null,
+  antonyProcess: null,
+  antonyProcessQuarter: null,
+  antonyProcessFilters: {source:"all",owner:"all"},
   antonyPerformance: [],
   antonyGoal: null,
   antonyCustomerValueCents: 0,
@@ -333,7 +336,7 @@ async function loadAll() {
     : data.loadAntonyClosingMetrics("month", state.referenceDate);
   const [
     series, targets, antonyGoal, plannerMetricRows, closing, plannerClosing,
-    antonyPipeline, antonyPerformance,
+    antonyPipeline, antonyPerformance, antonyProcess, antonyProcessQuarter,
   ] = await Promise.all([
     // Tag bleibt ein einzelner Tag. Woche und Monat verwenden die gerade von
     // der Datenbank bestätigten Grenzen, nicht einen 14-Tage-Ersatzbereich.
@@ -355,6 +358,9 @@ async function loadAll() {
     antonyAccess
       ? data.loadAntonyPerformanceSeries(state.period, state.referenceDate).catch(() => [])
       : Promise.resolve([]),
+    antonyAccess ? data.loadAntonyProcessMetrics(state.period, state.referenceDate).catch(() => null) : Promise.resolve(null),
+    antonyAccess && state.period === "month"
+      ? data.loadAntonyProcessMetrics("three_months", state.referenceDate).catch(() => null) : Promise.resolve(null),
   ]);
   state.series = series;
   state.targets = targets;
@@ -367,6 +373,8 @@ async function loadAll() {
   ].some((value) => value !== null) ? "custom" : "current";
   state.closing = closing;
   state.antonyPipeline = antonyPipeline;
+  state.antonyProcess = antonyProcess;
+  state.antonyProcessQuarter = antonyProcessQuarter;
   state.antonyPerformance = antonyPerformance;
   state.antonyPlannerMetrics = {};
   plannerMetricRows.forEach((row) => { state.antonyPlannerMetrics[row.slug] = toPerson(row); });
@@ -776,9 +784,9 @@ function renderAntonyPotential() {
     ["Felix", number(actual.felixAppointments), `${projected(forecast.projectedFelixAppointments)} Termine im Monatskurs`],
     ["Gesamttermine", number(actual.appointments), `${projected(forecast.projectedAppointments)} bis Monatsende erwartet`],
     ["Closer-Termine", number(actual.closerAppointments), `${projected(forecast.projectedCloserAppointments)} bis Monatsende erwartet`],
-    ["Shows", number(actual.closerCalls), `${projected(forecast.projectedCloserCalls)} bis Monatsende erwartet`],
+    ["Closer durchgeführt", number(actual.closerCalls), `${projected(forecast.projectedCloserCalls)} bis Monatsende erwartet`],
     ["Neukunden gesamt", number(actual.newCustomers), `${projected(forecast.projectedCustomers)} bis Monatsende erwartet`],
-    ["IST-Umsatz", customerValueAvailable ? euros(forecast.actualRevenueCents) : "—", customerValueAvailable ? "Neukunden bisher × Kundenwert" : "Oben nur den Kundenwert eintragen"],
+    ["Modellwert bisher", customerValueAvailable ? euros(forecast.actualRevenueCents) : "—", customerValueAvailable ? "Neukunden bisher × Kundenwert" : "Oben nur den Kundenwert eintragen"],
     ["Monatsprognose", customerValueAvailable ? euros(forecast.projectedRevenueCents) : "—", customerValueAvailable && forecast.projectedRevenueCents !== null ? `${projected(forecast.additionalCustomers)} weitere Neukunden im Kurs` : "Sobald alle Ist-Raten belastbar sind"],
   ];
 
@@ -805,7 +813,7 @@ function renderAntonyPlannerResults(goal) {
 
   const blockingRates = [
     ["Termin → Closer-Termin", plan.effectiveRates.appointmentToCloser],
-    ["Showrate", plan.effectiveRates.show],
+    ["Durchführung / Terminierung", plan.effectiveRates.show],
     ["Closingrate", plan.effectiveRates.closing],
   ].filter(([, value]) => value === null || value <= 0).map(([label, value]) => value === 0 ? `${label} (aktuell 0 %)` : label);
 
@@ -822,7 +830,7 @@ function renderAntonyPlannerResults(goal) {
   }
 
   const pipeline = [
-    ["Termine von Michael + Felix", plan.requiredAppointments, actual.appointments],
+    ["Termine des gesamten Teams", plan.requiredAppointments, actual.appointments],
     ["Closer-Termine", plan.requiredCloserAppointments, actual.closerAppointments],
     ["Entschiedene Closer Calls", plan.requiredDecidedCloserCalls, actual.decidedCloserCalls],
     ["Neukunden gesamt", plan.requiredCustomers, actual.newCustomers],
@@ -841,7 +849,7 @@ function renderAntonyPlannerResults(goal) {
 
   const rates = [
     ["Termin → Closer", plan.effectiveRates.appointmentToCloser, goal.appointmentToCloserRateOverride],
-    ["Showrate", plan.effectiveRates.show, goal.showRateOverride],
+    ["Durchführung / Terminierung", plan.effectiveRates.show, goal.showRateOverride],
     ["Closingrate", plan.effectiveRates.closing, goal.closingRateOverride],
   ].map(([label, value, override]) => `
     <span><b>${decimal(value)} %</b> ${label}<small>${override === null ? "aktuell" : "gesetzt"}</small></span>`).join("");
@@ -849,7 +857,7 @@ function renderAntonyPlannerResults(goal) {
   const workdays = remainingPlannerWorkdays();
   const anchor = state.referenceDate === berlinToday() ? "Ab dem nächsten Arbeitstag" : `Nach dem ${germanDate(state.referenceDate)}`;
   const pace = workdays > 0
-    ? `${anchor} bleiben ${number(workdays)} Arbeitstage: Ø ${decimal(plan.gaps.appointments / workdays)} Termine von Michael/Felix und Ø ${decimal(plan.gaps.closerAppointments / workdays)} Closer-Termine pro Arbeitstag.`
+    ? `${anchor} bleiben ${number(workdays)} Arbeitstage: Ø ${decimal(plan.gaps.appointments / workdays)} Termine des gesamten Teams und Ø ${decimal(plan.gaps.closerAppointments / workdays)} Closer-Termine pro Arbeitstag.`
     : `Der gewählte Zeitraum enthält ab dem Stichtag keine weiteren Arbeitstage. Offen bleiben ${number(plan.gaps.appointments)} Termine und ${number(plan.gaps.customers)} Neukunden.`;
 
   container.innerHTML = `
@@ -937,6 +945,7 @@ function renderAntony() {
   const container = document.querySelector("#antony-donuts");
   const note = document.querySelector("#antony-note");
   const profile = document.querySelector("#antony-profile-avatar");
+  renderAntonyProcess();
   profile.innerHTML = renderDashboardAvatar("antony", "Antony Rigone");
   enableProfileImageFallbacks(profile);
   if (!state.closing) {
@@ -956,7 +965,7 @@ function renderAntony() {
     {
       label: "Termine", value: closing.appointments,
       rate: ratio(closing.setter_calls, closing.appointments),
-      detail: "Termine → Setter Call",
+      detail: "Setter Calls ÷ neue Termine im Zeitraum",
     },
     {
       label: "Setter Calls", value: closing.setter_calls,
@@ -966,7 +975,7 @@ function renderAntony() {
     {
       label: "Closer-Termine", value: closing.setter_successes,
       rate: ratio(closing.closer_calls, closing.setter_successes),
-      detail: `${number(closing.closer_calls)} durchgeführt`,
+      detail: `${number(closing.closer_calls)} durchgeführt · Zeitraumverhältnis`,
     },
     {
       label: "CC2 vereinbart", value: closing.closer_second_calls,
@@ -981,19 +990,20 @@ function renderAntony() {
     {
       label: "Neukunden gesamt", value: closing.new_customers,
       rate: ratio(closing.new_customers, closing.appointments),
-      detail: "Gesamtkonversion aus allen Terminen",
+      detail: "Kundenabschlüsse ÷ neue Termine · Zeitraumverhältnis",
     },
   ];
 
   container.innerHTML = charts.map((chart) => {
-    const rate = chart.rate === null ? null : Math.max(0, Math.min(100, chart.rate));
+    const rate = chart.rate;
+    const donutValue = rate === null ? 0 : Math.max(0, Math.min(100, rate));
     const displayedRate = rate === null ? "—" : percent(rate);
     const displayedValue = number(chart.value);
     const aria = `${chart.label}: ${displayedValue}; Quote ${displayedRate}`;
     return `
       <article class="antony-metric">
         <div class="donut ${rate === null ? "is-empty" : ""}"
-             style="--donut-value:${rate ?? 0}"
+             style="--donut-value:${donutValue}"
              role="img" aria-label="${escapeHtml(aria)}">
           <span>${displayedRate}</span>
         </div>
@@ -1005,7 +1015,7 @@ function renderAntony() {
       </article>`;
   }).join("");
 
-  note.textContent = "Termine und Setter stammen von Michael und Felix. Closer-Termine sind erfolgreiche Setter Calls. Closer Calls, CC2 und Abschlüsse im Gespräch zählen am tatsächlichen Gesprächstermin in Europe/Berlin. Neukunden gesamt zählen im Monat des Won-Datums – also wenn der Kunde zugesagt hat – und werden über das Close-Feld 3.03 Closer Antony zugeordnet.";
+  note.textContent = "Termine und Setter stammen von Michael, Felix und Antony. Closer-Termine sind erfolgreiche Setter Calls. Closer Calls, CC2 und Abschlüsse im Gespräch zählen am tatsächlichen Gesprächstermin in Europe/Berlin. Neukunden gesamt zählen im Monat des Won-Datums – also wenn der Kunde zugesagt hat – und werden über das Close-Feld 3.03 Closer Antony zugeordnet; Upsells zählen nicht als Neukunden. Die Zeitraumverhältnisse verbinden unterschiedliche Ereignisse und sind keine Teilnahme- oder Kohortenquoten. Sie können über 100 % liegen. Umsatzmodelle basieren auf dem eingegebenen Kundenwert, nicht auf realem CRM-Umsatz.";
   renderAntonyPerformance();
   renderAntonyPipeline();
   renderAntonyPotential();
@@ -1028,7 +1038,7 @@ function renderAntonyPerformance() {
   const rows = Array.isArray(state.antonyPerformance) ? state.antonyPerformance : [];
   const closing = state.closing ?? {};
   const summaryValues = [
-    ["Termine", closing.appointments ?? 0, "Michael + Felix"],
+    ["Termine", closing.appointments ?? 0, "Michael + Felix + Antony"],
     ["Closer terminiert", closing.setter_successes ?? 0, "aus Setter Calls"],
     ["Closer durchgeführt", closing.closer_calls ?? 0, "Antony"],
     ["Neukunden", closing.new_customers ?? 0, "Won-Datum"],
@@ -1097,8 +1107,123 @@ function renderAntonyPerformance() {
     ${chartValuesTable(rows.map((row) => row.bucket_label), visibleSeries.map((series) => ({ label: series.label, values: rows.map((row) => row[series.key]) })), "Anzahl, aufsummiert")}`;
 
   note.textContent = state.period === "day"
-    ? "Jeder Punkt zeigt die bis zu diesem Stundenabschnitt aufsummierte Anzahl; eine waagerechte Linie bedeutet keinen Zuwachs. Angezeigt werden die Stunden 08 bis 17 Uhr (Berlin). Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält."
+    ? `Jeder Punkt zeigt die bis zu diesem Stundenabschnitt aufsummierte Anzahl; eine waagerechte Linie bedeutet keinen Zuwachs. Zeitraum ${rows[0].bucket_label} bis ${rows.at(-1).bucket_label} Uhr (Berlin), einschließlich Gesprächen vor 08 oder nach 17 Uhr. Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält.`
     : "Jeder Punkt zeigt die seit Periodenbeginn aufsummierte Anzahl bis einschließlich dieses Kalendertags. Eine steigende Linie bedeutet neue Ereignisse, eine waagerechte Linie keinen Zuwachs. Die Farben stehen für die Stufen in der Legende; die Werte sind keine Quoten.";
+}
+
+function renderAntonyProcess() {
+  const container = document.querySelector("#antony-process-content");
+  const source = state.antonyProcess;
+  if (!source?.activity || !source?.lead_quality) {
+    container.innerHTML = `<p class="antony-analysis-empty">Detaillierte Prozessdaten sind noch nicht verfügbar.</p>`;
+    return;
+  }
+  const a = source.activity;
+  const value = n => n === null || n === undefined ? "—" : number(n);
+  const groups = [
+    ["Alle Periodenaktivitäten: Follow-ups und Setter", [
+      ["Protokollierte Follow-up-Kontakte", "followup_contacts"],
+      ["Weiteres Follow-up vereinbart", "further_followups"],
+      ["Termine aus Follow-ups", "followup_appointments"],
+      ["Im Follow-up unqualifiziert", "followup_disqualified"],
+      ["Im Follow-up kein Interesse", "followup_no_interest"],
+      ["Setter Calls durchgeführt", "setter_calls"],
+      ["Closer terminiert", "setter_qualified"],
+      ["Setter-Follow-up erforderlich", "setter_followups"],
+      ["Im Setter disqualifiziert", "setter_disqualified"],
+      ["Setter-Ergebnis fehlt / unbekannt", "setter_unrated"],
+    ]],
+    ["Alle Periodenaktivitäten: No-Shows, Absagen und Verschiebungen", [
+      ["Setter: nicht erschienen", "setter_no_shows"], ["Setter: abgesagt", "setter_cancellations"],
+      ["Setter: verschoben", "setter_rescheduled"], ["Closer: nicht erschienen", "closer_no_shows"],
+      ["Closer: abgesagt", "closer_cancellations"], ["Closer: verschoben", "closer_rescheduled"],
+    ]],
+    ["Alle Periodenaktivitäten: Closer-Ergebnisse", [
+      ["Closer Calls durchgeführt", "closer_calls"], ["Verkauft im CC1", "cc1_sales"],
+      ["CC2 vereinbart", "cc2_agreed"], ["Verkauft im CC2", "cc2_sales"],
+      ["Ausdrücklich nicht verkauft", "closer_lost"], ["Closer-Ergebnis fehlt / unbekannt", "closer_unrated"],
+    ]],
+  ];
+  const period = `${germanDate(source.period.start)} – ${germanDate(source.period.end)}`;
+  const choices = [source,state.antonyProcessQuarter].flatMap(item=>[...(item?.booking_cohort || []),...(item?.quality_by_source || [])]);
+  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
+  const sources = [...new Set(choices.map(row=>row.source))].sort();
+  const suppliers = [...new Set(choices.map(row=>row.owner))].sort();
+  const filters = state.antonyProcessFilters;
+  if (filters.source !== "all" && !sources.includes(filters.source)) filters.source = "all";
+  if (filters.owner !== "all" && !suppliers.includes(filters.owner)) filters.owner = "all";
+  const options = (items,key,labels={}) => items.map(v=>`<option value="${escapeHtml(v)}"${filters[key]===v?" selected":""}>${escapeHtml(labels[v] || v)}</option>`).join("");
+  container.innerHTML = `<div class="process-toolbar"><div><p class="process-period">${escapeHtml(period)} · Berlin</p><p class="process-scope">Im Zeitraum gebuchte Leads · Fortschritt bis zum Stichtag</p></div>
+    <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Terminlieferant<select data-process-filter="owner"><option value="all">Alle Terminlieferanten</option>${options(suppliers,"owner",owners)}</select></label></div></div>
+    ${renderProcessPipeline(source)}
+    ${renderLeadQualityTables(source)}
+    ${groups.map(([title,rows]) => `<details class="chart-values"><summary>${escapeHtml(title)} · ${escapeHtml(period)}</summary><div class="chart-table-scroll"><table><caption>Teamweit im Zeitraum, unabhängig vom Quellenfilter. Mehrere Gespräche desselben Leads zählen einzeln.</caption><thead><tr><th scope="col">Kennzahl</th><th scope="col">Anzahl</th></tr></thead><tbody>${rows.map(([label,key]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${value(a[key])}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}
+    <p class="chart-legend">Vereinbarte Follow-ups und CC2 sind Ereignisse des Zeitraums. Ob sie heute noch offen sind, lässt sich daraus allein nicht ableiten. No-Show und Absage sind getrennte Ergebnisse; ohne verlässliche Termin-Grundgesamtheit wird keine Teilnahmequote erfunden.</p>`;
+  const quarter = state.antonyProcessQuarter;
+  if (state.period === "month" && quarter?.activity) {
+    const rows = groups.flatMap(([,items]) => items);
+    container.insertAdjacentHTML("beforeend", `<details class="chart-values"><summary>Prozess im Drei-Monats-Zeitraum · ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</summary><div class="chart-table-scroll"><table><caption>Anzahl im aktuellen Monat und den zwei Vormonaten</caption><tbody>${rows.map(([label,key]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${value(quarter.activity[key])}</td></tr>`).join("")}</tbody></table></div>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}</details>`);
+  }
+}
+
+function matchesProcessFilter(row) {
+  const f = state.antonyProcessFilters;
+  return (f.source === "all" || row.source === f.source) && (f.owner === "all" || row.owner === f.owner);
+}
+
+function renderProcessPipeline(source) {
+  const rows = (source.booking_cohort || []).filter(matchesProcessFilter);
+  const total = key => rows.some(row=>row[key] === null || row[key] === undefined) ? null : rows.reduce((n,row)=>n+Number(row[key]),0);
+  const booked = total("booked_leads");
+  const format = n => n === null ? "—" : number(n);
+  const stages = [
+    {key:"booked_leads",title:"Termin gebucht",hint:"Jeder Lead einmal",detail:"Jeder Lead zählt im Zeitraum einmal. Bei mehreren Buchungen wird die erste verwendet; ihr Bucher ist der Terminlieferant."},
+    {key:"setter_arrived",title:"Im Setter",hint:"Setter Call durchgeführt",detail:"Für diese gebuchten Leads wurde danach mindestens ein Setter Call dokumentiert. Das letzte Setter-Ergebnis steht unten; wiederholte Follow-ups erhöhen die Zahl nicht."},
+    {key:"closer_arrived",title:"Im Closer",hint:"Closer Call durchgeführt",detail:"Nach der Terminbuchung ist mindestens ein durchgeführter Closer Call dokumentiert. Eine reine Terminvereinbarung zählt hier noch nicht."},
+    {key:"sold_leads",title:"Verkauft",hint:"Im Gespräch bestätigt",detail:"Ein nach der Buchung erfasstes CC1- oder CC2-Gespräch hat ausdrücklich das Ergebnis „Verkauft“. Offene CC2 und Follow-ups zählen nicht als Verlust."},
+    {key:"new_customers",title:"Neukunde",hint:"Gewonnen in Close",detail:"Nach der Buchung ist eine gewonnene Opportunity mit Status „Kunde“ erfasst. Upsells zählen nicht. Das ist ein eigener Nachweis und kann auch ohne protokolliertes Verkaufsgespräch vorliegen."},
+  ];
+  const line = (title,key) => `<div><dt>${title}</dt><dd>${format(total(key))}</dd></div>`;
+  return `<div class="process-flow" aria-label="Pipeline der gebuchten Leads"><div class="process-rail">${stages.map((stage,index)=>{
+    const n=total(stage.key),ratio=n !== null && booked > 0 ? n / booked * 100 : null;
+    return `<details class="process-stage${index===4?" process-stage-won":""}"><summary aria-label="${escapeHtml(stage.title)}: ${format(n)} Leads. Details anzeigen."><span class="process-node" aria-hidden="true">${index+1}</span><span class="process-stage-title">${stage.title}</span><strong data-process-count="${stage.key}">${format(n)}</strong><span class="process-stage-hint">${stage.hint}</span><progress max="100" value="${ratio===null?0:Math.min(100,ratio)}" aria-label="Anteil der gebuchten Leads"></progress><span class="process-stage-share">${ratio===null?"Ohne Grundgesamtheit":`${new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}).format(ratio)} % der gebuchten Leads`}</span><span class="process-detail-toggle">Details <span aria-hidden="true">⌄</span></span></summary><div class="process-stage-detail">${escapeHtml(stage.detail)}</div></details>`;
+  }).join("")}</div>
+    <p class="process-explainer">Nur im Zeitraum gebuchte Leads. Ergebnisse aus älteren Buchungen stehen in den Gesamt-KPIs. Offene Termine sind enthalten; Verkauf und Neukunde werden separat bestätigt.</p>
+    <div class="process-branches"><section><h4>Vor dem Setter <span>${format(total("not_in_setter"))} Leads</span></h4><dl>${line("Noch kein Setter / Status","pending")}${line("Nicht erschienen","no_show")}${line("Abgesagt","cancelled")}${line("Verschoben","rescheduled")}</dl></section>
+      <section><h4>Ergebnis im Setter <span>${format(total("setter_arrived"))} Leads</span></h4><dl>${line("Zum Closer qualifiziert","qualified")}${line("Setter-Follow-up","followup")}${line("Disqualifiziert","disqualified")}${line("Ergebnis fehlt / unklar","unrated")}</dl></section></div></div>`;
+}
+
+document.querySelector("#antony-process-content").addEventListener("change",event=>{
+  const key=event.target.dataset?.processFilter;
+  if (key !== "source" && key !== "owner") return;
+  state.antonyProcessFilters[key]=event.target.value;
+  renderAntonyProcess();
+  document.querySelector(`[data-process-filter="${key}"]`)?.focus({preventScroll:true});
+});
+
+function renderLeadQualityTables(source) {
+  const value = n => n === null || n === undefined ? "—" : number(n);
+  const share = (n,d) => n === null || n === undefined || !d ? "—" : `${new Intl.NumberFormat("de-DE", {maximumFractionDigits:2}).format(n / d * 100)} %`;
+  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
+  const identity = row => `${escapeHtml(row.source)} · ${escapeHtml(owners[row.owner] || "Nicht zugeordnet")}`;
+  const rows = (Array.isArray(source.booking_cohort) ? source.booking_cohort : []).filter(matchesProcessFilter);
+  const quality = (Array.isArray(source.quality_by_source) ? source.quality_by_source : []).filter(matchesProcessFilter);
+  const table = (caption,heads,body) => `<div class="chart-table-scroll"><table><caption>${caption}</caption><thead><tr>${heads.map(h=>`<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const cells = (row,keys) => keys.map(key=>`<td>${value(row[key])}</td>`).join("");
+  const bookingTable = rows.length ? table("Eindeutige Leads nach Buchung im ausgewählten Zeitraum; Ergebnisse bis zum Stichtag.",
+    ["Quelle · Terminlieferant","Gebucht","Im Setter","Anteil im Setter","Zum Closer qualifiziert","Disqualifiziert","Setter-Follow-up","Setter-Ergebnis fehlt"],
+    rows.map(row=>`<tr><th scope="row">${identity(row)}</th>${cells(row,["booked_leads","setter_arrived"])}<td>${share(row.setter_arrived,row.booked_leads)}</td>${cells(row,["qualified","disqualified","followup","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine Terminbuchungen im gewählten Zeitraum erfasst.</p>`;
+  const remainderTable = rows.length ? table("Noch nicht im Setter: letzter erfasster Terminstatus. Spätere Prozessstufen: je Lead einmal gezählt.",
+    ["Quelle · Terminlieferant","Noch kein Setter/Status","Nicht erschienen","Abgesagt","Verschoben","Im Closer","Verkauft laut Gespräch","Neukunde laut Won"],
+    rows.map(row=>`<tr><th scope="row">${identity(row)}</th>${cells(row,["pending","no_show","cancelled","rescheduled","closer_arrived","sold_leads","new_customers"])}</tr>`).join("")) : "";
+  const qualityTable = quality.length ? table("Alle im Zeitraum bearbeiteten Setter-Leads – auch mit einer früheren Terminbuchung. Letztes Setter-Ergebnis je Lead.",
+    ["Quelle · Terminlieferant","Zuordnung","Im Setter","Zum Closer","Qualifiziert / im Setter","Follow-up","Disqualifiziert","Ergebnis fehlt"],
+    quality.map(row=>`<tr><th scope="row">${identity(row)}</th><td>${row.attribution === "booking_activity" ? "Terminbuchung" : row.attribution === "current_opener" ? "Aktueller Opener (Ersatz)" : "Unbekannt"}</td>${cells(row,["assessed_leads","qualified"])}<td>${share(row.qualified,row.assessed_leads)}</td>${cells(row,["followup","disqualified","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine durchgeführten Setter Calls in diesem Zeitraum erfasst.</p>`;
+  return `<details class="chart-values"><summary>Vergleich nach Quelle und Terminlieferant · gebuchte Leads</summary>${bookingTable}
+    <p class="chart-legend">Der tatsächliche Bucher erhält die Zuordnung. Wiederholte Buchungen desselben Leads zählen im Zeitraum einmal. „Anteil im Setter“ zeigt den Fortschritt bis zum Stichtag; zukünftige oder noch offene Termine sind enthalten. Das ist keine bereinigte Teilnahmequote.</p>
+    ${remainderTable}<p class="chart-legend">Nicht erschienen, abgesagt und verschoben zählen hier nur für Leads, die anschließend noch nicht im Setter waren. Diese Ergebnisse sind keine Disqualifikation. Verkaufsgespräch und gewonnene Opportunity sind eigenständige Nachweise; einer kann fehlen.</p></details>
+    <details class="chart-values"><summary>Qualifizierung aller Setter-Leads im Zeitraum</summary>${qualityTable}
+    <p class="chart-legend">Leadquellen stammen aus dem aktuellen Close-Feld. Fehlt eine ältere Buchungsaktivität im gespeicherten Drei-Monats-Fenster, ist eine Zuordnung über das aktuelle Opener-Feld ausdrücklich als Ersatz markiert. Kleine Fallzahlen eignen sich noch nicht für eine belastbare Rangliste.</p></details>`;
 }
 
 function renderAntonyPipeline() {
@@ -1741,6 +1866,9 @@ function endSession() {
   state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null };
   state.closing = null;
   state.antonyPipeline = null;
+  state.antonyProcess = null;
+  state.antonyProcessQuarter = null;
+  state.antonyProcessFilters = {source:"all",owner:"all"};
   state.antonyPerformance = [];
   state.antonyGoal = null;
   state.antonyCustomerValueCents = 0;
@@ -2151,11 +2279,24 @@ function samplePreview() {
     content: [
       "Die Terminquote lag innerhalb des internen Zielkorridors.",
       "Der größte Engpass lag zwischen Entscheiderkontakt und Termin.",
-      "Closer-Showrate und Terminquote lagen unter der Vorwoche; wegen nur vier Closer Calls ist diese Tendenz noch nicht belastbar.",
+      "Closer-Periodenverhältnis und Terminquote lagen unter der Vorwoche; wegen nur vier Closer Calls ist diese Tendenz noch nicht belastbar.",
       "Antony sollte nächste Woche die Durchführung bereits terminierter Closer Calls priorisieren.",
       "Prüfe jeden offenen Closer-Termin am Vortag und bestätige ihn verbindlich.",
     ].join("\n"),
   };
+  state.antonyProcess = {
+    period: {start:"2026-09-01",end:"2026-09-07"},
+    activity: {followup_contacts:12,further_followups:4,followup_appointments:3,followup_disqualified:2,followup_no_interest:1,
+      setter_calls:10,setter_qualified:4,setter_followups:3,setter_disqualified:2,setter_unrated:1,
+      setter_no_shows:1,setter_cancellations:2,setter_rescheduled:1,closer_no_shows:1,closer_cancellations:0,closer_rescheduled:2,
+      closer_calls:5,cc1_sales:1,cc2_agreed:2,cc2_sales:1,closer_lost:1,closer_unrated:0},
+    lead_quality:{assessed_leads:8,qualified:4,followup:2,disqualified:1,unrated:1},
+    booking_cohort:[{source:"LinkedIn",owner:"michael",booked_leads:6,setter_arrived:3,not_in_setter:3,pending:1,no_show:1,cancelled:0,rescheduled:1,qualified:2,followup:1,disqualified:0,unrated:0,closer_arrived:1,sold_leads:1,new_customers:1},
+      {source:"Cold Calling",owner:"felix",booked_leads:4,setter_arrived:2,not_in_setter:2,pending:1,no_show:0,cancelled:1,rescheduled:0,qualified:1,followup:0,disqualified:1,unrated:0,closer_arrived:1,sold_leads:0,new_customers:0}],
+    quality_by_source:[{source:"LinkedIn",owner:"michael",attribution:"booking_activity",assessed_leads:5,qualified:3,followup:1,disqualified:0,unrated:1},
+      {source:"Cold Calling",owner:"felix",attribution:"current_opener",assessed_leads:3,qualified:1,followup:1,disqualified:1,unrated:0}]
+  };
+  state.antonyProcessQuarter = {...state.antonyProcess,period:{start:"2026-07-01",end:"2026-09-07"}};
   state.antonyPipeline = {
     as_of: "2026-09-04",
     window_start: "2026-07-01",

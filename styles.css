@@ -1162,3 +1162,70 @@ main { grid-template-columns: minmax(0, 1fr); }
 .chart-popover dd { margin: 0; font-weight: 700; text-align: right; }
 .chart-popover small { color: var(--muted); font-size: .72rem; line-height: 1.5; }
 .chart-popover-close { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border: 0; background: transparent; color: var(--text); cursor: pointer; font-size: 22px; }
+
+/* One continuous lead pipeline; details open within the selected stage. */
+.process-toolbar { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+.process-period { margin: 0 0 3px; color: var(--text); font-size: .85rem; font-weight: 600; }
+.process-scope { margin: 0; color: var(--muted); font-size: .75rem; }
+.process-filters { display: flex; flex-wrap: wrap; gap: 12px; }
+.process-filters label { display: grid; gap: 5px; color: var(--muted); font-size: .7rem; }
+.process-filters select { min-height: 38px; max-width: 230px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); padding: 7px 30px 7px 10px; font: inherit; font-size: .78rem; }
+.process-flow { --process-accent: var(--antony); }
+.process-rail { position: relative; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 24px; align-items: start; }
+.process-rail::before { content: ""; position: absolute; top: 17px; left: 17px; right: 17px; height: 1px; background: var(--line-strong); }
+.process-stage { position: relative; min-width: 0; }
+.process-stage summary { display: grid; gap: 7px; cursor: pointer; list-style: none; border-radius: 4px; outline-offset: 6px; }
+.process-stage summary::-webkit-details-marker { display: none; }
+.process-node { display: grid; place-items: center; width: 35px; height: 35px; margin-bottom: 8px; color: var(--process-accent); background: var(--surface); border: 1px solid var(--process-accent); border-radius: 50%; font-size: .73rem; font-weight: 650; transition: background .16s ease, color .16s ease; }
+.process-stage-title { color: var(--text); font-size: .86rem; font-weight: 600; }
+.process-stage strong { font-size: clamp(1.8rem,3.6vw,2.9rem); font-weight: 650; letter-spacing: -.05em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.process-stage-hint { color: var(--muted); font-size: .71rem; min-height: 1.4em; }
+.process-stage progress { display: block; width: 100%; height: 4px; border: 0; border-radius: 2px; background: var(--bg); margin: 6px 0 1px; appearance: none; }
+.process-stage progress::-webkit-progress-bar { background: var(--bg); border-radius: 2px; }
+.process-stage progress::-webkit-progress-value { background: var(--process-accent); border-radius: 2px; transition: width .2s ease; }
+.process-stage progress::-moz-progress-bar { background: var(--process-accent); border-radius: 2px; }
+.process-stage-share { color: var(--muted); font-size: .68rem; }
+.process-detail-toggle { display: flex; gap: 5px; align-items: center; color: var(--process-accent); font-size: .7rem; margin-top: 5px; }
+.process-detail-toggle span { display: inline-block; transition: transform .16s ease; }
+.process-stage[open] .process-detail-toggle span { transform: rotate(180deg); }
+.process-stage summary:hover .process-node, .process-stage[open] .process-node { background: var(--process-accent); color: var(--bg); }
+.process-stage summary:focus-visible { outline: 2px solid var(--process-accent); }
+.process-stage-won { --process-accent: var(--good); }
+.process-stage-detail { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .74rem; line-height: 1.6; color: var(--muted); animation: process-reveal .16s ease-out; }
+.process-explainer { margin: 24px 0 18px; max-width: 95ch; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+.process-branches { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; border-top: 1px solid var(--line-strong); padding-top: 18px; margin-bottom: 22px; }
+.process-branches section { min-width: 0; }
+.process-branches h4 { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; margin: 0 0 11px; font-size: .82rem; font-weight: 600; }
+.process-branches h4 span { font-size: .73rem; font-weight: 400; color: var(--muted); }
+.process-branches dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 0; }
+.process-branches dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 7px; }
+.process-branches dt { font-size: .73rem; color: var(--muted); }
+.process-branches dd { margin: 0; font-size: .94rem; font-variant-numeric: tabular-nums; }
+@keyframes process-reveal { from { opacity: .3; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1000px) {
+  .process-rail { gap: 16px; }
+  .process-stage-hint { min-height: 2.8em; }
+  .process-branches dl { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .process-toolbar { margin-bottom: 24px; }
+  .process-filters { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .process-filters label, .process-filters select { min-width: 0; max-width: 100%; width: 100%; }
+  .process-rail { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .process-rail::before { top: 17px; bottom: 35px; left: 17px; width: 1px; height: auto; right: auto; }
+  .process-stage summary { grid-template-columns: 35px minmax(0,1fr) auto; gap: 3px 14px; }
+  .process-node { grid-column: 1; grid-row: 1 / 5; margin: 0; }
+  .process-stage-title { grid-column: 2; grid-row: 1; }
+  .process-stage strong { grid-column: 3; grid-row: 1 / 3; align-self: center; font-size: 2rem; }
+  .process-stage-hint { grid-column: 2; grid-row: 2; min-height: 0; }
+  .process-stage progress { grid-column: 2 / 4; grid-row: 3; margin-top: 9px; }
+  .process-stage-share { grid-column: 2; grid-row: 4; }
+  .process-detail-toggle { grid-column: 3; grid-row: 4; justify-self: end; margin: 0; }
+  .process-stage-detail { margin-left: 49px; }
+  .process-branches { grid-template-columns: 1fr; gap: 22px; }
+  .process-branches dl { grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .process-node, .process-detail-toggle span, .process-stage progress::-webkit-progress-value { transition: none; }
+  .process-stage-detail { animation: none; }
+}

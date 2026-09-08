@@ -149,7 +149,7 @@ test("weekly comparison covers every aggregate KPI with stable deltas", () => {
   assert.deepEqual(comparison.funnel.calls_gross, { absolute_change: 20 });
   assert.deepEqual(comparison.funnel.net_rate, { percentage_point_change: 10 });
   assert.deepEqual(comparison.closing.setter_successes, { absolute_change: 3 });
-  assert.deepEqual(comparison.closing.closer_show_rate, { percentage_point_change: -16.67 });
+  assert.deepEqual(comparison.closing.closer_period_ratio, { percentage_point_change: -16.67 });
   assert.equal(Object.keys(comparison.funnel).length, 9);
   assert.equal(Object.keys(comparison.closing).length, 12);
   assert.deepEqual(comparison.data_basis, {

@@ -96,6 +96,8 @@ test("model input contains only whitelisted aggregates and curated context", () 
     previousMetrics: metrics,
     currentClosing: closing,
     previousClosing: closing,
+    currentProcess: {activity:{setter_followups:3,closer_lost:1},lead_ids:["lead_secret"]},
+    previousProcess: {activity:{setter_followups:2}},
     pipeline: {
       as_of: "2026-09-04",
       window_start: "2026-07-01",
@@ -109,6 +111,8 @@ test("model input contains only whitelisted aggregates and curated context", () 
 
   const serialised = JSON.stringify(result);
   assert.equal(result.current.dashboard.team.net_rate, 75);
+  assert.equal(result.current.process.activity.setter_followups,3);
+  assert.equal(result.comparison.process.activity.setter_followups,2);
   assert.equal(result.comparison_reference_date, "2026-08-28");
   assert.equal(serialised.includes("never@example.test"), false);
   assert.equal(serialised.includes("raw_payload"), false);
