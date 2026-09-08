@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity, originGroups } from "./cohort-filters.mjs?v=2026-09-08-cohort-sync";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-cohort-sync";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-cohort-sync";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-cohort-sync";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-08-clean-pipeline";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-clean-pipeline";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-clean-pipeline";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-clean-pipeline";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-cohort-sync";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-clean-pipeline";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-08-cohort-sync";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-cohort-sync";
+import * as data from "./data.js?v=2026-09-08-clean-pipeline";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-clean-pipeline";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-08-cohort-sync";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-cohort-sync";
+} from "./call-time-score.mjs?v=2026-09-08-clean-pipeline";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-clean-pipeline";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -1008,30 +1008,21 @@ function renderAntonyProcess() {
   if(filters.cohort !== "period" && !groups.includes(filters.cohort)) filters.cohort="period";
   const selected=selectCohort(source,filters,scale);
   const options = (items,key,labels={}) => items.map(v=>`<option value="${escapeHtml(v)}"${filters[key]===v?" selected":""}>${escapeHtml(labels[v] || v)}</option>`).join("");
-  container.innerHTML = `<div class="process-toolbar"><p class="process-scope">Filter für Pipeline, Herkunft und Gesprächsergebnisse</p>
+  container.innerHTML = `<div class="process-toolbar"><p class="process-scope">Filter für Pipeline und Gesprächsergebnisse</p>
     <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Terminlieferant<select data-process-filter="owner"><option value="all">Alle Terminlieferanten</option>${options(suppliers,"owner",owners)}</select></label></div></div>
     <div class="cohort-heading"><div><h4>Fortschritt derselben gebuchten Leads</h4><p>Erstbuchung ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt bis ${escapeHtml(germanDate(source.period.end))}</p></div>
     <label class="cohort-select">Buchungsgruppe<select data-process-filter="cohort"><option value="period"${filters.cohort==="period"?" selected":""}>Erstbuchungen im gewählten Zeitraum</option>${options(groups,"cohort",Object.fromEntries(groups.map(v=>[v,bookingGroupLabel(v,scale)])))}</select></label></div>
     ${selected.cohort_complete?renderProcessPipeline(selected):`<p class="process-data-gap">Für diese Buchungsgruppe ist der gespeicherte Verlauf unvollständig. Deshalb werden keine Übergangsquoten berechnet.</p>`}
-    ${renderBookingOrigins(source,scale)}
     ${renderLeadQualityTables(selected)}
     ${renderPeriodOutcomes(source)}`;
   const quarter=state.antonyProcessQuarter ? selectCohort(state.antonyProcessQuarter,{...filters,cohort:"period"},"month") : null;
-  if(state.period==="month" && quarter?.funnel_by_source && quarter.coverage?.complete_period !== false)container.insertAdjacentHTML("beforeend",`<details class="chart-values"><summary>Drei-Monats-Rückblick · Erstbuchungen ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</summary>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}${renderBookingOrigins(quarter,"month")}${renderPeriodOutcomes(quarter)}</details>`);
+  if(state.period==="month" && quarter?.funnel_by_source && quarter.coverage?.complete_period !== false)container.insertAdjacentHTML("beforeend",`<details class="chart-values"><summary>Drei-Monats-Rückblick · Erstbuchungen ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</summary>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}${renderPeriodOutcomes(quarter)}</details>`);
 }
 
 function bookingGroupLabel(date,scale) {
   if(scale === "month") return new Intl.DateTimeFormat("de-DE",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(date+"T12:00:00Z"));
   const range=bookingRange({},date,"week");
   return `${germanDate(range.start)} – ${germanDate(range.end)}`;
-}
-
-function renderBookingOrigins(source,scale) {
-  const rows=originGroups(source,state.antonyProcessFilters,scale);
-  const selectable=new Set((source.cohort_history || []).map(r=>bookingBucket(r.booked_date,scale)).filter(date=>date>=source.coverage.retention_start));
-  return `<section class="booking-origins"><div class="antony-analysis-heading"><h3>Herkunft der Gespräche und Neukunden</h3><span>Aktivitäten ${escapeHtml(germanDate(source.period.start))} – ${escapeHtml(germanDate(source.period.end))}</span></div>
-    <div class="chart-table-scroll"><table><thead><tr><th scope="col">Erste Terminbuchung</th><th scope="col">Setter Calls</th><th scope="col">Closer Calls</th><th scope="col">CC2 vereinbart</th><th scope="col">Neukunden</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr><th scope="row">${r.key==="unknown"?"Buchung nicht dokumentiert":selectable.has(r.key)&&source===state.antonyProcess?`<button type="button" class="cohort-link" data-booking-cohort="${r.key}" aria-label="Pipeline für ${escapeHtml(bookingGroupLabel(r.key,scale))} anzeigen">${escapeHtml(bookingGroupLabel(r.key,scale))} ↗</button>`:escapeHtml(bookingGroupLabel(r.key,scale))}</th>${["setter_calls","closer_calls","cc2_agreed","new_customers"].map(k=>`<td>${number(r[k])}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="5">Keine Gespräche oder Neukunden für diese Auswahl.</td></tr>`}</tbody></table></div>
-    <p class="process-footnote">Gespräche zählen am Durchführungstag; Neukunden am ersten Won-Datum. Wiederholte Buchungen ändern die Herkunft nicht. Ohne dokumentierte Erstbuchung keine Buchungsquote.</p></section>`;
 }
 
 function renderPeriodOutcomes(source) {
@@ -1084,14 +1075,6 @@ document.querySelector("#antony-process-content").addEventListener("change",even
   state.antonyProcessFilters[key]=event.target.value;
   renderAntonyProcess();
   document.querySelector(`[data-process-filter="${key}"]`)?.focus({preventScroll:true});
-});
-
-document.querySelector("#antony-process-content").addEventListener("click",event=>{
-  const button=event.target.closest("[data-booking-cohort]");
-  if(!button)return;
-  state.antonyProcessFilters.cohort=button.dataset.bookingCohort;
-  renderAntonyProcess();
-  document.querySelector('[data-process-filter="cohort"]')?.focus({preventScroll:true});
 });
 
 function renderLeadQualityTables(source) {

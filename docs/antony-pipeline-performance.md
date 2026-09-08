@@ -19,8 +19,8 @@
 - Fehlgeschlagene Aktualisierungen zeigen keine vermischten alten und neuen Zahlen. Langsame Antworten dürfen einen inzwischen gewechselten Zeitraum nicht überschreiben.
 
 - In der Pipeline kann eine frühere Buchungsgruppe ausgewählt werden, z. B. August mit Fortschritt bis 8. September. Tag/Woche gruppieren die Herkunft nach Kalenderwochen, Monat und Drei-Monats-Rückblick nach Monaten. Die sechs Übergangsstufen enthalten dieselben Leads, jeden Lead einmal; der Nenner wird nie aus einer anderen Buchungsgruppe übernommen.
-- Die sichtbare Herkunftstabelle zerlegt aktuelle Setter Calls, Closer Calls, CC2-Vereinbarungen und Neukunden nach dem ursprünglichen Buchungszeitraum. Nicht nachgewiesene oder erst später liegende Buchungen bleiben unbekannt und erzeugen keine Buchungsquote.
-- Quelle und Terminlieferant filtern innerhalb des Pipeline-Abschnitts die Pipeline, Herkunft, Leadqualität und Gesprächsergebnisse gemeinsam. Die Buchungsgruppenauswahl steuert ausdrücklich nur die Pipeline; Gesprächsergebnisse zählen weiterhin das ausgewählte Aktivitätsfenster. Die oberen Gesamtzahlen, der Gesamtverlauf, offene Gesamtbestand und Monatsplanung sind als Gesamtzahlen gekennzeichnet.
+- Die eigenständige Herkunftstabelle ist auf Nutzerwunsch aus der Oberfläche entfernt. Die Erstbuchungszuordnung bleibt Grundlage der Buchungsgruppen und Übergangsquoten. Nicht nachgewiesene oder erst später liegende Buchungen erzeugen keine Buchungsquote.
+- Quelle und Terminlieferant filtern innerhalb des Pipeline-Abschnitts die Pipeline, Leadqualität und Gesprächsergebnisse gemeinsam. Die Buchungsgruppenauswahl steuert ausdrücklich nur die Pipeline; Gesprächsergebnisse zählen weiterhin das ausgewählte Aktivitätsfenster. Die oberen Gesamtzahlen, der Gesamtverlauf, offene Gesamtbestand und Monatsplanung sind als Gesamtzahlen gekennzeichnet.
 - `reconcile_close_sales_snapshot` ersetzt die minimale vollständige Buchungshistorie atomar zusammen mit Custom-Fakten, Won und Quellenzuordnung. Unvollständige, widersprüchliche oder veraltete Snapshots werden vor dem Ersetzen abgewiesen. Der vorhandene 15-Minuten-Cron nutzt diesen Weg automatisch; keine manuelle Leadliste und keine CRM-Schreiboperationen.
 
 ## Missing Context
@@ -49,3 +49,5 @@
 - 2026-09-08, nach der Vollprüfung: Auf Nutzerwunsch Endpunkt auf Neukunde reduziert; CC2 bleibt optional. Gezeigter Leadstatus und datierter Won am geprüften Neukunden stimmen überein. Ein Leadstatus allein ersetzt weiterhin kein verlässlich datiertes Abschlussereignis.
 
 - 2026-09-08: Feste Erstbuchung, vollständiger Buchungshistorien-Snapshot, Monat-/Wochen-Herkunft, frühere auswählbare Buchungsgruppen und konsistente lokale Quellenfilter ergänzt. SQL-Szenarien testen auch wiederholte Buchungen, zukünftige Buchungen, Retention und atomare Korrekturen.
+
+- 2026-09-08: Auf Nutzerwunsch den Abschnitt „Herkunft der Gespräche und Neukunden“ einschließlich seiner Darstellung im Drei-Monats-Rückblick entfernt.
