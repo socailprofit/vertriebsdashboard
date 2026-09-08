@@ -12,7 +12,7 @@ create or replace function pg_catalog.now() returns timestamptz language sql sta
 const read=p=>fs.readFileSync(new URL(p,import.meta.url),'utf8');
 await db.exec(read('fixtures/kpi-schema.sql'));
 await db.exec('create table antony_performance_goals(id integer);');
-for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey','20260908085704_fix_booking_cohort_filters'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
+for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey','20260908085704_fix_booking_cohort_filters','20260908093505_optimize_cohort_report_plan'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
 async function insert(table,rows){if(rows?.length)await db.query(`insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},$1)`,[JSON.stringify(rows)]);}
 if(process.argv[3]){
  const s=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));
