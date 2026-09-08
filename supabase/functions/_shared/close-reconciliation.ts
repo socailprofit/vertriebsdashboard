@@ -1,4 +1,5 @@
 import { CLOSE_USERS, CUSTOM_FIELDS, ACTIVITY_TYPES, mapCustomActivity, mapWonOpportunity, metricTimeInReportingTimezone, type CloseCustomActivity, type CloseOpportunity, type LeadAttribution } from "./close-mapping.ts";
+import { isObservedAt } from "./close-meetings.ts";
 
 type Row = Record<string, unknown>;
 // No CRM notes, names or conversation text are needed for reconciliation.
@@ -26,7 +27,7 @@ export function normalizeCustomRecord(record: Row): CloseCustomActivity {
 // Called only after ALL pages have loaded. No creation-time cutoff: old drafts
 // can be published late and activity_at can be backdated. Identity is the Close
 // activity ID, never company name, author name or an approximate timestamp.
-export function prepareCustomReconciliation(records: Row[], startDate: string, endDate: string) {
+export function prepareCustomReconciliation(records: Row[], startDate: string, endDate: string, dataAsOf?: string) {
   const byId = new Map<string, Row>();
   for (const row of records) {
     if (!Object.values(CLOSE_USERS).includes(row.user_id as typeof CLOSE_USERS.michael)) continue;
@@ -38,11 +39,12 @@ export function prepareCustomReconciliation(records: Row[], startDate: string, e
   }
   const raw = [...byId.values()].filter(row => {
     const date = metricTimeInReportingTimezone(String(row.activity_at)).metricDate;
-    return date >= startDate && date <= endDate;
+    return date >= startDate && date <= endDate && (!dataAsOf || isObservedAt(String(row.activity_at), dataAsOf));
   });
   const facts = raw.map(normalizeCustomRecord).map(mapCustomActivity).filter(fact => fact !== null);
   const bookings = [...byId.values()].map(normalizeCustomRecord).map(mapCustomActivity)
-    .filter(f => f !== null && f.appointments === 1 && metricTimeInReportingTimezone(f.occurredAt).metricDate <= endDate)
+    .filter(f => f !== null && f.appointments === 1 && metricTimeInReportingTimezone(f.occurredAt).metricDate <= endDate
+      && (!dataAsOf || isObservedAt(f.occurredAt, dataAsOf)))
     .map(f => ({ source_activity_id: f!.sourceActivityId, lead_id: f!.leadId,
       close_user_id: f!.closeUserId, occurred_at: f!.occurredAt,
       metric_date: metricTimeInReportingTimezone(f!.occurredAt).metricDate }));

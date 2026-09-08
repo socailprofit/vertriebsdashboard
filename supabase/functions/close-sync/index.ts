@@ -1,4 +1,5 @@
 import { isProcessReportingFact, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
+import { MEETING_FIELDS, prepareMeetingSnapshot } from "../_shared/close-meetings.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
@@ -373,7 +374,7 @@ Deno.serve(async (request) => {
     // it does not know, so the type selection happens during mapping instead.
     // Fetch only metadata. Scan all creation dates: a previously scheduled email
     // may be sent much later. Fail closed at the pagination safety limit.
-    const [callResult, customResult, opportunityResult, newsletterResult] = await Promise.all([
+    const [callResult, customResult, opportunityResult, newsletterResult, meetingResult] = await Promise.all([
       settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/call/", {
         ...activityWindow,
         user_id: SALES_USER_IDS.join(","),
@@ -391,9 +392,14 @@ Deno.serve(async (request) => {
       settle(closeList<CloseNewsletterEmail>(closeApiKey, "/activity/email/", {
         _fields: "id,sequence_id,user_id,date_sent,direction,status",
       })),
+      // No creation/start/end cutoff: known future calendar events must survive
+      // month boundaries and remain available without a later re-import.
+      settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/meeting/", {
+        _fields: MEETING_FIELDS.join(","),
+      })),
     ]);
 
-    const failures = [callResult, customResult, opportunityResult, newsletterResult]
+    const failures = [callResult, customResult, opportunityResult, newsletterResult, meetingResult]
       .map((result) => result.failure)
       .filter((failure): failure is SyncError => failure !== null);
     if (failures.length > 0) {
@@ -419,7 +425,8 @@ Deno.serve(async (request) => {
       return activityAt >= startMilliseconds && activityAt < endMilliseconds;
     };
     const rawCalls = callResult.value.filter(withinReportingWindow);
-    const reconciled = prepareCustomReconciliation(customResult.value, retentionStart, reconciliationEnd);
+    const reconciled = prepareCustomReconciliation(customResult.value, retentionStart, reconciliationEnd, snapshotStartedAt);
+    const calendar = prepareMeetingSnapshot(meetingResult.value, reconciled.bookings, snapshotStartedAt);
     const rawCustomActivities = reconciled.raw;
     const opportunities = opportunityResult.value;
 
@@ -435,7 +442,10 @@ Deno.serve(async (request) => {
     const customFacts = reconciled.facts;
     const activityFacts = [...callFacts, ...customFacts];
 
+    const calendarLeadIds = new Set(calendar.meetings.filter(m => m.booking_activity_id
+      && metricTimeInReportingTimezone(m.starts_at).metricDate >= retentionStart).map(m => m.lead_id));
     const leadIds = [...new Set([...opportunities.map((opportunity) => opportunity.lead_id),
+      ...[...calendarLeadIds].filter((id): id is string => id !== null),
       ...customFacts.filter(fact => isProcessReportingFact(fact)).map(fact => fact.leadId).filter((id): id is string => id !== null)])];
     const leadReportingRows: Array<{lead_id:string;opener_close_user_id:string|null;lead_source:string|null}> = [];
     const leadAttributions = new Map<string, ReturnType<typeof leadAttribution>>();
@@ -499,7 +509,7 @@ Deno.serve(async (request) => {
       await upsertBatches(supabase, "close_raw_activities", rawRows.filter(row => row.activity_type === "call"), "close_activity_id");
       await upsertBatches(supabase, "close_activity_facts", factRows.filter(row => row.source_type === "call"), "source_activity_id");
       if (!newsletterOnly) {
-        const { error } = await supabase.rpc("reconcile_close_sales_snapshot", {
+        const { error } = await supabase.rpc("reconcile_close_calendar_snapshot", {
           p_start_date: retentionStart, p_end_date: reconciliationEnd,
           p_snapshot_started_at: snapshotStartedAt,
           p_raw: rawRows.filter(row => row.activity_type === "custom_activity"),
@@ -507,8 +517,10 @@ Deno.serve(async (request) => {
           p_opportunities: opportunityRows,
           p_leads: leadReporting,
           p_bookings: reconciled.bookings,
+          p_meetings: calendar.meetings,
+          p_calendar_leads: leadReportingRows.filter(row => calendarLeadIds.has(row.lead_id)),
         });
-        if (error) throw supabaseError("rpc reconcile_close_sales_snapshot", error);
+        if (error) throw supabaseError("rpc reconcile_close_calendar_snapshot", error);
       }
       // One atomic replacement also removes deleted/reassigned sends and old
       // completion counts. Only the newsletter KPI is backfilled historically.
@@ -529,7 +541,7 @@ Deno.serve(async (request) => {
         completed_at: new Date().toISOString(),
         fetched_records: rawCalls.length + rawCustomActivities.length + opportunities.length + newsletterResult.value.length,
         upserted_records: rawRows.length + factRows.length + opportunityRows.length + newsletterRows.length,
-        metadata: { mode, mappingVersion: MAPPING_VERSION, trigger, scheduled, warnings },
+        metadata: { mode, mappingVersion: MAPPING_VERSION, trigger, scheduled, warnings, calendar: calendar.diagnostics, dataAsOf: snapshotStartedAt },
       }).eq("id", syncRunId);
       if (runError) throw supabaseError("update sync_runs", runError);
     }
@@ -543,6 +555,8 @@ Deno.serve(async (request) => {
       newsletterOnly,
       range: { startDate, endDate, timezone: REPORTING_TIMEZONE },
       mappingVersion: MAPPING_VERSION,
+      calendar: calendar.diagnostics,
+      dataAsOf: snapshotStartedAt,
       fetched: {
         calls: callResult.value.length,
         customActivities: customResult.value.length,

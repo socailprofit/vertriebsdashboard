@@ -2,6 +2,8 @@
 
 ## Current Truth
 
+Die aktuelle, auf Antony begrenzte Kalenderzeit-Zuordnung ist in [meeting-time.md](meeting-time.md) beschrieben. Sie ersetzt dort die früher verwendete Custom-Buchungszeit; die Opening-Ergebnisquoten und übrigen KPI-Definitionen bleiben bestehen.
+
 ### Release 2026-09-08: KPI-Abgleich und Vertriebspipeline
 
 Der Nutzer hat die produktive Übernahme am 08.09. ausdrücklich freigegeben. Mapping `2026-09-07.antony-reconciliation` ist als `close-sync` Version 77 ausgerollt, `weekly-review` als Version 11 und `kpi-assistant` als Version 4. Migrationen: `20260908071339_reconcile_antony_kpis.sql`, `20260908071341_add_antony_process_metrics.sql`, `20260908071707_fix_lead_snapshot_delete_guard.sql`. Die Dateinamen entsprechen den tatsächlich angewandten Migrationen.

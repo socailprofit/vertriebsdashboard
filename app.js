@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-08-clean-pipeline";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-clean-pipeline";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-clean-pipeline";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-clean-pipeline";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-08-meeting-time";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-meeting-time";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-meeting-time";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-meeting-time";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-clean-pipeline";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-meeting-time";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-08-clean-pipeline";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-clean-pipeline";
+import * as data from "./data.js?v=2026-09-08-meeting-time";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-meeting-time";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-08-clean-pipeline";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-clean-pipeline";
+} from "./call-time-score.mjs?v=2026-09-08-meeting-time";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-meeting-time";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -308,7 +308,8 @@ async function loadAll(revision = refreshRevision) {
     people,metrics,hours:hourRows,trends,trendHours,weeklyReview,series,targets,periodRange,syncRun,transferBreakdown,
     closing:report?.closing??null,antonyProcess:report?.process??null,antonyProcessQuarter:report?.quarter??null,
     antonyPipeline:report?.pipeline??null,antonyPerformance:report?.performance??[],
-    antonyPlannerMetrics:Object.fromEntries(plannerMetricRows.map(row=>[row.slug,toPerson(row)])),
+    antonyPlannerMetrics:Object.fromEntries(plannerMetricRows.map(row=>[row.slug,toPerson({...row,
+      appointments:report?.planner?.appointment_by_owner?.[row.slug]??0})])),
     antonyPlannerClosing:report?.planner?.closing??null,antonyPlannerProcess:report?.planner?.process??null,
     antonyPlannerPeriodRange:plannerPeriodRange,antonyGoal,
     antonyCustomerValueCents:Number(antonyGoal?.customer_value_cents??0),
