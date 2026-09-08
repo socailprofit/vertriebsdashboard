@@ -1,5 +1,5 @@
 import { isProcessReportingFact, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
-import { MEETING_FIELDS, prepareMeetingSnapshot, type MeetingLink } from "../_shared/close-meetings.ts";
+import { MEETING_FIELDS, prepareMeetingSnapshot, retryCancelledCalendarSnapshot, type MeetingLink } from "../_shared/close-meetings.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
@@ -520,7 +520,7 @@ Deno.serve(async (request) => {
       await upsertBatches(supabase, "close_raw_activities", rawRows.filter(row => row.activity_type === "call"), "close_activity_id");
       await upsertBatches(supabase, "close_activity_facts", factRows.filter(row => row.source_type === "call"), "source_activity_id");
       if (!newsletterOnly) {
-        const { error } = await supabase.rpc("reconcile_close_calendar_snapshot", {
+        const { error } = await retryCancelledCalendarSnapshot(() => supabase!.rpc("reconcile_close_calendar_snapshot", {
           p_start_date: retentionStart, p_end_date: reconciliationEnd,
           p_snapshot_started_at: snapshotStartedAt,
           p_raw: rawRows.filter(row => row.activity_type === "custom_activity"),
@@ -530,7 +530,7 @@ Deno.serve(async (request) => {
           p_bookings: reconciled.bookings,
           p_meetings: calendar.meetings,
           p_calendar_leads: leadReportingRows.filter(row => calendarLeadIds.has(row.lead_id)),
-        });
+        }));
         if (error) throw supabaseError("rpc reconcile_close_calendar_snapshot", error);
       }
       // One atomic replacement also removes deleted/reassigned sends and old

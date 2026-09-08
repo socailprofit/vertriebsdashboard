@@ -34,6 +34,17 @@ export type MeetingRow = {
 
 export type MeetingLink = Pick<MeetingRow, "meeting_id" | "lead_id" | "booking_activity_id" | "booking_owner_id">;
 
+// PostgreSQL 57014 aborts the transaction. Only that definite rollback may be
+// retried, once, with the identical snapshot. Never retry an uncertain response.
+export async function retryCancelledCalendarSnapshot<T extends {error: {code?: string} | null}>(
+  write: () => PromiseLike<T>, pause = () => new Promise<void>(resolve => setTimeout(resolve, 500)),
+): Promise<T> {
+  const result = await write();
+  if (result.error?.code !== "57014") return result;
+  await pause();
+  return await write();
+}
+
 export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], dataAsOf: string, previousLinks: MeetingLink[] = []) {
   if (!timestamp(dataAsOf)) throw new Error("invalid_meeting_snapshot_time");
   const byId = new Map<string, MeetingRow>();

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CLOSE_USERS, ACTIVITY_TYPES, CUSTOM_FIELDS } from "../supabase/functions/_shared/close-mapping.ts";
 import { prepareCustomReconciliation } from "../supabase/functions/_shared/close-reconciliation.ts";
-import { isObservedAt, meetingWithinDates, prepareMeetingSnapshot } from "../supabase/functions/_shared/close-meetings.ts";
+import { retryCancelledCalendarSnapshot, isObservedAt, meetingWithinDates, prepareMeetingSnapshot } from "../supabase/functions/_shared/close-meetings.ts";
 
 const asOf="2026-09-10T12:00:00Z";
 const booking={source_activity_id:"booking",lead_id:"lead",close_user_id:CLOSE_USERS.felix,occurred_at:"2026-09-10T08:00:00Z"};
@@ -77,4 +77,18 @@ test("stored links cannot be reused for a different lead, deleted booking or exc
  assert.equal(prepareMeetingSnapshot([meeting({lead_id:"other"})],[booking],asOf,old).diagnostics.linked,0);
  assert.equal(prepareMeetingSnapshot([meeting()],[],asOf,old).diagnostics.linked,0);
  assert.equal(prepareMeetingSnapshot([meeting({title:"Onboarding"})],[booking],asOf,old).diagnostics.linked,0);
+});
+
+test("calendar write retries one confirmed rollback, but never uncertain or permanent errors",async()=>{
+ let attempts=0,pauses=0;
+ const result=await retryCancelledCalendarSnapshot(async()=>({error:++attempts===1?{code:"57014"}:null}),async()=>{pauses++;});
+ assert.equal(result.error,null);assert.equal(attempts,2);assert.equal(pauses,1);
+ for(const code of ["23505","42501","P0001",undefined]){
+  attempts=0;await retryCancelledCalendarSnapshot(async()=>{attempts++;return {error:{code}};},async()=>{});
+  assert.equal(attempts,1);
+ }
+ attempts=0;const failed=await retryCancelledCalendarSnapshot(async()=>{attempts++;return {error:{code:"57014"}};},async()=>{});
+ assert.equal(attempts,2);assert.equal(failed.error?.code,"57014");
+ attempts=0;await assert.rejects(()=>retryCancelledCalendarSnapshot(async()=>{attempts++;throw new Error("network-unknown");},async()=>{}));
+ assert.equal(attempts,1);
 });

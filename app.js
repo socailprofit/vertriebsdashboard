@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-08-setter-attendance";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-setter-attendance";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-setter-attendance";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-setter-attendance";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-08-calendar-basis";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-calendar-basis";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-calendar-basis";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-calendar-basis";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-setter-attendance";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-calendar-basis";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-08-setter-attendance";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-setter-attendance";
+import * as data from "./data.js?v=2026-09-08-calendar-basis";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-calendar-basis";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-08-setter-attendance";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-setter-attendance";
+} from "./call-time-score.mjs?v=2026-09-08-calendar-basis";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-calendar-basis";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -880,8 +880,8 @@ function renderAntony() {
   const c = state.closing, p = state.antonyProcess, b = p?.period_bridge;
   const format = n => n === null || n === undefined ? "—" : number(n);
   const rows = c ? [
-    ["Termine gebucht", c.appointments, "Terminvereinbarungen von Michael, Felix und Antony; wiederholte Buchungen zählen als einzelne Aktivitäten."],
-    ["Setter Calls", c.setter_calls, b ? `${format(b.setter_leads)} verschiedene Leads · ${format(b.setter_from_period_bookings)} Gespräche aus Buchungen dieses Zeitraums · ${format(b.setter_from_prior_bookings)} aus früheren Buchungen · ${format(b.setter_without_booking)} ohne Buchung im gespeicherten Verlauf.` : "Durchgeführte Setter-Gespräche im ausgewählten Zeitraum."],
+    ["Setter-Termine", c.appointments, "Nachweisbare Setter-Kalendertermine mit tatsächlichem Termindatum im gewählten Zeitraum. Das Erstell- oder Buchungsdatum zählt nicht. Ein verschobenes Meeting zählt nur an seinem aktuellen Datum."],
+    ["Setter Calls", c.setter_calls, b ? `Gespräche am tatsächlichen Gesprächsdatum, auch aus älteren Buchungen. ${format(b.setter_leads)} verschiedene Leads · ${format(b.setter_from_period_bookings)} Calls von Leads mit erstem Setter-Termin in diesem Zeitraum · ${format(b.setter_from_prior_bookings)} mit früherem Ersttermin · ${format(b.setter_without_booking)} ohne dokumentierten Ersttermin. Diese Gesprächszahl ist nicht der Zähler der Meeting-Showrate.` : "Durchgeführte Setter-Gespräche im ausgewählten Zeitraum."],
     ["Closer terminiert", c.setter_successes, "Setter Calls mit dem Ergebnis „Closer terminiert“ im ausgewählten Zeitraum."],
     ["Closer Calls", c.closer_calls, b ? `${format(b.cc2_calls)} dokumentierte Folgegespräche nach CC2-Vereinbarung oder mit Ergebnis „Verkauft in CC2“.` : "Durchgeführte Closer-Gespräche von Antony, einschließlich CC2."],
     ["CC2 vereinbart", c.closer_second_calls, "Vereinbarungen im Zeitraum. Das Folgegespräch kann erst später stattfinden."],
@@ -892,7 +892,7 @@ function renderAntony() {
     if(label === "Setter Calls" && p?.setter_by_day) payload.rows.push(...p.setter_by_day.map(row=>({label:`${germanDate(row.date)} · ${{michael:"Michael",felix:"Felix",antony:"Antony"}[row.owner] || "Weitere"}`,value:`${format(row.calls)} ${row.calls === 1 ? "Call" : "Calls"}`}))) ;
     return `<button type="button" class="antony-activity" data-chart-point="${escapeHtml(JSON.stringify(payload))}"><span>${escapeHtml(label)}</span><strong>${format(n)}</strong><span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
   }).join("") : `<p class="antony-empty">Kennzahlen für diesen Zeitraum nicht verfügbar.</p>`;
-  document.querySelector("#antony-note").textContent = `Aktivitäten ${periodCaption()} · alle Quellen und Terminlieferanten, inklusive früher gebuchter Leads. Zahlen anklicken für die Herkunft.`;
+  document.querySelector("#antony-note").textContent = `Kalendertermine und durchgeführte Gespräche ${periodCaption()} · auch aus älteren Buchungen. Für Quoten zählt jeweils die passende Grundgesamtheit. Zahlen anklicken für Details.`;
   renderAntonyProcess();
   renderAntonyPerformance(); renderAntonyPipeline(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
@@ -995,7 +995,8 @@ function renderAntonyProcess() {
   if (!source?.activity || !source?.lead_quality || !Array.isArray(source.funnel_by_source)) {
     container.innerHTML = `<p class="antony-analysis-empty">Prozessdaten noch nicht verfügbar. Bitte erneut laden.</p>`;return;
   }
-  if (source.coverage?.complete_period === false) {
+  const futurePeriod=source.period.end>berlinToday() && source.period.start>=source.coverage?.retention_start;
+  if (source.coverage?.complete_period === false && !futurePeriod) {
     container.innerHTML = `<p class="antony-analysis-empty">Für diesen Zeitraum liegt kein vollständiger Datenbestand vor. Verfügbar ab ${escapeHtml(germanDate(source.coverage.retention_start))}.</p>`;return;
   }
   const choices = [source,state.antonyProcessQuarter].flatMap(item=>[...(item?.cohort_history || []),...(item?.activity_by_origin || []),...(item?.quality_by_source || [])]);
@@ -1009,9 +1010,13 @@ function renderAntonyProcess() {
   if(filters.cohort !== "period" && !groups.includes(filters.cohort)) filters.cohort="period";
   const selected=selectCohort(source,filters,scale);
   const options = (items,key,labels={}) => items.map(v=>`<option value="${escapeHtml(v)}"${filters[key]===v?" selected":""}>${escapeHtml(labels[v] || v)}</option>`).join("");
-  container.innerHTML = `<div class="process-toolbar"><p class="process-scope">Filter für Pipeline und Gesprächsergebnisse</p>
-    <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Terminlieferant<select data-process-filter="owner"><option value="all">Alle Terminlieferanten</option>${options(suppliers,"owner",owners)}</select></label></div></div>
-    <div class="cohort-heading"><div><h4>Fortschritt derselben gebuchten Leads</h4><p>Erster Setter-Termin ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt bis ${escapeHtml(germanDate(source.period.end))}</p></div>
+  const toolbar = `<div class="process-toolbar"><p class="process-scope">Filter für Pipeline und Gesprächsergebnisse</p>
+    <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Terminlieferant<select data-process-filter="owner"><option value="all">Alle Terminlieferanten</option>${options(suppliers,"owner",owners)}</select></label></div></div>`;
+  if(futurePeriod) {
+    container.innerHTML=toolbar+renderSetterAttendance(source);
+    return;
+  }
+  container.innerHTML = toolbar+`<div class="cohort-heading"><div><h4>Fortschritt derselben gebuchten Leads</h4><p>Erster Setter-Termin ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt bis ${escapeHtml(germanDate(source.period.end))}</p></div>
     <label class="cohort-select">Buchungsgruppe<select data-process-filter="cohort"><option value="period"${filters.cohort==="period"?" selected":""}>Erste Setter-Termine im gewählten Zeitraum</option>${options(groups,"cohort",Object.fromEntries(groups.map(v=>[v,bookingGroupLabel(v,scale)])))}</select></label></div>
     ${selected.cohort_complete?renderProcessPipeline(selected):`<p class="process-data-gap">Für diese Buchungsgruppe ist der gespeicherte Verlauf unvollständig. Deshalb werden keine Übergangsquoten berechnet.</p>`}
     ${renderLeadQualityTables(selected)}
@@ -1038,7 +1043,7 @@ function renderSetterAttendance(source) {
       ${item("Geplante Termine im Zeitraum",t.scheduled)}${item("Davon noch zukünftig · ohne Bewertung",t.future)}
     </dl></section><section><h4>Verlauf der fälligen Termine</h4><dl>
       ${item("Durchgeführt",t.attended)}${item("Nicht erschienen",t.no_show)}${item("Abgesagt",t.cancelled)}${t.rescheduled?item("Verschoben · neues Datum noch offen",t.rescheduled):""}${item("Ergebnis noch nicht dokumentiert",t.unknown)}
-    </dl></section></div><p class="process-footnote">${number(t.attended)} durchgeführt / ${number(t.elapsed)} fällige Kalendertermine. Zukunftstermine bleiben außerhalb der Quote. Fehlende Nachweise zählen nicht als No-Show.</p></section>`;
+    </dl></section></div><p class="process-footnote">${number(t.attended)} durchgeführt / ${number(t.elapsed)} fällige Kalendertermine. Zukunftstermine bleiben außerhalb der Quote. Setter Calls zählen am Gesprächsdatum, auch aus älteren Buchungen; die Showrate berücksichtigt nur passende Kalendertermine. Fehlende Nachweise sind keine No-Shows.</p></section>`;
 }
 
 function renderPeriodOutcomes(source) {
@@ -1053,7 +1058,7 @@ function renderPeriodOutcomes(source) {
     <section><h4>Closer · ${number(a.closer_calls)} Calls</h4><dl>
       ${row("Entschieden",decided,a.closer_calls,"Closer Calls")}${row("Abschlussquote",Number(a.cc1_sales)+Number(a.cc2_sales),decided,"Entscheidungen")}${row("CC2 vereinbart",a.cc2_agreed,a.closer_calls,"Closer Calls")}${a.closer_unrated?row("Ergebnis unklar",a.closer_unrated,a.closer_calls,"Closer Calls"):""}</dl></section></div>
     <details class="chart-values"><summary>CC1, CC2, Herkunft und ausgefallene Termine</summary><div class="chart-table-scroll"><table><thead><tr><th scope="col">Kennzahl</th><th scope="col">Anzahl</th></tr></thead><tbody>
-      ${[["CC2 / Folgegespräche durchgeführt",b.cc2_calls],["Direkt im CC1 verkauft",a.cc1_sales],["Im CC2 verkauft",a.cc2_sales],["Nicht verkauft nach CC2-Vereinbarung",b.cc2_lost],["Nicht verkauft ohne dokumentierte CC2-Vereinbarung",b.cc1_lost],["Setter: nicht erschienen",a.setter_no_shows],["Setter: abgesagt",a.setter_cancellations],["Setter: verschoben",a.setter_rescheduled],["Closer: nicht erschienen",a.closer_no_shows],["Closer: abgesagt",a.closer_cancellations],["Closer: verschoben",a.closer_rescheduled],["Setter Calls aus Buchungen dieses Zeitraums",b.setter_from_period_bookings],["Setter Calls aus früheren Buchungen",b.setter_from_prior_bookings],["Setter Calls ohne gespeicherte Buchung",b.setter_without_booking],["Spätere Verkaufsbestätigung nach bereits erfasstem Won",b.sales_after_prior_won]].map(([label,n])=>`<tr><th scope="row">${escapeHtml(label)}</th><td>${n==null?"—":number(n)}</td></tr>`).join("")}</tbody></table></div>
+      ${[["CC2 / Folgegespräche durchgeführt",b.cc2_calls],["Direkt im CC1 verkauft",a.cc1_sales],["Im CC2 verkauft",a.cc2_sales],["Nicht verkauft nach CC2-Vereinbarung",b.cc2_lost],["Nicht verkauft ohne dokumentierte CC2-Vereinbarung",b.cc1_lost],["Setter: nicht erschienen",a.setter_no_shows],["Setter: abgesagt",a.setter_cancellations],["Setter: verschoben",a.setter_rescheduled],["Closer: nicht erschienen",a.closer_no_shows],["Closer: abgesagt",a.closer_cancellations],["Closer: verschoben",a.closer_rescheduled],["Setter Calls von Leads mit Ersttermin im Zeitraum",b.setter_from_period_bookings],["Setter Calls von Leads mit früherem Ersttermin",b.setter_from_prior_bookings],["Setter Calls ohne dokumentierten Ersttermin",b.setter_without_booking],["Spätere Verkaufsbestätigung nach bereits erfasstem Won",b.sales_after_prior_won]].map(([label,n])=>`<tr><th scope="row">${escapeHtml(label)}</th><td>${n==null?"—":number(n)}</td></tr>`).join("")}</tbody></table></div>
     <p class="chart-legend">CC2-Durchführung: ein späterer Closer Call nach einer CC2-Vereinbarung oder das ausdrückliche Ergebnis „Verkauft in CC2“. Mehrere Gespräche zählen einzeln. Unvollständige Historie beweist keine CC1-Zuordnung. Setter-No-Shows werden nur mit eindeutig zugeordnetem, fälligem Kalendertermin ausgewertet.</p></details></section>`;
 }
 
@@ -1066,7 +1071,7 @@ function renderProcessPipeline(source) {
   const t=totalCounts(rows,JOURNEY_KEYS), format=n=>n===null?"—":number(n);
   const branches=totalCounts(source.booking_cohort?.filter(matchesProcessFilter),["not_in_setter","pending","future","no_show","cancelled","rescheduled","setter_arrived","qualified","followup","disqualified","unrated"]);
   const stages=[
-    ["booked_leads","Termin gebucht",null,"Startbasis","Jeder gebuchte Lead zählt einmal. Maßgeblich ist das Kalenderdatum des ersten zugeordneten Setter-Termins. Eine eindeutige Verschiebung ändert dieses Datum. Offene und zukünftige Termine bleiben in der Startbasis."],
+    ["booked_leads","Erster Setter-Termin",null,"Startbasis","Jeder gebuchte Lead zählt einmal. Maßgeblich ist das Kalenderdatum des ersten zugeordneten Setter-Termins. Eine eindeutige Verschiebung ändert dieses Datum. Offene und zukünftige Termine bleiben in der Startbasis."],
     ["setter_arrived","Setter durchgeführt","booked_leads","gebuchte Leads","Mindestens ein Setter Call ab dem ersten Setter-Termin. Diese Fortschrittsquote ist keine bereinigte Showrate, da offene Termine enthalten sind."],
     ["closer_qualified","Closer terminiert","setter_arrived","Setter-Leads","Nach dem Setter ist mindestens einmal „Closer terminiert“ dokumentiert. Der aktuelle Setter-Status steht unter der Pipeline."],
     ["closer_arrived","Closer durchgeführt","closer_qualified","Closer-Termine","Mindestens ein Closer Call von Antony nach der dokumentierten Qualifizierung. Fehlende Vorstufen werden separat ausgewiesen."],
