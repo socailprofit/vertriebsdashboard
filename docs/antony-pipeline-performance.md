@@ -15,6 +15,7 @@
 - Die Monats-Hochrechnung extrapoliert jeden Aktivitätstyp unabhängig nach Werktagstempo. Der optionale Zielrechner verwendet zusammengehörige Übergänge und berücksichtigt Entscheidungs- und Won-Bestätigungsrate. Modellwerte sind keine gebuchten Umsätze.
 - Vorzimmer-Aufschlüsselungen zählen nur auswertbare Gatekeeper-Ergebnisse. GF/CEO nicht erreichbar und direkte Entscheiderkontakte bleiben außerhalb der Durchstellquote. Widersprüchliche CRM-Auswahlen werden markiert.
 - Alle Regeln berechnen sich aus den automatisch synchronisierten Fakten. Es gibt keine manuelle Liste nachgereichter Leads. Zeiträume und Quellenfilter verwenden dieselben SQL-Regeln. Späte Ergebnisse älterer Buchungen erscheinen am Ereignisdatum im aktuellen Zeitraum.
+- Realtime-Meldungen des vollständigen Abgleichs werden nach einer Sekunde Ruhe gebündelt. Hintergrundaktualisierungen laufen nacheinander; Änderungen während einer laufenden Abfrage führen anschließend genau zu einer weiteren Aktualisierung. Das verhindert eine Abfrage pro geänderter Tageszeile.
 - Fehlgeschlagene Aktualisierungen zeigen keine vermischten alten und neuen Zahlen. Langsame Antworten dürfen einen inzwischen gewechselten Zeitraum nicht überschreiben.
 
 - In der Pipeline kann eine frühere Buchungsgruppe ausgewählt werden, z. B. August mit Fortschritt bis 8. September. Tag/Woche gruppieren die Herkunft nach Kalenderwochen, Monat und Drei-Monats-Rückblick nach Monaten. Die sechs Übergangsstufen enthalten dieselben Leads, jeden Lead einmal; der Nenner wird nie aus einer anderen Buchungsgruppe übernommen.

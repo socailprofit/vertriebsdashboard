@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity, originGroups } from "./cohort-filters.mjs?v=2026-09-08-cohort-filters";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-cohort-filters";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-cohort-filters";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-cohort-filters";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity, originGroups } from "./cohort-filters.mjs?v=2026-09-08-cohort-sync";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-cohort-sync";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-cohort-sync";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-cohort-sync";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-cohort-filters";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-cohort-sync";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-08-cohort-filters";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-cohort-filters";
+import * as data from "./data.js?v=2026-09-08-cohort-sync";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-cohort-sync";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-08-cohort-filters";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-cohort-filters";
+} from "./call-time-score.mjs?v=2026-09-08-cohort-sync";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-cohort-sync";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null

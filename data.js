@@ -1,3 +1,4 @@
+import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-08-cohort-sync";
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.
 //
 // Jede fachliche Kennzahl und ihre Grundgesamtheit kommt aus den
@@ -5,7 +6,7 @@
 // den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-08-cohort-filters";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-08-cohort-sync";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -321,11 +322,12 @@ export async function loadLatestSummary() {
 // Funktionen. Die Tabellenänderung dient deshalb als Signal zum Nachladen, nicht
 // als Datenquelle. Realtime beachtet dieselben Policies wie eine Abfrage.
 export function subscribeToUpdates(onChange) {
+  const updates = createUpdateScheduler(onChange);
   const channel = requireClient()
     .channel("dashboard-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "daily_sales_metrics" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "sales_targets" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "sync_runs" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "daily_sales_metrics" }, updates.signal)
+    .on("postgres_changes", { event: "*", schema: "public", table: "sales_targets" }, updates.signal)
+    .on("postgres_changes", { event: "*", schema: "public", table: "sync_runs" }, updates.signal)
     .subscribe();
-  return () => requireClient().removeChannel(channel);
+  return () => {updates.dispose();return requireClient().removeChannel(channel);};
 }
