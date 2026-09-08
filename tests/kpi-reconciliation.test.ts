@@ -129,3 +129,25 @@ test("lead metadata excludes padded out-of-window Won leads and requires appoint
   assert.throws(()=>prepareLeadReportingSnapshot(rows.slice(1),facts,[{leadId:"won-inside"}]));
   assert.throws(()=>prepareLeadReportingSnapshot([...rows,rows[0]],facts,[]));
 });
+
+test("booking origin survives retention and is replaced from the complete CRM snapshot", () => {
+  const booking = {...row, custom_activity_type_id:ACTIVITY_TYPES.openingCall,
+    activity_at:"2025-12-31T23:30:00Z", [`custom.${CUSTOM_FIELDS.openingDecisionMakerResult}`]:"Entscheider: Termin vereinbart"};
+  const full=prepareCustomReconciliation([booking],"2026-07-01","2026-09-08");
+  assert.equal(full.facts.length,0);assert.equal(full.bookings.length,1);
+  assert.equal(full.bookings[0].metric_date,"2026-01-01");
+  assert.equal(prepareCustomReconciliation([{...booking,status:"draft"}],"2026-07-01","2026-09-08").bookings.length,0);
+  assert.equal(prepareCustomReconciliation([],"2026-07-01","2026-09-08").bookings.length,0);
+  assert.equal(prepareCustomReconciliation([{...booking,activity_at:"2026-09-09T10:00Z"}],"2026-07-01","2026-09-08").bookings.length,0);
+});
+
+test("Closer-only and No-Show leads require source metadata for consistent filters", () => {
+  for(const activity of [
+    {...row,custom_activity_type_id:ACTIVITY_TYPES.closerCall,[`custom.${CUSTOM_FIELDS.closerResult}`]:"2. 🔥 CC2 vereinbart"},
+    {...row,custom_activity_type_id:ACTIVITY_TYPES.noShow,[`custom.${CUSTOM_FIELDS.setterNoShow}`]:"Nicht erschienen"}
+  ]) {
+    const {facts}=prepareCustomReconciliation([activity],"2026-07-01","2026-09-08");
+    assert.equal(facts.length,1);
+    assert.throws(()=>prepareLeadReportingSnapshot([],facts,[]),/missing_lead_reporting_metadata/);
+  }
+});

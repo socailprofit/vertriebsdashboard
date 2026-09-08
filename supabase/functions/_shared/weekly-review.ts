@@ -12,12 +12,13 @@ export const KPI_RULES = [
   "Periodenverhaeltnisse verbinden unterschiedliche Ereignisse desselben Zeitraums; keine Kohortenconversion und keine Teilnahmequote. Werte ueber 100 Prozent sind moeglich. Keine Ursache oder Funnelverluste daraus behaupten.",
   "Kundenabschluesse: Won-Datum und Lead-Feld 3.03 Closer; Status Kunde, keine Upsells. Aeltere Termine koennen erst jetzt gewonnen werden.",
   "Null bedeutet keine Grundgesamtheit. Weder null noch fehlende Historie als 0 Prozent oder Leistungsverlust bewerten.",
-  "Leadqualitaet: letztes Setter-Ergebnis je eindeutigem Lead, getrennt nach Quelle und Terminlieferant. Terminlieferant aus Buchungsaktivitaet, nur explizit gekennzeichnete Ersatzzuordnung aus aktuellem Opener-Feld. Aktuelle Leadquelle ist keine historische Zuordnung.",
-  "Buchungskohorte: eindeutige Leads mit Terminbuchung im Zeitraum und danach dokumentierte Ergebnisse bis Stichtag. Wiederholte Buchungen zaehlen einmal. Anteil im Setter ist Fortschritt bis Stichtag, keine bereinigte Showrate; offene Termine, No-Shows und Absagen sind keine Disqualifikationen.",
+  "Leadqualitaet: letztes Setter-Ergebnis je eindeutigem Lead, getrennt nach Quelle und Terminlieferant. Terminlieferant aus erster dokumentierter Buchungsaktivitaet; fehlt diese, bleibt die Zuordnung unbekannt. Aktuelle Leadquelle ist keine historische Zuordnung.",
+  "Buchungskohorte: eindeutige Leads mit ihrer ersten dokumentierten Terminbuchung im Zeitraum und danach dokumentierte Ergebnisse bis Stichtag. Die Erstbuchung bleibt auch bei Wochen- und Monatswechseln fest. Wiederholte Buchungen verschieben keinen Lead in eine neue Gruppe. Anteil im Setter ist Fortschritt bis Stichtag, keine bereinigte Showrate; offene Termine, No-Shows und Absagen sind keine Disqualifikationen.",
   "Follow-up-Kontakte, Setter-Follow-ups und CC2-Vereinbarungen sind protokollierte Ereignisse; nicht automatisch aktuell offen. Leadqualitaet auf kleinen Stichproben nicht als endgueltige Rangliste bewerten.",
   "Pipeline ist eine aus gespeicherten Ereignissen abgeleitete Momentaufnahme, keine vollstaendige aktuelle Close-Pipeline.",
   "funnel_by_source verknuepft dieselben gebuchten Leads chronologisch: Buchung, Setter, Qualifizierung, Closer, ausdrueckliche Entscheidung, Verkauf und Won. Jede Quote braucht Zaehler und konkrete Vorstufenbasis; dokumentierte Ergebnisse ohne Vorstufen stehen unter unlinked und duerfen nicht erfunden werden.",
   "CC2 ist ein optionaler Folgeweg nach CC1, keine Pflichtstufe fuer direkte CC1-Verkaeufe. Vereinbart ist nicht durchgefuehrt. Folgegespraech nur nach dokumentierter CC2-Vereinbarung oder ausdruecklichem Verkauf in CC2. Ohne passende Historie ist die Phase unklar.",
+  "activity_by_origin zeigt die urspruengliche Buchung mit booked_date und die dazugehoerigen Aktivitaeten im Berichtszeitraum. Niemals September-Setter durch September-Buchungen teilen, wenn die Setter aus August stammen. Uebergangsquoten ausschliesslich aus derselben Buchungsgruppe in funnel_by_source. Fehlende Buchungen nicht in diese Quoten aufnehmen.",
   "period_bridge trennt jetzige Aktivitaeten aus jetzigen, frueheren oder fehlenden Buchungen. Neukunde zaehlt einmal am ersten verfuegbaren Won-Datum je Lead, ohne Upsell/Verlaengerung. Eine spaetere Verkaufsbestaetigung verschiebt den Kunden nicht in einen neuen Monat. Kein Unterschriftsdatum aus Notizen ableiten.",
 ];
 
@@ -175,6 +176,16 @@ function safeQualityDimensions(source: unknown) {
     owner: ["michael", "felix", "antony", "other", "unassigned"].includes(String(row.owner)) ? String(row.owner) : "unassigned",
   };
 }
+function aggregateCohortCounts(source: unknown, keys: readonly string[]) {
+  const groups = new Map<string, ReturnType<typeof safeQualityDimensions> & Record<string, unknown>>();
+  for(const value of Array.isArray(source) ? source : []) {
+    const dims = safeQualityDimensions(value), id=JSON.stringify(dims);
+    const row=counts(value,keys), previous=groups.get(id);
+    if(!previous) groups.set(id,{...dims,...row});
+    else for(const k of keys) previous[k]=previous[k]===null || row[k]===null ? null : Number(previous[k])+Number(row[k]);
+  }
+  return [...groups.values()];
+}
 // Only categorical labels and aggregates: never lead IDs, names, notes or email.
 export function buildProcessInput(source: unknown) {
   const root = record(source), period = record(root.period);
@@ -182,7 +193,11 @@ export function buildProcessInput(source: unknown) {
     period: {start: dateString(period.start), end: dateString(period.end), timezone: REPORTING_TIMEZONE},
     activity: counts(root.activity, PROCESS_COUNT_KEYS),
     period_bridge: counts(root.period_bridge, BRIDGE_KEYS),
-    funnel_by_source: (Array.isArray(root.funnel_by_source) ? root.funnel_by_source : []).slice(0,75).map(value=>({...safeQualityDimensions(value),...counts(value,JOURNEY_KEYS)})),
+    activity_by_origin: (Array.isArray(root.activity_by_origin) ? root.activity_by_origin : []).slice(0,500).map(value=>({
+      ...safeQualityDimensions(value), booked_date: dateString(record(value).booked_date) || null,
+      ...counts(value,[...PROCESS_COUNT_KEYS,"new_customers"]),
+    })),
+    funnel_by_source: aggregateCohortCounts(root.funnel_by_source,JOURNEY_KEYS).slice(0,225),
     lead_quality: counts(root.lead_quality, QUALITY_KEYS),
     quality_by_source: (Array.isArray(root.quality_by_source) ? root.quality_by_source : []).slice(0,225).map(value => {
       const row = record(value);
@@ -190,7 +205,7 @@ export function buildProcessInput(source: unknown) {
         attribution: ["booking_activity", "current_opener", "unassigned"].includes(String(row.attribution)) ? row.attribution : "unassigned",
         qualified_share: kpiRate(row.qualified, row.assessed_leads)};
     }),
-    booking_cohort: (Array.isArray(root.booking_cohort) ? root.booking_cohort : []).slice(0,75).map(value => {
+    booking_cohort: aggregateCohortCounts(root.booking_cohort,COHORT_KEYS).slice(0,225).map(value => {
       const row = record(value);
       return {...safeQualityDimensions(row), ...counts(row, COHORT_KEYS),
         setter_arrival_progress: kpiRate(row.setter_arrived, row.booked_leads),

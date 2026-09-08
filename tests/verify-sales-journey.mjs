@@ -12,7 +12,7 @@ create or replace function pg_catalog.now() returns timestamptz language sql sta
 const read=p=>fs.readFileSync(new URL(p,import.meta.url),'utf8');
 await db.exec(read('fixtures/kpi-schema.sql'));
 await db.exec('create table antony_performance_goals(id integer);');
-for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
+for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey','20260908085704_fix_booking_cohort_filters'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
 async function insert(table,rows){if(rows?.length)await db.query(`insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},$1)`,[JSON.stringify(rows)]);}
 if(process.argv[3]){
  const s=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));
@@ -21,7 +21,7 @@ if(process.argv[3]){
  for(const [label,period,date] of [['day','day','2026-09-08'],['week','week','2026-09-08'],['month','month','2026-09-08'],['august','month','2026-08-31'],['quarter','three_months','2026-09-08']]){
   const p=(await db.query('select get_antony_process_metrics_internal($1,$2) j',[period,date])).rows[0].j;
   results[label]=p;
-  assert.equal(p.reporting_version,'2026-09-08.journey-v2');
+  assert.equal(p.reporting_version,'2026-09-08.cohort-v3');
   for(const g of p.funnel_by_source){
    const keys=['booked_leads','setter_arrived','closer_qualified','closer_arrived','decided_leads','sold_leads','new_customers'];
    keys.slice(1).forEach((k,i)=>assert(g[k]<=g[keys[i]],`${label} ${k} must be a subset of ${keys[i]}`));
@@ -110,4 +110,49 @@ const acq=(await db.query("select count(*) n from get_customer_acquisitions_inte
 const permissions=(await db.query("select has_function_privilege('anon','get_antony_journey_metrics_internal(text,date)','execute') a,has_function_privilege('authenticated','get_customer_acquisitions_internal(date)','execute') b,has_function_privilege('anon','get_transfer_breakdown(text,date)','execute') c")).rows[0];assert.deepEqual(permissions,{a:false,b:false,c:false});
 console.log('PASS synthetic: August booking → September CC2 sale, same-day Won without invented time, duplicate opportunities, upsell/renewal exclusion, later yes after prior-month Won, open FU and cancelled CC2, private helper privileges.');
 console.log('PASS CC2 state: lost, cancelled, no-show and rescheduled are distinct; later repeated sales confirmation preserves the linked first acquisition.');
+
+// A repeat booking must never move the same lead into a different cohort.
+await event('rebooking','2026-08-31',{appointments:1});
+await event('rebooking','2026-09-02',{appointments:1});
+await event('rebooking','2026-09-03',{setter_calls:1},{setter_result:'🔎 Setter Follow Up'});
+await event('future-booking','2026-09-02',{setter_calls:1},{setter_result:'🔎 Setter Follow Up'});
+await event('future-booking','2026-09-04',{appointments:1});
+await db.query("insert into close_booking_history values('old-booking','outside-retention',$1,'2026-05-12T10:00Z','2026-05-12')",[M]);
+await event('outside-retention','2026-09-07',{appointments:1});
+await event('outside-retention','2026-09-07T14:00Z',{setter_calls:1},{setter_result:'🔎 Setter Follow Up'});
+for(const [period,date] of [['day','2026-09-03'],['week','2026-09-08'],['month','2026-09-08'],['three_months','2026-09-08']]){
+ const first=(await db.query("select booked_date::text from get_close_first_bookings_internal($1) where lead_id='rebooking'",[date])).rows[0];
+ assert.equal(first.booked_date,'2026-08-31');
+ const report=(await db.query('select get_antony_process_metrics_internal($1,$2) j',[period,date])).rows[0].j;
+ for(const key of ['setter_calls','closer_calls','cc2_agreed','setter_qualified','setter_followups','setter_disqualified'])
+  assert.equal(report.activity_by_origin.reduce((n,r)=>n+Number(r[key]||0),0),report.activity[key],`${period}: ${key} origin sum`);
+ assert.equal(report.activity_by_origin.reduce((n,r)=>n+Number(r.new_customers||0),0),report.period_bridge.new_customers);
+ assert(!JSON.stringify(report.activity_by_origin).includes('rebooking'));
+}
+p=(await db.query("select get_antony_process_metrics_internal('month','2026-09-08') j")).rows[0].j;
+assert(p.activity_by_origin.some(r=>r.booked_date==='2026-08-31' && r.setter_calls===1));
+assert(p.activity_by_origin.some(r=>r.booked_date===null && r.setter_calls===1));
+assert(p.activity_by_origin.some(r=>r.booked_date==='2026-05-12' && r.setter_calls===1));
+assert(!p.cohort_history.some(r=>r.booked_date==='2026-05-12'));
+assert.equal((await db.query("select booked_date::text from get_close_first_bookings_internal('2026-09-08') where lead_id='outside-retention'")).rows[0].booked_date,'2026-05-12');
+// Exercise the actual production transaction, including deletion and rejection
+// of stale/incomplete snapshots, rather than testing only a derived SELECT.
+const raw=(await db.query('select * from close_raw_activities')).rows;
+const facts=(await db.query('select * from close_activity_facts')).rows;
+const won=(await db.query('select * from close_opportunity_facts')).rows;
+const required=new Set([...facts.filter(f=>['setter_calls','appointments','closer_calls','no_shows','cancellations','rescheduled_appointments'].some(k=>f[k]>0)).map(f=>f.lead_id),...won.map(w=>w.lead_id)]);
+const leads=[...required].map(lead_id=>({lead_id,opener_close_user_id:M,lead_source:'LinkedIn'}));
+let history=[...(await db.query('select * from close_booking_history')).rows,...facts.filter(f=>f.appointments===1).map(f=>Object.fromEntries(['source_activity_id','lead_id','close_user_id','occurred_at','metric_date'].map(k=>[k,f[k]])))];
+const rpc=(at,bookings)=>db.query("select reconcile_close_sales_snapshot('2026-07-01','2026-09-08',$1,$2,$3,$4,$5,$6) j",[at,...[raw,facts,won,leads,bookings].map(JSON.stringify)]);
+await rpc('2026-09-08T12:00:00Z',history);
+await assert.rejects(()=>rpc('2026-09-08T12:00:00Z',history),/Stale reconciliation snapshot/);
+await assert.rejects(()=>rpc('2026-09-08T12:00:01Z',[]),/Incomplete booking snapshot/);
+assert.equal(Number((await db.query('select count(*) n from close_booking_history')).rows[0].n),history.length);
+history=history.filter(h=>h.source_activity_id!=='old-booking');
+await rpc('2026-09-08T12:00:01Z',history);
+assert.equal((await db.query("select booked_date::text from get_close_first_bookings_internal('2026-09-08') where lead_id='outside-retention'")).rows[0].booked_date,'2026-09-07');
+const priv=(await db.query("select has_table_privilege('anon','close_booking_history','select') a,has_table_privilege('authenticated','close_booking_history','select') b,has_function_privilege('authenticated','reconcile_close_sales_snapshot(date,date,timestamptz,jsonb,jsonb,jsonb,jsonb,jsonb)','execute') c")).rows[0];
+assert.deepEqual(priv,{a:false,b:false,c:false});
+console.log('PASS fixed booking origin: rebookings, cross-month/week, before retention, future booking stays unknown, every period reconciles to origin totals.');
+console.log('PASS actual reconciliation RPC: atomic full history, deletion correction, stale/incomplete snapshot rejection and private permissions.');
 await db.close();

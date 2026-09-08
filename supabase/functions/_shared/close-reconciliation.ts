@@ -41,7 +41,12 @@ export function prepareCustomReconciliation(records: Row[], startDate: string, e
     return date >= startDate && date <= endDate;
   });
   const facts = raw.map(normalizeCustomRecord).map(mapCustomActivity).filter(fact => fact !== null);
-  return { raw, facts };
+  const bookings = [...byId.values()].map(normalizeCustomRecord).map(mapCustomActivity)
+    .filter(f => f !== null && f.appointments === 1 && metricTimeInReportingTimezone(f.occurredAt).metricDate <= endDate)
+    .map(f => ({ source_activity_id: f!.sourceActivityId, lead_id: f!.leadId,
+      close_user_id: f!.closeUserId, occurred_at: f!.occurredAt,
+      metric_date: metricTimeInReportingTimezone(f!.occurredAt).metricDate }));
+  return { raw, facts, bookings };
 }
 
 export function closingReconciliationTotals(facts: ReturnType<typeof prepareCustomReconciliation>["facts"], startDate: string, endDate: string) {
@@ -76,7 +81,7 @@ type LeadReportingRow = {lead_id: string; opener_close_user_id: string | null; l
 export function prepareLeadReportingSnapshot(rows: LeadReportingRow[], facts: ReturnType<typeof prepareCustomReconciliation>["facts"], deals: Array<{leadId: string}>) {
   // Won is fetched with a UTC boundary buffer. Its out-of-window leads must
   // not enter the exact retained metadata snapshot sent to the atomic RPC.
-  const required = new Set([...facts.filter(f => f.setterCalls === 1 || f.appointments === 1).map(f => f.leadId), ...deals.map(d => d.leadId)]);
+  const required = new Set([...facts.filter(f => isProcessReportingFact(f)).map(f => f.leadId), ...deals.map(d => d.leadId)]);
   const byId = new Map(rows.map(row => [row.lead_id, row]));
   if (byId.size !== rows.length) throw new Error("duplicate_lead_reporting_metadata");
   return [...required].map(id => {
@@ -84,4 +89,8 @@ export function prepareLeadReportingSnapshot(rows: LeadReportingRow[], facts: Re
     if (!row) throw new Error("missing_lead_reporting_metadata");
     return row;
   });
+}
+
+export function isProcessReportingFact(f: ReturnType<typeof prepareCustomReconciliation>["facts"][number]) {
+  return f.setterCalls > 0 || f.appointments > 0 || f.closerCalls > 0 || f.noShows > 0 || f.cancellations > 0 || f.rescheduledAppointments > 0;
 }

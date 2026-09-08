@@ -1281,3 +1281,14 @@ main { grid-template-columns: minmax(0, 1fr); }
 .process-stage-optional .process-node { border-style: dashed; }
 .cc2-inline-details { display: grid; gap: 8px; margin: 14px 0; }
 .cc2-inline-details dd { margin: 0 0 10px; }
+
+.cohort-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1.25rem 0; }
+.cohort-heading h4 { margin:0 0 .4rem; font-size:1rem; }
+.cohort-heading p { margin:0; color:var(--muted); font-size:.8rem; }
+.cohort-select { display:grid; gap:.4rem; font-size:.75rem; color:var(--muted); }
+.cohort-select select { background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:.65rem; max-width:100%; }
+.booking-origins { margin:1.5rem 0; padding-top:1rem; border-top:1px solid var(--line); }
+.cohort-link { border:0; background:transparent; color:#8bb8ff; padding:.5rem 0; text-align:left; cursor:pointer; font:inherit; }
+.cohort-link:hover { text-decoration:underline; }
+.cohort-link:focus-visible { outline:2px solid #8bb8ff; outline-offset:3px; }
+@media(max-width:700px) { .cohort-heading { align-items:stretch; flex-direction:column; } .cohort-select select { width:100%; } }

@@ -1,4 +1,4 @@
-import { CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
+import { isProcessReportingFact, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
@@ -436,7 +436,7 @@ Deno.serve(async (request) => {
     const activityFacts = [...callFacts, ...customFacts];
 
     const leadIds = [...new Set([...opportunities.map((opportunity) => opportunity.lead_id),
-      ...customFacts.filter(fact => fact.setterCalls === 1 || fact.appointments === 1).map(fact => fact.leadId).filter((id): id is string => id !== null)])];
+      ...customFacts.filter(fact => isProcessReportingFact(fact)).map(fact => fact.leadId).filter((id): id is string => id !== null)])];
     const leadReportingRows: Array<{lead_id:string;opener_close_user_id:string|null;lead_source:string|null}> = [];
     const leadAttributions = new Map<string, ReturnType<typeof leadAttribution>>();
     for (let index = 0; index < leadIds.length; index += 10) {
@@ -499,15 +499,16 @@ Deno.serve(async (request) => {
       await upsertBatches(supabase, "close_raw_activities", rawRows.filter(row => row.activity_type === "call"), "close_activity_id");
       await upsertBatches(supabase, "close_activity_facts", factRows.filter(row => row.source_type === "call"), "source_activity_id");
       if (!newsletterOnly) {
-        const { error } = await supabase.rpc("reconcile_close_custom_and_won", {
+        const { error } = await supabase.rpc("reconcile_close_sales_snapshot", {
           p_start_date: retentionStart, p_end_date: reconciliationEnd,
           p_snapshot_started_at: snapshotStartedAt,
           p_raw: rawRows.filter(row => row.activity_type === "custom_activity"),
           p_facts: factRows.filter(row => row.source_type === "custom_activity"),
           p_opportunities: opportunityRows,
           p_leads: leadReporting,
+          p_bookings: reconciled.bookings,
         });
-        if (error) throw supabaseError("rpc reconcile_close_custom_and_won", error);
+        if (error) throw supabaseError("rpc reconcile_close_sales_snapshot", error);
       }
       // One atomic replacement also removes deleted/reassigned sends and old
       // completion counts. Only the newsletter KPI is backfilled historically.
