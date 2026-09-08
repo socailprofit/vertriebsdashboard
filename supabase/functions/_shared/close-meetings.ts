@@ -32,7 +32,9 @@ export type MeetingRow = {
   booking_activity_id: string | null; booking_owner_id: string | null;
 };
 
-export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], dataAsOf: string) {
+export type MeetingLink = Pick<MeetingRow, "meeting_id" | "lead_id" | "booking_activity_id" | "booking_owner_id">;
+
+export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], dataAsOf: string, previousLinks: MeetingLink[] = []) {
   if (!timestamp(dataAsOf)) throw new Error("invalid_meeting_snapshot_time");
   const byId = new Map<string, MeetingRow>();
   for (const row of records) {
@@ -64,9 +66,26 @@ export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], data
     byId.set(meeting.meeting_id, meeting);
   }
   const meetings = [...byId.values()];
+  // An already proven booking belongs to its stable Close meeting ID even
+  // after a move past another meeting. Never guess a replacement from its title.
+  const retainedBookings = new Set<string>();
+  for (const old of previousLinks) {
+    const meeting = byId.get(old.meeting_id);
+    const booking = bookings.find(b => b.source_activity_id === old.booking_activity_id);
+    if (!meeting || !booking || meeting.excluded_purpose || !meeting.owner_id
+      || meeting.lead_id !== old.lead_id || booking.lead_id !== meeting.lead_id
+      || booking.close_user_id !== old.booking_owner_id || !booking.close_user_id
+      || !SALES_USERS.has(booking.close_user_id) || !isObservedAt(booking.occurred_at, dataAsOf)
+      || Date.parse(booking.occurred_at) > Date.parse(meeting.starts_at)) continue;
+    if (retainedBookings.has(booking.source_activity_id)) throw new Error("ambiguous_stored_meeting_link");
+    meeting.booking_activity_id = booking.source_activity_id;
+    meeting.booking_owner_id = booking.close_user_id;
+    retainedBookings.add(booking.source_activity_id);
+  }
   const nominations = new Map<string, Booking[]>();
   let withoutMeeting = 0, ambiguous = 0;
   for (const booking of bookings) {
+    if (retainedBookings.has(booking.source_activity_id)) continue;
     if (!booking.lead_id || !booking.close_user_id || !SALES_USERS.has(booking.close_user_id) || !isObservedAt(booking.occurred_at, dataAsOf)) continue;
     const candidates = meetings.filter(m => m.lead_id === booking.lead_id && m.owner_id && !m.excluded_purpose
       && Date.parse(m.starts_at) >= Date.parse(booking.occurred_at))
@@ -78,6 +97,7 @@ export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], data
   }
   for (const meeting of meetings) {
     const nominated = nominations.get(meeting.meeting_id) ?? [];
+    if (meeting.booking_activity_id) { ambiguous += nominated.length; continue; }
     if (nominated.length > 1) { ambiguous += nominated.length; continue; }
     if (nominated.length === 1) {
       meeting.booking_activity_id = nominated[0].source_activity_id;

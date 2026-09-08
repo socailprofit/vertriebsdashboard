@@ -1,5 +1,5 @@
 import { isProcessReportingFact, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
-import { MEETING_FIELDS, prepareMeetingSnapshot } from "../_shared/close-meetings.ts";
+import { MEETING_FIELDS, prepareMeetingSnapshot, type MeetingLink } from "../_shared/close-meetings.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
@@ -349,11 +349,11 @@ Deno.serve(async (request) => {
     // Prefer the conventional name; accept the mixed-case one that exists today.
     const closeApiKey = requiredEnvironment("CLOSE_API_KEY", "Close_API_Key");
 
+    supabase = createClient(
+      requiredEnvironment("SUPABASE_URL"), requiredEnvironment("SUPABASE_SERVICE_ROLE_KEY"),
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
     if (mode === "write") {
-      supabase = createClient(
-        requiredEnvironment("SUPABASE_URL"), requiredEnvironment("SUPABASE_SERVICE_ROLE_KEY"),
-        { auth: { persistSession: false, autoRefreshToken: false } },
-      );
       const { data, error } = await supabase.from("sync_runs").insert({
         status: "running",
         source_window_start: startTimestamp,
@@ -426,7 +426,18 @@ Deno.serve(async (request) => {
     };
     const rawCalls = callResult.value.filter(withinReportingWindow);
     const reconciled = prepareCustomReconciliation(customResult.value, retentionStart, reconciliationEnd, snapshotStartedAt);
-    const calendar = prepareMeetingSnapshot(meetingResult.value, reconciled.bookings, snapshotStartedAt);
+    const previousMeetingLinks: MeetingLink[] = [];
+    if (!newsletterOnly) for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase.from("close_meetings")
+        .select("meeting_id,lead_id,booking_activity_id,booking_owner_id")
+        .not("booking_activity_id", "is", null).is("removed_at", null)
+        .order("meeting_id").range(offset, offset + 999);
+      if (error) throw supabaseError("read stable calendar links", error);
+      previousMeetingLinks.push(...data);
+      if (data.length < 1000) break;
+      if (offset >= 19000) throw new Error("calendar_link_limit");
+    }
+    const calendar = prepareMeetingSnapshot(meetingResult.value, reconciled.bookings, snapshotStartedAt, previousMeetingLinks);
     const rawCustomActivities = reconciled.raw;
     const opportunities = opportunityResult.value;
 

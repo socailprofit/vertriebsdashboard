@@ -63,3 +63,18 @@ test("invalid timestamps and contradictory pagination fail closed",()=>{
  assert.throws(()=>prepareMeetingSnapshot([meeting({starts_at:"2026-10-15"})],[booking],asOf),/invalid_meeting_record/);
  assert.throws(()=>prepareMeetingSnapshot([meeting(),meeting({status:"canceled"})],[booking],asOf),/unstable_meeting_pagination/);
 });
+
+test("stable meeting identity follows a reschedule past another appointment",()=>{
+ const old=prepareMeetingSnapshot([meeting()],[booking],asOf).meetings;
+ const records=[meeting({starts_at:"2026-11-15T09:00:00Z",ends_at:"2026-11-15T10:00:00Z"}),meeting({id:"different-meeting",starts_at:"2026-10-20T09:00:00Z",ends_at:"2026-10-20T10:00:00Z"})];
+ const result=prepareMeetingSnapshot(records,[booking],asOf,old);
+ assert.equal(result.meetings.find(m=>m.meeting_id==="meeting")?.booking_activity_id,"booking");
+ assert.equal(result.meetings.find(m=>m.meeting_id==="different-meeting")?.booking_activity_id,null);
+ assert.equal(result.diagnostics.linked,1);
+});
+test("stored links cannot be reused for a different lead, deleted booking or excluded purpose",()=>{
+ const old=prepareMeetingSnapshot([meeting()],[booking],asOf).meetings;
+ assert.equal(prepareMeetingSnapshot([meeting({lead_id:"other"})],[booking],asOf,old).diagnostics.linked,0);
+ assert.equal(prepareMeetingSnapshot([meeting()],[],asOf,old).diagnostics.linked,0);
+ assert.equal(prepareMeetingSnapshot([meeting({title:"Onboarding"})],[booking],asOf,old).diagnostics.linked,0);
+});
