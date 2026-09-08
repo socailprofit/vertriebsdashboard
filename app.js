@@ -1,19 +1,19 @@
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-journey-v2";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-journey-v2";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-journey-v2";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-customer-endpoint";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-customer-endpoint";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-customer-endpoint";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-journey-v2";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-customer-endpoint";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-08-journey-v2";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-journey-v2";
+import * as data from "./data.js?v=2026-09-08-customer-endpoint";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-customer-endpoint";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-08-journey-v2";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-journey-v2";
+} from "./call-time-score.mjs?v=2026-09-08-customer-endpoint";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-customer-endpoint";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -883,7 +883,6 @@ function renderAntony() {
     ["Closer terminiert", c.setter_successes, "Setter Calls mit dem Ergebnis „Closer terminiert“ im ausgewählten Zeitraum."],
     ["Closer Calls", c.closer_calls, b ? `${format(b.cc2_calls)} dokumentierte Folgegespräche nach CC2-Vereinbarung oder mit Ergebnis „Verkauft in CC2“.` : "Durchgeführte Closer-Gespräche von Antony, einschließlich CC2."],
     ["CC2 vereinbart", c.closer_second_calls, "Vereinbarungen im Zeitraum. Das Folgegespräch kann erst später stattfinden."],
-    ["Verkauft im Gespräch", c.closer_sales, "Explizite Verkaufsergebnisse im CC1 oder CC2. Der Neukunde wird separat am ersten Won-Datum gezählt."],
     ["Neukunden", c.new_customers, b ? `${format(b.customers_from_period_bookings)} aus Buchungen dieses Zeitraums · ${format(b.customers_from_prior_bookings)} aus früheren Buchungen · ${format(b.customers_without_booking)} ohne gespeicherte Buchung. Ein späteres Ja zählt einen bereits gewonnenen Kunden nicht erneut. Maßgeblich ist das Won-Datum in Close, kein aus Notizen vermutetes Unterschriftsdatum.` : "Erste gewonnene Neukunden-Opportunity je Lead, am Won-Datum in Close."],
   ] : [];
   container.innerHTML = rows.length ? rows.map(([label,n,detail]) => {
@@ -902,7 +901,6 @@ const antonyPerformanceSeries = Object.freeze([
   { key: "closer_appointments_cumulative", label: "Closer terminiert", color: "#9b8cff" },
   { key: "closer_calls_cumulative", label: "Closer durchgeführt", color: "#36d399" },
   { key: "cc2_agreed_cumulative", label: "CC2 vereinbart", color: "#f5a524" },
-  { key: "closer_sales_cumulative", label: "Verkauft", color: "#ed8ac2" },
   { key: "new_customers_cumulative", label: "Neukunden", color: "#91d960" },
 ]);
 
@@ -1043,20 +1041,18 @@ function renderProcessPipeline(source) {
     ["closer_qualified","Closer terminiert","setter_arrived","Setter-Leads","Nach dem Setter ist mindestens einmal „Closer terminiert“ dokumentiert. Der aktuelle Setter-Status steht unter der Pipeline."],
     ["closer_arrived","Closer durchgeführt","closer_qualified","Closer-Termine","Mindestens ein Closer Call von Antony nach der dokumentierten Qualifizierung. Fehlende Vorstufen werden separat ausgewiesen."],
     ["cc2_agreed","CC2 vereinbart","closer_arrived","Closer-Leads","Optional: Wird direkt im ersten Closer Call gekauft, wird dieser Schritt übersprungen. Die weiteren Quoten berücksichtigen CC1 und CC2 gemeinsam."],
-    ["decided_leads","Entschieden","closer_arrived","Closer-Leads","Das letzte eindeutige Closer-Ergebnis lautet verkauft oder nicht verkauft. Offene CC2 und unklare Ergebnisse zählen nicht als Entscheidung."],
-    ["sold_leads","Verkauft","decided_leads","Entscheidungen","Abschlussquote: gewonnene Leads geteilt durch ausdrücklich entschiedene Leads dieser Buchungsgruppe. Verkauf kann im CC1 oder CC2 erfolgen."],
-    ["new_customers","Neukunde bestätigt","sold_leads","verkaufte Leads","Zusätzlich zum Gespräch ist die erste Neukunden-Opportunity in Close am selben oder späteren Kalendertag gewonnen. Upsells und Verlängerungen zählen nicht. Won ohne vollständige Gesprächskette bleibt separat sichtbar."],
+    ["observed_customers","Neukunde","booked_leads","gebuchte Leads","Der Verkauf wird einmal als Neukunde gezählt, sobald die Neukunden-Opportunity in Close gewonnen ist. Ein Abschluss im ersten Closer Call überspringt CC2. Diese Gesamtquote zeigt Neukunden aus allen gebuchten Leads; ein separates Verkaufsergebnis im Gespräch ist keine Voraussetzung. Fehlende Zwischenschritte bleiben gekennzeichnet."],
   ];
   const stage=(key,title,base,basis,detail,index,extra="")=>{
     const rate=base?transition(t[key],t[base]).rate:null;
     return `<details class="process-stage ${extra}"><summary aria-label="${escapeHtml(title)}: ${format(t[key])}. Details anzeigen."><span class="process-node" aria-hidden="true">${index}</span><span class="process-stage-title">${title}${key==="cc2_agreed"?`<small class="process-optional-label">optional</small>`:""}</span><strong data-process-count="${key}">${format(t[key])}</strong>${base?`<progress max="100" value="${rate??0}" aria-label="Anteil ${escapeHtml(basis)}"></progress>${processRate(t[key],t[base],basis)}`:`<span class="process-start">Startbasis</span>`}<span class="process-detail-toggle">Details <span aria-hidden="true">⌄</span></span></summary><div class="process-stage-detail">${escapeHtml(detail)}${key==="cc2_agreed"?`<dl class="cc2-inline-details"><dt>Durchgeführt / vereinbart</dt><dd>${processRate(t.cc2_held,t.cc2_agreed)}</dd><dt>Entschieden / durchgeführt</dt><dd>${processRate(t.cc2_decided,t.cc2_held)}</dd><dt>Verkauft / entschieden</dt><dd>${processRate(t.cc2_sold,t.cc2_decided)}</dd></dl><p>${format(t.cc2_waiting)} warten · ${format(t.cc2_open)} nach CC2 offen · ${format(t.cc2_lost)} verloren</p>${[["cc2_cancelled","abgesagt"],["cc2_no_show","nicht erschienen"],["cc2_rescheduled","verschoben"]].filter(([k])=>t[k]>0).map(([k,label])=>`<p>${format(t[k])} ${label}</p>`).join("")}`:""}</div></details>`;
   };
   const branch=(title,key,base)=>`<div><dt>${title}</dt><dd>${processRate(branches[key],branches[base],"")}</dd></div>`;
-  return `<div class="process-flow" aria-label="Pipeline der gebuchten Leads"><div class="process-rail">${stages.map((v,i)=>stage(...v,i+1,i===7?"process-stage-won":v[0]==="cc2_agreed"?"process-stage-optional":"")).join("")}</div>
+  return `<div class="process-flow" aria-label="Pipeline der gebuchten Leads"><div class="process-rail">${stages.map((v,i)=>stage(...v,i+1,v[0]==="observed_customers"?"process-stage-won":v[0]==="cc2_agreed"?"process-stage-optional":"")).join("")}</div>
     <div class="process-branches"><section><h4>Vor dem Setter · ${format(branches.not_in_setter)} Leads</h4><dl>${branch("Noch kein Setter / Status","pending","not_in_setter")}${branch("Nicht erschienen","no_show","not_in_setter")}${branch("Abgesagt","cancelled","not_in_setter")}${branch("Verschoben","rescheduled","not_in_setter")}</dl></section>
     <section><h4>Letztes Setter-Ergebnis · ${format(branches.setter_arrived)} Leads</h4><dl>${branch("Zum Closer qualifiziert","qualified","setter_arrived")}${branch("Follow-up nötig","followup","setter_arrived")}${branch("Disqualifiziert","disqualified","setter_arrived")}${branches.unrated?branch("Ergebnis unklar","unrated","setter_arrived"):""}</dl></section></div>
     ${t.unlinked_closer||t.unlinked_customer||t.cc2_missing_agreement?`<details class="process-data-gap"><summary>Dokumentationslücken: ${format(t.unlinked_closer)} Closer · ${format(t.unlinked_customer)} Neukunden · ${format(t.cc2_missing_agreement)} CC2</summary><p>Diese Ergebnisse sind bestätigt, aber ihre vorherigen Schritte fehlen im gespeicherten Verlauf. Sie bleiben in den Zeitraumzahlen enthalten und werden nicht zu erfundenen Übergängen. Neukunden dieser Buchungsgruppe insgesamt: ${format(t.observed_customers)}.</p></details>`:""}
-    <p class="process-footnote">Jede Quote nennt ihre Basis. CC2 ist optional; Entscheidungen und Verkäufe enthalten CC1 und CC2. — = keine Grundgesamtheit. ${t.booked_leads>0&&t.booked_leads<5?"Kleine Basis: noch keine belastbare Leistungsbewertung.":""}</p></div>`;
+    <p class="process-footnote">CC2 ist optional. Die Neukundenquote bezieht sich auf alle gebuchten Leads und berücksichtigt Abschlüsse aus CC1 und CC2. — = keine Grundgesamtheit. ${t.booked_leads>0&&t.booked_leads<5?"Kleine Basis: noch keine belastbare Leistungsbewertung.":""}</p></div>`;
 }
 
 document.querySelector("#antony-process-content").addEventListener("change",event=>{

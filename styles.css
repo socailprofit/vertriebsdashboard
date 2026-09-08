@@ -1171,7 +1171,7 @@ main { grid-template-columns: minmax(0, 1fr); }
 .process-filters label { display: grid; gap: 5px; color: var(--muted); font-size: .7rem; }
 .process-filters select { min-height: 38px; max-width: 230px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); padding: 7px 30px 7px 10px; font: inherit; font-size: .78rem; }
 .process-flow { --process-accent: var(--antony); }
-.process-rail { position: relative; display: grid; grid-template-columns: repeat(8,minmax(0,1fr)); gap: 16px; align-items: start; }
+.process-rail { position: relative; display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 16px; align-items: start; }
 .process-rail::before { content: ""; position: absolute; top: 17px; left: 17px; right: 17px; height: 1px; background: var(--line-strong); }
 .process-stage { position: relative; min-width: 0; }
 .process-stage summary { display: grid; gap: 7px; cursor: pointer; list-style: none; border-radius: 4px; outline-offset: 6px; }
@@ -1231,7 +1231,7 @@ main { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Counts, adjacent-step ratios and optional CC2 are visually distinct. */
-.antony-donuts { grid-template-columns: repeat(7,minmax(0,1fr)); border-radius: 6px; }
+.antony-donuts { grid-template-columns: repeat(6,minmax(0,1fr)); border-radius: 6px; }
 .antony-activity { position: relative; display: grid; gap: 8px; padding: 18px 14px; min-width: 0; border: 0; text-align: left; background: var(--bg); color: var(--text); cursor: pointer; }
 .antony-activity > span:first-child { font-size: .78rem; min-height: 2.4em; color: var(--muted); }
 .antony-activity strong { font-size: 2rem; font-variant-numeric: tabular-nums; }
