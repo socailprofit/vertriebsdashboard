@@ -5,7 +5,7 @@
 // den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-08-sales-pipeline";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-08-journey-v2";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -139,6 +139,14 @@ export async function loadAntonyOpenPipeline(referenceDate) {
   );
 }
 
+export async function loadAntonyReport(period, referenceDate) {
+  return run("Vertriebsdaten laden", requireClient().rpc("get_antony_report", {p_period:period,p_reference_date:referenceDate}));
+}
+
+export async function loadTransferBreakdown(period, referenceDate) {
+  return run("Vorzimmer-Ergebnisse laden", requireClient().rpc("get_transfer_breakdown", {p_period:period,p_reference_date:referenceDate}));
+}
+
 export async function loadAntonyProcessMetrics(period, referenceDate) {
   return run("Vertriebsprozess laden", requireClient().rpc("get_antony_process_metrics", {
     p_period: period, p_reference_date: referenceDate,
@@ -206,7 +214,7 @@ export async function loadAntonyGoal(periodType, periodStart) {
     "Anthony-Zielplan laden",
     requireClient()
       .from("antony_performance_goals")
-      .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override")
+      .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override, decision_rate_override, confirmation_rate_override")
       .eq("period_type", periodType)
       .eq("period_start", periodStart)
       .limit(1),
@@ -225,7 +233,7 @@ export async function saveAntonyGoal(goal) {
         { ...goal, owner_user_id: session.user.id },
         { onConflict: "owner_user_id,period_type,period_start" },
       )
-      .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override")
+      .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override, decision_rate_override, confirmation_rate_override")
       .limit(1),
   );
   return rows[0] ?? null;

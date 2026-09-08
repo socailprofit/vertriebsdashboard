@@ -16,6 +16,9 @@ export const KPI_RULES = [
   "Buchungskohorte: eindeutige Leads mit Terminbuchung im Zeitraum und danach dokumentierte Ergebnisse bis Stichtag. Wiederholte Buchungen zaehlen einmal. Anteil im Setter ist Fortschritt bis Stichtag, keine bereinigte Showrate; offene Termine, No-Shows und Absagen sind keine Disqualifikationen.",
   "Follow-up-Kontakte, Setter-Follow-ups und CC2-Vereinbarungen sind protokollierte Ereignisse; nicht automatisch aktuell offen. Leadqualitaet auf kleinen Stichproben nicht als endgueltige Rangliste bewerten.",
   "Pipeline ist eine aus gespeicherten Ereignissen abgeleitete Momentaufnahme, keine vollstaendige aktuelle Close-Pipeline.",
+  "funnel_by_source verknuepft dieselben gebuchten Leads chronologisch: Buchung, Setter, Qualifizierung, Closer, ausdrueckliche Entscheidung, Verkauf und Won. Jede Quote braucht Zaehler und konkrete Vorstufenbasis; dokumentierte Ergebnisse ohne Vorstufen stehen unter unlinked und duerfen nicht erfunden werden.",
+  "CC2 ist ein optionaler Folgeweg nach CC1, keine Pflichtstufe fuer direkte CC1-Verkaeufe. Vereinbart ist nicht durchgefuehrt. Folgegespraech nur nach dokumentierter CC2-Vereinbarung oder ausdruecklichem Verkauf in CC2. Ohne passende Historie ist die Phase unklar.",
+  "period_bridge trennt jetzige Aktivitaeten aus jetzigen, frueheren oder fehlenden Buchungen. Neukunde zaehlt einmal am ersten verfuegbaren Won-Datum je Lead, ohne Upsell/Verlaengerung. Eine spaetere Verkaufsbestaetigung verschiebt den Kunden nicht in einen neuen Monat. Kein Unterschriftsdatum aus Notizen ableiten.",
 ];
 
 export const REPORTING_TIMEZONE = "Europe/Berlin";
@@ -157,6 +160,8 @@ export const PROCESS_COUNT_KEYS = [
   "setter_no_shows", "setter_cancellations", "setter_rescheduled", "closer_no_shows", "closer_cancellations", "closer_rescheduled",
   "closer_calls", "cc1_sales", "cc2_sales", "cc2_agreed", "closer_lost", "closer_unrated",
 ] as const;
+const JOURNEY_KEYS = ["booked_leads","setter_arrived","closer_qualified","closer_arrived","decided_leads","sold_leads","new_customers","observed_customers","unlinked_closer","unlinked_customer","cc2_agreed","cc2_held","cc2_decided","cc2_sold","cc2_lost","cc2_waiting","cc2_open","cc2_cancelled", "cc2_no_show", "cc2_rescheduled", "cc2_missing_agreement","cc1_sold","cc1_lost"] as const;
+const BRIDGE_KEYS = ["setter_calls","setter_leads","setter_from_period_bookings","setter_from_prior_bookings","setter_without_booking","new_customers","customers_from_period_bookings","customers_from_prior_bookings","customers_without_booking","sales_after_prior_won","cc2_calls","cc1_lost","cc2_lost"] as const;
 const QUALITY_KEYS = ["assessed_leads", "qualified", "followup", "disqualified", "unrated"] as const;
 const COHORT_KEYS = ["booked_leads", "setter_arrived", "not_in_setter", "pending", "no_show", "cancelled", "rescheduled", "qualified", "followup", "disqualified", "unrated", "closer_arrived", "sold_leads", "new_customers"] as const;
 function counts(source: unknown, keys: readonly string[]) {
@@ -176,6 +181,8 @@ export function buildProcessInput(source: unknown) {
   return {
     period: {start: dateString(period.start), end: dateString(period.end), timezone: REPORTING_TIMEZONE},
     activity: counts(root.activity, PROCESS_COUNT_KEYS),
+    period_bridge: counts(root.period_bridge, BRIDGE_KEYS),
+    funnel_by_source: (Array.isArray(root.funnel_by_source) ? root.funnel_by_source : []).slice(0,75).map(value=>({...safeQualityDimensions(value),...counts(value,JOURNEY_KEYS)})),
     lead_quality: counts(root.lead_quality, QUALITY_KEYS),
     quality_by_source: (Array.isArray(root.quality_by_source) ? root.quality_by_source : []).slice(0,225).map(value => {
       const row = record(value);
@@ -207,6 +214,9 @@ export function buildPipelineInput(source: unknown) {
     counts: {
       total_open: kpiCount(counts.total_open),
       setter_pending: kpiCount(counts.setter_pending),
+      setter_followup: kpiCount(counts.setter_followup),setter_no_show:kpiCount(counts.setter_no_show),
+      rescheduled_setter:kpiCount(counts.rescheduled_setter),closer_no_show:kpiCount(counts.closer_no_show),
+      sold_pending_won:kpiCount(counts.sold_pending_won),unrated:kpiCount(counts.unrated),
       closer_scheduled: kpiCount(counts.closer_scheduled),
       rescheduled_closer: kpiCount(counts.rescheduled_closer),
       pending_decision_cc2: kpiCount(counts.pending_decision_cc2),

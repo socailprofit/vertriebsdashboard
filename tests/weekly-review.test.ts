@@ -4,6 +4,7 @@ import {
   buildBusinessContext,
   buildModelInput,
   buildPipelineInput,
+  buildProcessInput,
   buildWeeklyComparison,
   businessContextIsConfigured,
   classifyNetRate,
@@ -11,6 +12,17 @@ import {
   parseReviewSentences,
   previousCompletedSalesWeek,
 } from "../supabase/functions/_shared/weekly-review.ts";
+
+test("journey and cross-period AI context retain only categorical dimensions and counters", () => {
+  const input=buildProcessInput({period_bridge:{setter_from_prior_bookings:4,sales_after_prior_won:1,lead_id:'private-lead'},
+    funnel_by_source:[{source:'private-company',owner:'private-person',booked_leads:8,cc2_cancelled:1,cc2_sold:2,notes:'private-note'}],
+    setter_by_day:[{email:'private-mail'}]});
+  assert.equal(input.period_bridge.setter_from_prior_bookings,4);
+  assert.equal(input.funnel_by_source[0].cc2_cancelled,1);
+  assert.equal(input.funnel_by_source[0].cc2_sold,2);
+  assert.equal(input.funnel_by_source[0].source,'Nicht zugeordnet');
+  assert.equal(JSON.stringify(input).includes('private-'),false);
+});
 
 test("Monday run reviews the previous completed Monday-Friday sales week", () => {
   assert.deepEqual(previousCompletedSalesWeek("2026-09-07"), {

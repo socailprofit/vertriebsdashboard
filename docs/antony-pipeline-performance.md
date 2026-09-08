@@ -2,30 +2,37 @@
 
 ## Current Truth
 
-- `get_antony_open_pipeline(reference_date)` liefert nur aggregierte offene Funnel-Stufen aus dem rollierenden Drei-Monats-Fenster.
-- Ein Lead zählt höchstens einmal. Gewonnene Opportunities werden ausgeschlossen.
-- Die Zustände werden ausschließlich aus der zeitlichen Reihenfolge bereits gemappter Ereignisse abgeleitet: Termin ohne Setter Call, Closer terminiert, Closer verschoben und CC2/Entscheidung offen.
-- Vormonatsfälle und seit mehr als 14 Tagen offene Fälle sind überlappende Prioritätsmarker, keine zusätzlichen Leads.
-- `get_antony_performance_series(period, reference_date)` liefert den kumulierten Verlauf für Termine, Closer-Termine, durchgeführte Closer Calls und Neukunden.
-- Tag zeigt 08:00–17:00 Uhr in `Europe/Berlin`; Woche zeigt Montag bis Freitag beziehungsweise Stichtag; Monat zeigt Monatserster bis Stichtag.
-- Won-Daten sind im bestehenden Mapping nur tagesgenau. Deshalb zeigt der Tagesgraph keine erfundene Neukunden-Uhrzeit, sondern nur die korrekte Tagessumme über dem Graphen.
-- Beide Browser-RPCs verlangen eine authentifizierte Sitzung und `has_dashboard_access()`. Tabellen, IDs, Namen, Notizen und Rohpayloads werden nicht freigegeben.
-- Der private Helper `get_antony_pipeline_snapshot()` ist nur für `service_role` ausführbar und stellt dem Wochenreview dieselben aggregierten Pipeline-Summen bereit.
+- `get_antony_report(period, reference_date)` liefert Aktivitäten, Buchungsgruppe, Zeitverlauf, offenen Bestand, Monatsplanung und Drei-Monats-Rückblick in einem geschützten Datenbanksnapshot. Er verlangt `has_antony_access()`. Die zwei freigegebenen Leitungskonten behalten ihren Zugriff; andere Dashboardkonten erhalten keine Antony-Daten.
+- Oben stehen Aktivitäten im ausgewählten Zeitraum. Wiederholte Gespräche sind einzelne Aktivitäten; Neukunden werden pro Lead einmal am ersten gespeicherten Neukunden-Won gezählt. Upsells und Verlängerungen sind ausgeschlossen. Ein späteres Verkaufsgespräch verschiebt diesen Won nicht in einen neuen Monat.
+- Die Pipeline verfolgt dieselben gebuchten Leads in zeitlicher Reihenfolge: **Termin → Setter durchgeführt → Closer terminiert → Closer durchgeführt → CC2 vereinbart (optional) → Entschieden → Verkauft → Neukunde bestätigt**. Die erste Buchung je Lead innerhalb des Zeitraums bestimmt Terminlieferant und Startdatum. Mehrere Gespräche desselben Leads vervielfachen diese Gruppe nicht.
+- CC2 steht in derselben Pipeline. Direkte CC1-Verkäufe überspringen CC2; die Entscheidungsquote verwendet deshalb alle durchgeführten Closer-Leads als Basis. Die Abschlussquote verwendet verkaufte / ausdrücklich entschiedene Leads. Offene Gespräche und CC2-Vereinbarungen sind keine verlorenen Entscheidungen.
+- CC2-Details zeigen vereinbart, durchgeführt, entschieden, verkauft, offen, verloren, abgesagt, verschoben und No-Show. Eine Vereinbarung allein ist keine Durchführung. Die Durchführung benötigt einen späteren Closer Call oder ein ausdrücklich dokumentiertes CC2-Verkaufsergebnis.
+- Jede Rate zeigt Zähler und Nenner. Ohne Nenner erscheint `—`, keine erfundene 0-%-Rate. Fehlende Vorstufen werden als Dokumentationslücken ausgewiesen; bestätigte Aktivitäten bleiben in den Zeitraumzahlen enthalten.
+- Setter-Zahlen sind anklickbar: Datum, verantwortliche Person und Herkunft aus Buchungen des Zeitraums, früheren Buchungen oder fehlender gespeicherter Buchung. Leadqualität kann nach Quelle und Terminlieferant gefiltert werden; einzelne Quellen mit kleiner Stichprobe erhalten keine belastbare Ranglistenbewertung.
+- Der offene Bestand nimmt je Lead den jüngsten eindeutigen dokumentierten Zustand: Setter ausstehend, Follow-up, verschoben, No-Show, Closer terminiert, CC2 offen oder verkauft ohne Won. Absagen, Disqualifizierungen und ausdrücklich verlorene Fälle sind geschlossen. No-Shows bleiben zur Nachbearbeitung offen. Vormonate und Alter über 14 Tage sind überlappende Marker, keine zusätzlichen Leads.
+- Der kumulierte Graph zeigt Termine, Setter Calls, Closer-Termine, Closer Calls, CC2-Vereinbarungen, Verkaufsergebnisse und Neukunden. Ein Klick zeigt den Zeitpunkt und alle Werte. Tages-Won haben keine erfundene Uhrzeit.
+- Die Monats-Hochrechnung extrapoliert jeden Aktivitätstyp unabhängig nach Werktagstempo. Der optionale Zielrechner verwendet zusammengehörige Übergänge und berücksichtigt Entscheidungs- und Won-Bestätigungsrate. Modellwerte sind keine gebuchten Umsätze.
+- Vorzimmer-Aufschlüsselungen zählen nur auswertbare Gatekeeper-Ergebnisse. GF/CEO nicht erreichbar und direkte Entscheiderkontakte bleiben außerhalb der Durchstellquote. Widersprüchliche CRM-Auswahlen werden markiert.
+- Alle Regeln berechnen sich aus den automatisch synchronisierten Fakten. Es gibt keine manuelle Liste nachgereichter Leads. Zeiträume und Quellenfilter verwenden dieselben SQL-Regeln. Späte Ergebnisse älterer Buchungen erscheinen am Ereignisdatum im aktuellen Zeitraum.
+- Fehlgeschlagene Aktualisierungen zeigen keine vermischten alten und neuen Zahlen. Langsame Antworten dürfen einen inzwischen gewechselten Zeitraum nicht überschreiben.
 
 ## Missing Context
 
-- Aktive Close-Opportunity-Statuswerte werden derzeit nicht synchronisiert. Die Pipeline darf deshalb nicht als vollständige Close-Pipeline oder Forecast einzelner Opportunities bezeichnet werden.
-- Wenn später konkrete Opportunity-Stufen benötigt werden, muss der Close-Sync sie ausdrücklich read-only erfassen und in eine separate, RLS-geschützte Faktenstruktur mappen.
-- Das exakte Datum eines zukünftigen verschobenen Termins ist nicht Teil der aktuellen Aggregation; erkennbar ist nur, dass nach dem Verschieben noch kein neuer Closer Call erfasst wurde.
+- Der detaillierte Verlauf umfasst das rollierende Drei-Monats-Fenster. Frühere nicht gespeicherte Buchungen können nicht rekonstruiert werden. Die Neukunden-Deduplizierung bezieht sich auf die gespeicherte Won-Historie; dies ist kein lebenslanges Kundenregister.
+- Ein verlässlich gepflegtes separates Vertrags-Unterschriftsdatum wurde nicht festgestellt. Maßgeblich bleibt das Won-Datum in Close. Eine falsche Datierung in Close wird nicht aus Freitext korrigiert.
+- Der offene Bestand bildet dokumentierte Aktivitäten ab, nicht sämtliche aktiven Opportunity-Phasen oder zukünftigen Kalendereinträge. Ein fehlender oder widersprüchlicher CRM-Eintrag bleibt eine Datenlücke.
+- Ein Lead kann bei einer erneuten Buchung in einem späteren Zeitraum wieder in dessen Buchungsgruppe erscheinen. Summen einzelner Monatsgruppen sind deshalb nicht mit der deduplizierten Drei-Monats-Gruppe gleichzusetzen.
 
 ## Sources
 
-- `supabase/migrations/20260904160000_add_antony_pipeline_and_performance.sql`
+- `supabase/migrations/20260908082307_audit_complete_sales_journey.sql`
 - `supabase/functions/close-sync/index.ts`
-- `supabase/functions/_shared/close-mapping.ts`
-- `app.js`
-- `data.js`
+- `supabase/functions/_shared/close-mapping.ts`, `supabase/functions/_shared/weekly-review.ts`
+- `pipeline-metrics.mjs`, `antony-planner.mjs`, `app.js`, `data.js`
+- `tests/verify-sales-journey.mjs`, `tests/report-loading.test.mjs`, `tests/antony-planner.test.mjs`
+- `docs/private-access.md`, `docs/sales-goals.md`
 
 ## Timeline
 
-- 2026-09-04: Aggregierte offene Antony-Pipeline, periodengerechter Gesamtverlauf und serverseitige Wochenreview-Anbindung ergänzt.
+- 2026-09-04: Aggregierte offene Pipeline und periodengerechter Gesamtverlauf eingeführt.
+- 2026-09-08: Vollprüfung anhand gespeicherter Fakten und ursprünglicher Close-Aktivitäten. Durchgehende Buchungsgruppen, Monatsübergänge, CC2 als optionaler Schritt, vollständigerer offener Bestand und konsistente Aktualisierung ergänzt.

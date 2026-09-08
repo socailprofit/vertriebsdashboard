@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-08-sales-pipeline" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-08-journey-v2" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -66,6 +66,7 @@
           Designvorschau mit Beispielzahlen. Diese Werte stammen nicht aus Close.
         </p>
         <p class="load-error" id="load-error" role="alert" hidden></p>
+        <button id="retry-load" class="primary-button" type="button" hidden>Erneut laden</button>
 
         <section class="workspace-header" id="workspace-header" aria-labelledby="page-title">
           <div>
@@ -108,7 +109,7 @@
                 <h2 id="antony-title">Vom Termin zum Neukunden</h2>
               </div>
             </div>
-            <p class="section-note">Team-Setting → Antony-Closing</p>
+            <p class="section-note">Aktivitäten im gewählten Zeitraum</p>
           </div>
           <div class="antony-donuts" id="antony-donuts"></div>
           <p class="chart-legend" id="antony-note"></p>
@@ -122,7 +123,7 @@
             <div class="antony-analysis-heading">
               <div>
                 <p class="eyebrow">Gesamtverlauf</p>
-                <h3 id="antony-performance-title">Unternehmensstand auf einen Blick</h3>
+                <h3 id="antony-performance-title">Gespräche und Abschlüsse im Zeitverlauf</h3>
               </div>
               <p class="section-note" id="antony-performance-period"></p>
             </div>
@@ -147,7 +148,7 @@
             <div class="antony-potential-heading">
               <div>
                 <p class="eyebrow">IST · Monatsausblick</p>
-                <h3 id="antony-potential-title">Was bei aktuellem Tempo im Monat entsteht</h3>
+                <h3 id="antony-potential-title">Monat bei gleichem Werktagstempo</h3>
               </div>
               <label class="antony-customer-value">Ø Kundenwert
                 <span class="money-input"><input id="antony-ist-customer-value" type="number" min="1" step="100" placeholder="10000" inputmode="decimal" /><span>€</span></span>
@@ -201,6 +202,8 @@
                     <input name="closing_rate_override" type="range" min="1" max="100" step="1" />
                     <small id="current-closing-rate"></small>
                   </label>
+                  <label class="antony-range"><span><span>Entschieden / durchgeführt</span><output id="antony-decision-rate-output"></output></span><input name="decision_rate_override" type="range" min="1" max="100" step="1" /><small id="current-decision-rate"></small></label>
+                  <label class="antony-range"><span><span>Neukunde / Verkauf</span><output id="antony-confirmation-rate-output"></output></span><input name="confirmation_rate_override" type="range" min="1" max="100" step="1" /><small id="current-confirmation-rate"></small></label>
                 </div>
               </div>
 
@@ -367,6 +370,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-08-sales-pipeline"></script>
+    <script type="module" src="./app.js?v=2026-09-08-journey-v2"></script>
   </body>
 </html>
