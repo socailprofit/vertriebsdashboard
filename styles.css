@@ -1456,3 +1456,6 @@ main { grid-template-columns: minmax(0, 1fr); }
 .kpi-explanation p,.kpi-explanation dd { line-height:1.65; font-size:.85rem; }
 .kpi-explanation dt { margin-top:16px; font-weight:600; }
 .kpi-explanation dd { margin:6px 0 0; }
+
+#lead-quality-table a { color: #b9cff6; text-underline-offset: 3px; }
+#lead-quality-table a:hover { color: #fff; }
