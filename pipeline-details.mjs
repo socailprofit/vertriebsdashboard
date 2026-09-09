@@ -15,3 +15,14 @@ export function stageSummary(rows,key) {
   return n||core.includes(k)?[{label:labels[k],value:String(n)}]:[];
  })];
 }
+
+export function bookingScopeReport(report,scope) {
+ const rows=(report.month_pipeline_rows||[]).filter(r=>r.booking_scope===scope);
+ const count=fn=>rows.filter(fn).length,has=(r,k,t)=>r.stages?.[k]?.includes(t);
+ return {...report,month_pipeline_rows:rows,funnel_by_source:[{
+  booked_leads:count(r=>!r.future_first),setter_arrived:count(r=>has(r,'setter','attended')),
+  closer_qualified:count(r=>!!r.qualified_at),closer_arrived:count(r=>has(r,'closer1','attended')),
+  observed_closer:count(r=>has(r,'closer1','attended')),cc2_agreed:count(r=>!!r.cc2_at),
+  observed_customers:count(r=>has(r,'won','won'))
+ }]};
+}

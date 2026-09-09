@@ -1,4 +1,4 @@
-import {stageSummary, stageRows} from './pipeline-details.mjs?v=2026-09-09-month-detail-labels';
+import {stageSummary, stageRows, bookingScopeReport} from './pipeline-details.mjs?v=2026-09-09-booking-groups';
 import {calendarDetails} from "./calendar-view.mjs?v=2026-09-09-cc2-evidence-fix";
 import {activityCards, processDetails, quota, filterTrackingSource, LEAD_SOURCE_OPTIONS, originQualityPie} from "./antony-view.mjs?v=2026-09-09-source-groups";
 import {TRACKING_MEMBERS, memberResults} from "./tracking-view.mjs?v=2026-09-09-cc2-evidence-fix";
@@ -984,14 +984,18 @@ async function updateTrackingSelection(event) {
   catch {if(request===trackingRequest)document.querySelector("#tracking-status").textContent="Laden fehlgeschlagen. Zeitraum erneut wählen.";}
 }
 
-function renderProcessPipeline(source) {
+function renderProcessPipeline(source, scoped=false) {
+  if(!scoped && source?.month_pipeline_rows?.every(r=>r.booking_scope)) {
+    const fresh=bookingScopeReport(source,'new'),older=bookingScopeReport(source,'carryover'),unknown=bookingScopeReport(source,'unknown');
+    return `<p class="antony-basis"><strong>${fresh.month_pipeline_rows.length} im Monat neu vereinbart</strong> · ${older.month_pipeline_rows.length} früher vereinbart. Nur Ersttermine im gewählten Terminmonat.</p>${renderProcessPipeline(fresh,true)}${older.month_pipeline_rows.length?`<details><summary>Früher vereinbart · ${older.month_pipeline_rows.length} separat anzeigen</summary>${renderProcessPipeline(older,true)}</details>`:''}${unknown.month_pipeline_rows.length?`<details><summary>Buchungsmonat ungeklärt · ${unknown.month_pipeline_rows.length}</summary>${renderProcessPipeline(unknown,true)}</details>`:''}<p class="antony-basis">Die Monatsprognose berücksichtigt auch separat ausgewiesene ältere Buchungen mit Ersttermin in diesem Monat.</p>`;
+  }
   if(!Array.isArray(source?.funnel_by_source))return '<p>Monatsgruppe noch nicht verfügbar.</p>';
   const t=totalCounts(source.funnel_by_source,JOURNEY_KEYS);
   const observedCloser=source.funnel_by_source.every(r=>r.observed_closer!==undefined)?source.funnel_by_source.reduce((n,r)=>n+Number(r.observed_closer),0):t.closer_arrived;
   const details=source.month_pipeline_rows||[];
   const closerCount=source.month_pipeline_rows?stageRows(details,'closer1').length:Math.max(t.closer_qualified||0,observedCloser||0);
   const stages=[
-    ['first','Setter-Termin',t.booked_leads,null,null,'Startbasis'],
+    ['first','Setter-Termin',source.month_pipeline_rows?details.length:t.booked_leads,null,null,'Startbasis'],
     ['setter','Setter durchgeführt',t.setter_arrived,t.setter_arrived,t.booked_leads,'Vorgängen'],
     ['closer1','Closer 1',closerCount,t.closer_qualified,t.setter_arrived,'Setter-Vorgängen qualifiziert'],
     ['cc2','CC2',source.month_pipeline_rows?stageRows(details,'cc2').length:t.cc2_agreed,t.cc2_agreed,t.closer_arrived,'Closer-Vorgängen · vereinbart'],
@@ -1000,11 +1004,11 @@ function renderProcessPipeline(source) {
   const rail=stages.map(([key,title,n,num,den,basis],i)=>{
     const r=transition(num,den).rate;
     const popup={title:key==='setter'?'Setter-Status im Monat':title,time:monthLabel(state.antonyPlannerPeriodRange.start),rows:stageSummary(source.month_pipeline_rows,key),note:['first','setter'].includes(key)?'Nur Vorgänge mit erstem Setter-Termin in diesem Monat, einschließlich noch anstehender Ersttermine. Follow-up ist ein Ergebnis der durchgeführten Gespräche und zählt nicht zusätzlich.':'Dieselbe Ersttermin-Monatsgruppe. Bisherige Durchführung und aktueller Status können sich überschneiden.'};
-    return `<article class="process-stage ${key==='cc2'?'process-stage-optional':''} ${key==='won'?'process-stage-won':''}"><div class="process-stage-head"><span class="process-node" aria-hidden="true">${i+1}</span><span class="process-stage-title">${title}${key==='cc2'?'<small class="process-optional-label">optional</small>':''}</span><strong data-process-count="${key}">${n==null?'—':number(n)}</strong>${den===null?'<span class="process-start">Vorgänge · Ersttermin fällig</span>':`<progress max="100" value="${r??0}" aria-label="${escapeHtml(quota(num,den,basis))}"></progress>${processRate(num,den,basis)}`}<button type="button" class="process-detail-toggle" data-chart-point="${escapeHtml(JSON.stringify(popup))}" aria-label="Details zu ${title}">Details ↗</button></div></article>`;
+    return `<article class="process-stage ${key==='cc2'?'process-stage-optional':''} ${key==='won'?'process-stage-won':''}"><div class="process-stage-head"><span class="process-node" aria-hidden="true">${i+1}</span><span class="process-stage-title">${title}${key==='cc2'?'<small class="process-optional-label">optional</small>':''}</span><strong data-process-count="${key}">${n==null?'—':number(n)}</strong>${den===null?'<span class="process-start">Ersttermine · gesamter Monat</span>':`<progress max="100" value="${r??0}" aria-label="${escapeHtml(quota(num,den,basis))}"></progress>${processRate(num,den,basis)}`}<button type="button" class="process-detail-toggle" data-chart-point="${escapeHtml(JSON.stringify(popup))}" aria-label="Details zu ${title}">Details ↗</button></div></article>`;
   }).join('');
   const gaps=t.unlinked_closer||t.unlinked_customer||t.cc2_missing_agreement;
   const asof=source.cohort_data_as_of||source.setter_attendance?.data_as_of;
-  return `<div class="process-flow"><p class="antony-basis">Dieselben Vorgänge mit erstem Setter im gewählten Monat${asof?` · Fortschritt bis ${germanDate(asof.slice(0,10))}`:''}. Zukunft ist Planung.</p><div class="process-rail">${rail}</div>${gaps?`<details class="process-data-gap"><summary>Fehlende Zwischenbelege in dieser Gruppe</summary><p>${number(t.unlinked_closer)} Closer · ${number(t.unlinked_customer)} Neukunden · ${number(t.cc2_missing_agreement)} CC2. Belegte Ergebnisse bleiben erhalten; daraus entsteht keine erfundene Übergangsquote.</p></details>`:''}</div>`;
+  return `<div class="process-flow"><p class="antony-basis">${scoped?'Diese Buchungsgruppe':'Dieselben Vorgänge'} mit erstem Setter im gewählten Monat${asof?` · Fortschritt bis ${germanDate(asof.slice(0,10))}`:''}. Zukunft ist Planung.</p><div class="process-rail">${rail}</div>${gaps?`<details class="process-data-gap"><summary>Fehlende Zwischenbelege in dieser Gruppe</summary><p>${number(t.unlinked_closer)} Closer · ${number(t.unlinked_customer)} Neukunden · ${number(t.cc2_missing_agreement)} CC2. Belegte Ergebnisse bleiben erhalten; daraus entsteht keine erfundene Übergangsquote.</p></details>`:''}</div>`;
 }
 
 function renderUpcomingMeetings() {

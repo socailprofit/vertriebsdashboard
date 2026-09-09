@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stageRows,stageSummary} from '../pipeline-details.mjs';
+import {stageRows,stageSummary,bookingScopeReport} from '../pipeline-details.mjs';
 test('stage membership and overlapping KPI filters come exclusively from Supabase statuses',()=>{
  const rows=[{stages:{closer1:['cancelled',null,'qualified']}},{stages:{closer1:['rejected','attended']}},{stages:{closer1:['planned',null,'qualified']}},{closer_at:'2026-09-01'}];
  const cc1=stageRows(rows,'closer1');assert.equal(cc1.length,3);assert.equal(cc1[0].status,'cancelled');assert.ok(cc1[1].tags.includes('attended'));assert.ok(!cc1[2].tags.includes('attended'));
@@ -25,4 +25,14 @@ test('setter summary identifies the full monthly cohort and follow-up as a subse
  assert.equal(result[0].label,'Ersttermine im gewählten Monat');
  assert.equal(result[0].value,'2');
  assert.equal(result.find(r=>r.label==='Davon Follow-up offen').value,'1');
+});
+
+test('booking groups exclude carryovers from new pipeline without losing upcoming appointments',()=>{
+ const report={month_pipeline_rows:[{booking_scope:'new',future_first:false,stages:{setter:['attended']}},{booking_scope:'new',future_first:true},{booking_scope:'carryover',future_first:false,stages:{setter:['attended']}}]};
+ const fresh=bookingScopeReport(report,'new');
+ assert.equal(fresh.month_pipeline_rows.length,2);
+ assert.equal(fresh.funnel_by_source[0].booked_leads,1);
+ assert.equal(fresh.funnel_by_source[0].setter_arrived,1);
+ assert.equal(bookingScopeReport(report,'carryover').month_pipeline_rows.length,1);
+ assert.equal(report.month_pipeline_rows.length,3);
 });

@@ -607,6 +607,16 @@ async function main(){
     assert.equal(Number((await db.query('select sum(appointments) n from close_activity_facts')).rows[0].n),6);
    });
   }
+  {
+   await db.exec(read('../supabase/migrations/20260909121732_separate_month_pipeline_booking_groups.sql'));
+   await scenario('booking month separates carryover from new appointments while appointment month stays binding',async()=>{
+    await funnel('new-sep','2026-09-15T08:00Z','DMC',{opened_at:'2026-09-02T08:00Z'});
+    await funnel('older-sep','2026-09-16T08:00Z','DMC',{opened_at:'2026-08-02T08:00Z'});
+    await funnel('oct','2026-10-01T08:00Z','DMC',{opened_at:'2026-09-02T08:00Z'});
+    const r=(await db.query("select get_month_pipeline_details_internal('2026-09-09') j")).rows[0].j;
+    assert.equal(r.length,2);assert.equal(r.find(x=>x.process_id==='new-sep').booking_scope,'new');assert.equal(r.find(x=>x.process_id==='older-sep').booking_scope,'carryover');
+   });
+  }
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
