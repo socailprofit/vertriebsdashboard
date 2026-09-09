@@ -1,4 +1,5 @@
-import { renderStatusCards, renderStatusTable, renderStatusTransitions, renderStatusChart, renderStatusEvidence, statusPreview } from "./status-history-view.mjs?v=2026-09-09-status-history";
+import { renderAttendanceRates, renderAttendanceEvidence } from "./attendance-rates.mjs?v=2026-09-09-status-rates";
+import { renderStatusCards, renderHandoffRates, renderStatusTable, renderStatusTransitions, renderStatusChart, renderStatusEvidence, statusPreview } from "./status-history-view.mjs?v=2026-09-09-status-rates";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-best-call-times";
 installChartPopover();
@@ -6,7 +7,7 @@ import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-ev
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-status-history";
+import * as data from "./data.js?v=2026-09-09-status-rates";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -561,6 +562,8 @@ function renderAntony() {
   profile.innerHTML=renderDashboardAvatar("antony","Antony Rigone");
   enableProfileImageFallbacks(profile);
   document.querySelector("#antony-donuts").innerHTML=renderStatusCards(report);
+  document.querySelector("#antony-handoff-rates").innerHTML=renderHandoffRates(report);
+  document.querySelector("#antony-attendance-rates").innerHTML=renderAttendanceRates(report);
   document.querySelector("#antony-status-table").innerHTML=renderStatusTable(report);
   document.querySelector("#antony-status-transitions").innerHTML=renderStatusTransitions(report);
   document.querySelector("#antony-performance-chart").innerHTML=renderStatusChart(report);
@@ -1106,6 +1109,12 @@ function readInitialState() {
 document.querySelector("#retry-load").addEventListener("click",()=>refresh());
 
 document.addEventListener("click", (event) => {
+  const attendanceDetail=event.target.closest("[data-attendance-stage]");
+  if(attendanceDetail && canViewAntony() && state.view==="antony") {
+    const panel=document.querySelector("#status-evidence-panel");
+    document.querySelector("#antony-status-evidence").innerHTML=renderAttendanceEvidence(state.antonyStatusReport,attendanceDetail.dataset.attendanceStage);
+    panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"start"});return;
+  }
   const statusStep=event.target.closest("[data-status-step]");
   if(statusStep && canViewAntony() && state.view==="antony") {
     const key=statusStep.dataset.statusStep;

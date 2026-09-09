@@ -34,7 +34,7 @@ export function renderStatusCards(report){
   if(!report)return empty;
   return MAIN_STATUSES.map(s=>{
     const row=statusByKey(report,s.key);
-    return `<button type="button" class="antony-activity" data-status-step="${s.key}" aria-label="${esc(s.label)}: ${amount(row?.entered_leads)} Leads, Übergänge anzeigen"><span>${esc(s.label)}</span><strong>${amount(row?.entered_leads)}</strong><span class="status-count-caption">Status erreicht</span><span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
+    return `<button type="button" class="antony-activity" data-status-step="${s.key}" aria-label="${esc(s.label)}: ${amount(row?.entered_leads)} Leads hineingewechselt, ${amount(row?.left_leads)} hinausgewechselt, Übergänge anzeigen"><span>${esc(s.label)}</span><strong>${amount(row?.entered_leads)}</strong><span class="status-count-caption">Leads hineingewechselt</span><span class="status-card-exits">${amount(row?.left_leads)} hinausgewechselt</span><span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
   }).join('');
 }
 
@@ -63,6 +63,31 @@ export function renderStatusTransitions(report){
       return `<div class="status-exit"><button type="button" class="status-exit-value" ${point(payload)}><span>${esc(shortLabel(r.label))}</span><b>${decimal.format(r.rate)} %</b><small>${amount(r.leads)} von ${amount(exits.denominator)} Leads</small><progress max="100" value="${r.rate}" aria-label="${esc(shortLabel(r.label))}: ${decimal.format(r.rate)} Prozent"></progress></button><button type="button" class="process-detail-toggle" data-status-detail="${esc(s.metric_key)}" data-status-direction="left" data-status-destination="${esc(r.id)}" aria-label="Belege: ${esc(shortLabel(s.label))} nach ${esc(shortLabel(r.label))}">Belege ↗</button></div>`;
     }).join(''):'<p>Keine belegten Ausgänge in diesem Zeitraum.</p>'}${exits.overlap?'<p class="status-overlap">Mehrfachwege: Einzelne Leads wechselten zurück und danach erneut weiter. Die Zielanteile überschneiden sich.</p>':''}</details>`;
   }).join('')}</div>`;
+}
+
+export const HANDOFF_RATES=Object.freeze([
+ {key:'setting_forward',from:'setting',to:['closing','cc2','offer','sold'],label:'Setting → Closing-Prozess'},
+ {key:'closing_cc2',from:'closing',to:['cc2'],label:'Closing → CC2'},
+ {key:'cc2_sold',from:'cc2',to:['sold'],label:'CC2 → Verkauft'},
+ {key:'offer_sold',from:'offer',to:['sold'],label:'Angebot → Verkauft'},
+]);
+
+export function handoffRate(report,rule){
+ const exits=statusEvents(report,rule.from,'left');
+ const ids=new Set(rule.to.map(key=>statusByKey(report,key)?.status_id).filter(Boolean));
+ const numerator=new Set(exits.filter(e=>ids.has(e.new_status)).map(e=>e.lead_id)).size;
+ const denominator=new Set(exits.map(e=>e.lead_id)).size;
+ return {numerator,denominator,rate:denominator?100*numerator/denominator:null};
+}
+
+export function renderHandoffRates(report){
+ if(!report)return empty;
+ return `<div class="handoff-rate-grid">${HANDOFF_RATES.map(rule=>{
+  const r=handoffRate(report,rule),value=r.rate===null?'—':`${decimal.format(r.rate)} %`;
+  const destinations=rule.to.map(key=>shortLabel(statusByKey(report,key)?.label||key)).join(', ');
+  const payload={title:rule.label,time:`${shortDate(report.period.start)} – ${shortDate(report.period.end)}`,rows:[{label:'Leads mit dieser Weitergabe',value:amount(r.numerator)},{label:'Leads, die den Ausgangsstatus verlassen haben',value:amount(r.denominator)},{label:'Weitergabequote',value}],note:`Direkte Wechsel nach: ${destinations}. Je Lead einmal; keine Division unabhängiger Eingangs- oder Gesprächszahlen.`};
+  return `<div class="handoff-rate"><button type="button" ${point(payload)}><span>${esc(rule.label)}</span><strong>${value}</strong><small>${amount(r.numerator)} von ${amount(r.denominator)} ausgehenden Leads</small></button><button type="button" class="process-detail-toggle" data-status-step="${rule.from}">Alle Wege ↗</button></div>`;
+ }).join('')}</div>`;
 }
 
 export function buildStatusTimeline(report){
@@ -101,9 +126,10 @@ export function renderStatusEvidence(report,key='all',direction='entered',destin
 export function statusPreview(date,type){
   const statuses=[...MAIN_STATUSES,{key:'setter_followup',label:'Setter Follow Up'},{key:'setter_no_show',label:'No Show - Setting'}].map((s,i)=>({status_id:`stat_preview${i}`,metric_key:s.key,label:s.label,sort_order:i,entered_leads:0,left_leads:0,entered_events:0,left_events:0}));
   const start=type==='day'?date:date.slice(0,8)+'01';
-  const report={period:{start,end:date,type},cutoff:date+'T12:00:00Z',data_as_of:date+'T12:00:00Z',statuses,events:[],transitions:[]};
+  const report={period:{start,end:date,type},cutoff:date+'T12:00:00Z',data_as_of:date+'T12:00:00Z',statuses,events:[],transitions:[],attendance_events:[]};
   const transitions=[['setting','closing'],['closing','cc2'],['cc2','sold'],['setting','setter_followup'],['setting','setter_no_show']];
   transitions.forEach(([from,to],i)=>{const a=statuses.find(s=>s.metric_key===from),b=statuses.find(s=>s.metric_key===to);report.events.push({source_event_id:`preview${i}`,lead_id:`lead_preview${i<3?'A':i}`,lead_name:'Beispielunternehmen',previous_status:a.status_id,new_status:b.status_id,previous_label:a.label,new_label:b.label,occurred_at:date+`T${String(7+i).padStart(2,'0')}:00:00Z`});});
   for(const s of statuses){const entered=report.events.filter(e=>e.new_status===s.status_id),left=report.events.filter(e=>e.previous_status===s.status_id);s.entered_leads=new Set(entered.map(e=>e.lead_id)).size;s.left_leads=new Set(left.map(e=>e.lead_id)).size;s.entered_events=entered.length;s.left_events=left.length;}
+  [['setter','show','✅ Closer terminiert'],['setter','no_show','Nicht erschienen'],['setter','cancelled','⛔ Abgesagt'],['closer','show','2. 🔥 CC2 vereinbart']].forEach(([stage,outcome,result],i)=>report.attendance_events.push({source_event_id:`attendance_preview${i}`,lead_id:`lead_preview${i}`,lead_name:'Beispielunternehmen',stage,outcome,result,occurred_at:date+`T${String(7+i).padStart(2,'0')}:00:00Z`}));
   return report;
 }

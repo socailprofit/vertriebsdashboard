@@ -9,15 +9,17 @@ create function public.has_antony_access() returns boolean language sql stable a
 create table close_reconciliation_state(resource text,snapshot_started_at timestamptz);
 insert into close_reconciliation_state values('funnel','2026-09-09T12:00:00Z');
 create table close_funnel_leads(lead_id text,display_name text);
-create table close_funnel_events(source_event_id text,lead_id text,occurred_at timestamptz,previous_status text,new_status text,source_kind text,is_current boolean default true,withdrawn_at timestamptz);
+create table close_funnel_events(source_event_id text,lead_id text,occurred_at timestamptz,previous_status text,new_status text,source_kind text,is_current boolean default true,withdrawn_at timestamptz,event_type text,payload jsonb);
 `);
 const dir=new URL('../supabase/migrations/',import.meta.url);
 const migration=fs.readdirSync(dir).find(n=>n.endsWith('_historical_antony_status_report.sql'));
 await db.exec(fs.readFileSync(new URL(migration,dir),'utf8'));
+const attendanceMigration=fs.readdirSync(dir).find(n=>n.endsWith('_historical_attendance_rates.sql'));
+await db.exec(fs.readFileSync(new URL(attendanceMigration,dir),'utf8'));
 const definitions=(await db.query('select * from private.antony_status_definitions')).rows;
 const id=key=>definitions.find(d=>d.metric_key===key)?.status_id;
 const opening=definitions.find(d=>d.label.includes('Opening')).status_id;
-async function event(key,lead,from,to,at,source='lead_status_change',current=true,withdrawn=null){await db.query('insert into close_funnel_events values($1,$2,$3,$4,$5,$6,$7,$8)',[key,lead,at,from,to,source,current,withdrawn]);}
+async function event(key,lead,from,to,at,source='lead_status_change',current=true,withdrawn=null){await db.query('insert into close_funnel_events(source_event_id,lead_id,occurred_at,previous_status,new_status,source_kind,is_current,withdrawn_at) values($1,$2,$3,$4,$5,$6,$7,$8)',[key,lead,at,from,to,source,current,withdrawn]);}
 await event('aug','lead_A',opening,id('setting'),'2026-08-20T12:00Z');
 await event('a1','lead_A',id('setting'),id('closing'),'2026-09-01T09:00Z');
 await event('a2','lead_A',id('closing'),id('cc2'),'2026-09-02T09:00Z');
@@ -48,6 +50,31 @@ const day=await report('day','2026-09-09');assert.equal(day.events.length,2);ass
 assert.equal((await report('week','2026-09-09')).events.length,3);
 assert.equal((await report('trend','2026-09-09')).events.length,8);
 assert.equal((await report('month','2026-10-01')).events.length,0);
+// Published explicit activity outcomes remain independent of status movements.
+const fields={setter:'cf_Hf5tqUY58guUQ8T1IfImjdqQaEDYifo4QBNTjhm4VCo',closer:'cf_voRgeFZ9DSbfWqrwRSAfzr5ApVvUIzAyLOnkLdOp7qn',noShow:'cf_tVzfPTMC6NzmyIvUg2gtxeyiMLfDEwlGudAV0qWuygz'};
+async function activity(key,type,result,field=fields.setter,at='2026-09-09T09:00Z',status='published',current=true){
+ await db.query(`insert into close_funnel_events(source_event_id,lead_id,occurred_at,source_kind,event_type,payload,is_current)
+ values($1,'lead_A',$2,'custom_activity',$3,$4,$5)`,[key,at,type,JSON.stringify({status,custom:{[field]:result}}),current]);
+}
+await activity('show','setter_activity','🔎 Setter Follow Up');
+await activity('noshow','attendance_activity','Nicht erschienen',fields.noShow);
+await activity('cancel','attendance_activity','⛔ Abgesagt',fields.noShow);
+await activity('shift','attendance_activity','🔄 Termin verschoben',fields.noShow);
+await activity('unknown','setter_activity','New unknown choice');
+await activity('draft','setter_activity','✅ Closer terminiert',fields.setter,'2026-09-09T09:00Z','draft');
+await activity('future-activity','setter_activity','✅ Closer terminiert',fields.setter,'2026-09-09T13:00Z');
+await activity('old-activity','setter_activity','✅ Closer terminiert',fields.setter,'2026-09-09T09:00Z','published',false);
+await activity('prior-month','closer_activity','2. 🔥 CC2 vereinbart',fields.closer,'2026-08-31T21:59Z');
+await activity('month-boundary','closer_activity','3. ✅ Verkauft - in CC2 🔥',fields.closer,'2026-08-31T22:00Z');
+const withAttendance=await report('month','2026-09-09');
+assert.equal(withAttendance.events.length,7);
+assert.equal(withAttendance.attendance_events.length,6);
+assert.deepEqual(withAttendance.attendance_events.filter(e=>e.stage==='setter').map(e=>e.outcome).sort(),['cancelled','no_show','rescheduled','show','unknown']);
+assert.equal((await report('week','2026-09-09')).attendance_events.length,5);
+assert.equal((await report('day','2026-09-09')).attendance_events.length,5);
+assert.equal((await report('trend','2026-09-09')).attendance_events.length,7);
+assert.equal((await report('month','2026-10-01')).attendance_events.length,0);
+assert.equal((await report('month','2026-09-08')).attendance_events.length,1);
 for(const args of [['invalid','2026-09-09'],[null,'2026-09-09'],['day',null],['month','2026-06-01']])await assert.rejects(report(...args));
 await db.exec("set test.allowed='false'");await assert.rejects(report('month','2026-09-09'),/Nicht berechtigt/);
 await db.exec("set test.allowed='true'; set test.anon='true'");await assert.rejects(report('month','2026-09-09'),/Nicht berechtigt/);

@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-09-status-history" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-09-status-rates" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -108,10 +108,14 @@
             <p class="section-note" id="antony-data-time"></p>
           </div>
           <div class="antony-donuts" id="antony-donuts"></div>
-          <p class="chart-legend status-history-basis">Leads mit belegtem Statuswechsel im Zeitraum · je Status einmal gezählt. Ein Statuswechsel ist kein Nachweis für einen durchgeführten Call.</p>
-          <section class="antony-performance" aria-labelledby="antony-status-title">
-            <div class="antony-analysis-heading"><h3 id="antony-status-title">Status im Detail</h3></div>
-            <div id="antony-status-table"></div>
+          <p class="chart-legend status-history-basis">Statusbewegungen im gewählten Zeitraum · kein aktueller Bestand und keine Gesprächszahl. Ein Lead kann schon vor dem Zeitraum in den Schritt gekommen sein.</p>
+          <section class="antony-performance" aria-labelledby="antony-rates-title">
+            <div class="antony-analysis-heading"><h3 id="antony-rates-title">Weitergabequoten</h3></div>
+            <div id="antony-handoff-rates"></div>
+          </section>
+          <section class="antony-performance" aria-labelledby="antony-attendance-title">
+            <div class="antony-analysis-heading"><h3 id="antony-attendance-title">Show-Rates · dokumentierte Teilnahme</h3></div>
+            <div id="antony-attendance-rates"></div>
           </section>
           <section class="antony-performance" aria-labelledby="antony-transitions-title">
             <div class="antony-analysis-heading"><h3 id="antony-transitions-title">Übergänge und Absprünge pro Schritt</h3></div>
@@ -121,8 +125,12 @@
             <div class="antony-analysis-heading"><div><p class="eyebrow">Gesamtverlauf</p><h3 id="antony-performance-title">Erreichte Status im Zeitverlauf</h3></div><p class="section-note" id="antony-performance-period"></p></div>
             <div class="antony-performance-chart" id="antony-performance-chart"></div>
           </section>
+          <details class="antony-performance status-evidence-panel">
+            <summary>Status im Detail · Eingänge und Ausgänge</summary>
+            <div id="antony-status-table"></div>
+          </details>
           <details class="antony-performance status-evidence-panel" id="status-evidence-panel">
-            <summary>Belegte Statuswechsel · Datum und Lead</summary>
+            <summary>Belegte Ereignisse · Datum und Lead</summary>
             <div id="antony-status-evidence"></div>
           </details>
         </section>
@@ -236,6 +244,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-09-status-history"></script>
+    <script type="module" src="./app.js?v=2026-09-09-status-rates"></script>
   </body>
 </html>
