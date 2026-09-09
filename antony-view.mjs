@@ -40,11 +40,20 @@ export function quota(n,d,label) {
   return `${fmt(n)} von ${fmt(d)} ${label} · ${r.rate===null?'—':`${fmt(Math.round(r.rate))} %`}`;
 }
 
-// Close field 1.02 Leadquelle; verified against its choices on 2026-09-09.
-export const LEAD_SOURCE_OPTIONS = ['Cold Calling','Cold E-Mail','DMC','E-Mail','Empfehlung','Inbound LinkedIn Ads','LinkedIn','LinkedIn Cold Calls','LinkedIn Follow Up','Messe','North Data','Website','Willi Liste','Xing','Nicht zugeordnet'];
+// Reporting groups for Close field 1.02 Leadquelle; raw CRM values stay intact.
+export const LEAD_SOURCE_OPTIONS = ['DMC','LinkedIn','North Data','Messe','Website'];
+export function leadSourceGroup(source) {
+ const value=String(source||'').trim().toLowerCase();
+ if (['dmc','cold calling','cold calls'].includes(value)) return 'DMC';
+ if (['linkedin','inbound linkedin ads','linkedin cold calls','linkedin follow up'].includes(value)) return 'LinkedIn';
+ if (['north data','northdata'].includes(value)) return 'North Data';
+ if (value==='messe') return 'Messe';
+ if (value==='website') return 'Website';
+ return null;
+}
 export function filterTrackingSource(report, selected='all') {
  if(!report || selected==='all') return report;
- const matching=rows=>(rows||[]).filter(r=>(r.source||'Nicht zugeordnet')===selected);
+ const matching=rows=>(rows||[]).filter(r=>leadSourceGroup(r.source)===selected);
  return {...report,lead_quality_rows:matching(report.lead_quality_rows),calendar_rows:matching(report.calendar_rows),funnel_by_source:matching(report.funnel_by_source),quality_by_origin:matching(report.quality_by_origin)};
 }
 

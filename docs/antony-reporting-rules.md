@@ -14,7 +14,7 @@ Close ist die Quelle. Supabase berechnet Zuordnung, Belege, Grundgesamtheiten un
 
 - Haupt-KPIs zählen tatsächliche Periodenaktivität unabhängig vom Kohortenmonat: fällige Setter-Termine, Setter Calls, Closer Calls inklusive CC2, durchgeführte CC2, erstmalige Neukundenabschlüsse.
 - Ein Lead wird nur bei seiner ersten belegten Akquisition Neukunde. Belegte Abschlüsse bleiben auch ohne lückenlose Zwischenstufen sichtbar; daraus wird keine verknüpfte Übergangsquote erfunden.
-- Gesprächsleistung gehört zum Akteur der Close-Aktivität. Herkunft bezeichnet den Opener bzw. den bestehenden LinkedIn-Kanal. Der Quellenfilter nutzt unverändert `1.02 Leadquelle` (`cf_2CMz3g4iGjEjeWmrbouveHjdBsMHaLttdpV4vrgVurd`), u. a. DMC, North Data und die getrennten LinkedIn-Varianten.
+- Gesprächsleistung gehört zum Akteur der Close-Aktivität. Herkunft bezeichnet den Opener bzw. den bestehenden LinkedIn-Kanal. Der Quellenfilter nutzt `1.02 Leadquelle` (`cf_2CMz3g4iGjEjeWmrbouveHjdBsMHaLttdpV4vrgVurd`), mit fünf Gruppen: DMC (DMC und Cold Calling/Cold Calls), LinkedIn (einschließlich Ads, Cold Calls und Follow Up), North Data (auch Northdata), Messe und Website. Rohwerte in Close und Supabase bleiben erhalten. Andere Quellen bleiben in „Alle Quellen“ enthalten und werden keiner der fünf Gruppen zugeschlagen.
 - Quellenfilter wirken gleichzeitig auf Vorgangsdetails, Kalenderdetails, Übergangsquoten und Showrate. Sie verändern nicht die Haupt-KPIs oder die Monatsprognose.
 
 ## Pipeline und Details
