@@ -425,6 +425,60 @@ async function main(){
    assert.equal(p.period_bridge.setter_calls,1);assert.equal(p.setter_by_day[0].owner,'michael');
    assert(!JSON.stringify(p.owner_labels).includes('Rietig'));assert(!JSON.stringify(p.owner_labels).includes('Pyschneu'));
   });
+  await db.exec(read('../supabase/migrations/20260909085256_separate_period_pipelines.sql'));
+  const pipeline=async(period='month',date='2026-09-10')=>(await report(period,date)).period_pipelines;
+  const group=(p,id)=>p.groups.find(g=>g.origin===id);
+  await scenario('period pipelines keep old first calendars separate from current work and ignore booking creation',async()=>{
+   await funnel('old','2026-08-31T08:00Z');await funnel('current','2026-09-02T08:00Z');
+   await activity('old','old','setter_follow_up','2026-09-03T09:00Z');
+   await activity('old','old','cc2_agreed','2026-09-04T09:00Z');
+   await activity('current','current','setter_qualified','2026-09-03T09:00Z');
+   const r=await report(),p=r.period_pipelines;
+   assert.equal(group(p,'prior').setter_calls,1);assert.equal(group(p,'prior').closer_calls,1);
+   assert.equal(group(p,'prior').cc2_agreed,1);assert.equal(group(p,'current').setter_calls,1);
+   assert.equal(group(p,'current').processes,1);
+   for(const key of ['setter_calls','closer_calls','cc2_agreed','new_customers']) assert.equal(p.groups.reduce((n,g)=>n+g[key],0),r.period_bridge[key]??0);
+  });
+  await scenario('future calendar meetings remain planning and October never counts as September',async()=>{
+   await funnel('october','2026-10-08T08:00Z');await meeting('october','2026-10-08T08:00Z');
+   await activity('october','october','setter_qualified','2026-10-08T09:00Z');
+   const september=await pipeline();assert.equal(group(september,'current').setter_meetings,0);
+   assert.equal(group(september,'current').future_setter_meetings,0);assert.equal(group(september,'current').setter_calls,0);
+   const october=await pipeline('month','2026-10-08');assert.equal(group(october,'current').future_setter_meetings,1);
+   assert.equal(group(october,'current').setter_meetings,0);assert.equal(group(october,'current').setter_calls,0);
+   assert.equal(group(october,'current').processes,0);
+  });
+  await scenario('an already elapsed time is a calendar slot but never an automatic completed conversation',async()=>{
+   await funnel('calendar');await meeting('calendar','2026-09-10T10:00Z');await meeting('calendar','2026-09-10T13:00Z');
+   const p=await pipeline();assert.equal(group(p,'current').setter_meetings,1);
+   assert.equal(group(p,'current').future_setter_meetings,1);assert.equal(group(p,'current').setter_calls,0);
+   assert.equal(group(p,'current').closer_meetings,null);assert.equal(p.calendar_coverage,'setter_only');
+  });
+  await scenario('undocumented origins stay visible and do not inflate either documented pipeline',async()=>{
+   await activity(null,'missing','setter_follow_up','2026-09-03T09:00Z',{unlinked:true});
+   await won('missing','2026-09-03');
+   const p=await pipeline();assert.equal(group(p,'unknown').setter_calls,1);assert.equal(group(p,'unknown').new_customers,1);
+   assert.equal(group(p,'current').setter_calls,0);assert.equal(group(p,'prior').setter_calls,0);
+  });
+  await scenario('inactive old inventory is excluded and replacement relations do not duplicate calendar slots',async()=>{
+   await funnel('inactive','2026-01-10T08:00Z');await funnel('old','2026-08-10T08:00Z');
+   await meeting('old','2026-09-03T08:00Z');await meeting('old','2026-09-04T08:00Z');
+   await db.exec("update close_process_meetings set payload=payload||jsonb_build_object('superseded_by_meeting_id',(select max(meeting_id) from close_process_meetings)) where meeting_id=(select min(meeting_id) from close_process_meetings)");
+   const p=await pipeline();assert.equal(group(p,'prior').processes,1);assert.equal(group(p,'prior').setter_meetings,1);
+  });
+  await scenario('week origins follow Berlin calendar boundaries instead of the booking month',async()=>{
+   await funnel('sunday','2026-09-06T21:30Z');await funnel('monday','2026-09-06T22:30Z');
+   await activity('sunday','sunday','setter_follow_up','2026-09-08T09:00Z');
+   await activity('monday','monday','setter_follow_up','2026-09-08T09:00Z');
+   const p=await pipeline('week');assert.equal(p.period_start,'2026-09-07');
+   assert.equal(group(p,'prior').setter_calls,1);assert.equal(group(p,'current').setter_calls,1);
+  });
+  await scenario('full report reuses the monthly planner and stops calculating the unused historical quarter',async()=>{
+   await funnel('report');await activity('report','report','setter_follow_up','2026-09-03T09:00Z');
+   const r=(await db.query("select get_antony_report('month','2026-09-10') j")).rows[0].j;
+   assert.equal(r.quarter,null);assert.deepEqual(r.planner.process,r.process);
+   assert.equal(r.process.period_pipelines.groups[0].setter_calls,1);
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }

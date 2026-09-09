@@ -1,21 +1,22 @@
-import {TRACKING_MEMBERS, originTotals, memberResults} from "./tracking-view.mjs?v=2026-09-09-tracking-filters";
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-tracking-filters";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-tracking-filters";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-tracking-filters";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-tracking-filters";
+import { renderOriginPipelines } from "./pipeline-view.mjs?v=2026-09-09-origin-pipelines";
+import {TRACKING_MEMBERS, originTotals, memberResults} from "./tracking-view.mjs?v=2026-09-09-origin-pipelines";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-origin-pipelines";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-origin-pipelines";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-origin-pipelines";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-origin-pipelines";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-tracking-filters";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-origin-pipelines";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-tracking-filters";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-tracking-filters";
+import * as data from "./data.js?v=2026-09-09-origin-pipelines";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-origin-pipelines";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-tracking-filters";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-tracking-filters";
+} from "./call-time-score.mjs?v=2026-09-09-origin-pipelines";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-origin-pipelines";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -906,6 +907,7 @@ function renderAntony() {
   const attendance=p?.setter_attendance;
   const attendanceBox=document.querySelector("#antony-attendance-summary");
   attendanceBox.innerHTML=attendance ? `<strong>Setter-Showrate: ${attendance.elapsed ? format(100*attendance.attended/attendance.elapsed)+" %" : "—"}</strong><span>${format(attendance.attended)} durchgeführt / ${format(attendance.elapsed)} fällige Kalendertermine</span><span>${format(attendance.no_show)} nicht erschienen · ${format(attendance.cancelled)} abgesagt · ${format(attendance.rescheduled)} verschoben · ${format(attendance.unknown)} ohne Ergebnis</span>` : "";
+  document.querySelector("#antony-origin-pipelines").innerHTML = renderOriginPipelines(p?.period_pipelines);
   renderAntonyProcess();
   renderAntonyPerformance(); renderUpcomingMeetings(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
