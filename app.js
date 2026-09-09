@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-clean-dashboard";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-clean-dashboard";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-clean-dashboard";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-clean-dashboard";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-elapsed-only";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-elapsed-only";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-elapsed-only";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-elapsed-only";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-clean-dashboard";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-elapsed-only";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-clean-dashboard";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-clean-dashboard";
+import * as data from "./data.js?v=2026-09-09-elapsed-only";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-elapsed-only";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-clean-dashboard";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-clean-dashboard";
+} from "./call-time-score.mjs?v=2026-09-09-elapsed-only";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-elapsed-only";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -898,7 +898,7 @@ function renderAntony() {
     ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))}`
     : "Aktivitäten im gewählten Zeitraum";
   renderAntonyProcess();
-  renderAntonyPerformance(); renderAntonyPipeline(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
+  renderAntonyPerformance(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
 
 const antonyPerformanceSeries = Object.freeze([
@@ -1031,7 +1031,7 @@ function renderSetterAttendance(source) {
   if(!Array.isArray(metric?.by_source)) return "";
   const t=totalCounts(metric.by_source.filter(matchesProcessFilter),["scheduled","elapsed","future","attended","no_show","cancelled","rescheduled","unknown"]);
   const item=(label,n)=>`<div><dt>${label}</dt><dd>${number(n)}</dd></div>`;
-  return `<section class="setter-attendance" aria-label="Setter-Showrate"><div class="attendance-overview"><div><h4>Setter-Showrate</h4>${processRate(t.attended,t.elapsed,"fällige Kalendertermine")}</div><p><b>${number(t.scheduled)}</b> geplant im Zeitraum${t.future ? `<span>${number(t.future)} noch zukünftig · ohne Bewertung</span>` : ""}</p></div>
+  return `<section class="setter-attendance" aria-label="Setter-Showrate"><div class="attendance-overview"><div><h4>Setter-Showrate</h4>${processRate(t.attended,t.elapsed,"fällige Kalendertermine")}</div></div>
     <details class="antony-secondary"><summary><span>Teilnahme und Terminausfälle</span><span>${escapeHtml(germanDate(metric.period_start))} – ${escapeHtml(germanDate(metric.period_end))}</span></summary><dl class="attendance-outcomes">${item("Durchgeführt",t.attended)}${item("Nicht erschienen",t.no_show)}${item("Abgesagt",t.cancelled)}${t.rescheduled?item("Verschoben · neues Datum noch offen",t.rescheduled):""}${item("Ergebnis noch nicht dokumentiert",t.unknown)}</dl><p class="process-footnote">Nur fällige, zugeordnete Kalendertermine zählen in die Quote. Fehlende Nachweise sind keine No-Shows. Die Anzahl der Setter Calls enthält auch weitere Gespräche außerhalb dieser Termine.</p></details></section>`;
 }
 

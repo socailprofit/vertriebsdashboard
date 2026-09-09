@@ -23,6 +23,7 @@ async function main(){
   await db.exec(read('../supabase/migrations/20260909062039_streamline_process_report.sql'));
   await db.exec(read('../supabase/migrations/20260909071023_closeup_actionable_cases.sql'));
   await db.exec(read('../supabase/migrations/20260909071406_direct_contact_breakdown.sql'));
+  await db.exec(read('../supabase/migrations/20260909074301_limit_cohorts_to_elapsed_meetings.sql'));
   await db.query("insert into sales_people(close_user_id,slug,display_name,color) values($1,'michael','Test','#369'),($2,'felix','Test F','#f90')",[M,F]);
   await db.query("insert into close_reconciliation_state values('custom_and_won',$1),('funnel',$1)",[ASOF]);
   let serial=0,failures=0;
@@ -340,6 +341,29 @@ async function main(){
    const c=(await db.query("select get_transfer_breakdown('month','2026-09-10') j")).rows[0].j[0];
    assert.equal(c.evaluated,1);assert.equal(c.transferred,1);assert.equal(c.direct,3);assert.equal(c.unavailable,1);
    assert.equal(c.direct_reached,1);assert.equal(c.direct_not_reached,1);assert.equal(c.direct_unknown,1);assert.equal(c.unreachable_route_unknown,1);
+  });
+  await scenario('same-day future first meetings stay outside actual cohorts at the exact data cutoff',async()=>{
+   await funnel('elapsed','2026-09-10T10:00:00Z');
+   await funnel('boundary','2026-09-10T11:15:00Z');
+   await funnel('future-today','2026-09-10T11:15:00.001Z');
+   await funnel('future-month','2026-10-01T08:00:00Z');
+   let groups=await cohorts();assert.equal(groups.reduce((n,g)=>n+g.booked_leads,0),2);
+   const later=(await db.query("select get_close_process_cohorts_internal('2026-10-31') j")).rows[0].j;
+   assert.equal(later.reduce((n,g)=>n+g.booked_leads,0),2);
+   assert.equal((await rows()).length,4); // planning survives in the history
+  });
+  await scenario('August origin gains September conversations without entering the September cohort',async()=>{
+   await funnel('august','2026-08-20T08:00:00Z');await funnel('september','2026-09-02T08:00:00Z');
+   await activity('august','august','setter_qualified','2026-09-03T09:00:00Z');
+   await activity('august','august','closer_completed','2026-09-04T09:00:00Z');
+   await activity('september','september','setter_follow_up','2026-09-05T09:00:00Z');
+   await activity('august','august','closer_completed','2026-10-02T09:00:00Z');
+   const g=await cohorts(),old=g.find(r=>r.booked_date==='2026-08-20'),fresh=g.find(r=>r.booked_date==='2026-09-02');
+   assert.equal(old.booked_leads,1);assert.equal(old.setter_arrived,1);assert.equal(old.closer_arrived,1);
+   assert.equal(fresh.booked_leads,1);assert.equal(fresh.setter_arrived,1);assert.equal(fresh.closer_arrived,0);
+   const august=(await db.query("select get_close_process_cohorts_internal('2026-08-31') j")).rows[0].j;
+   assert.equal(august[0].setter_arrived,0);assert.equal(august[0].closer_arrived,0);
+   const p=await origins();assert.equal(p.period_bridge.setter_calls,2);assert.equal(p.period_bridge.setter_from_prior_bookings,1);assert.equal(p.period_bridge.setter_from_period_bookings,1);assert.equal(p.period_bridge.closer_calls,1);
   });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
