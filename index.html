@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-09-loading-fix" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-09-clean-dashboard" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -72,7 +72,7 @@
           <div>
             <p class="eyebrow" id="view-kicker">Gemeinsamer Wettbewerb</p>
             <h1 id="page-title">Michael gegen Felix</h1>
-            <p id="view-description">Sechs logisch zusammenhängende Kernwerte im Vergleich, alles Weitere darunter.</p>
+            <p id="view-description" hidden>Sechs logisch zusammenhängende Kernwerte im Vergleich, alles Weitere darunter.</p>
           </div>
 
           <div class="period-controls">
@@ -94,10 +94,10 @@
               <p class="eyebrow">Kernwerte</p>
               <h2 id="core-title">Worauf es ankommt</h2>
             </div>
-            <p class="section-note" id="core-note"></p>
+            <p class="section-note" id="core-note" hidden></p>
           </div>
           <div class="core-grid" id="core-grid"></div>
-          <div class="goal-strip" id="goal-strip"></div>
+          <div class="goal-strip" id="goal-strip" hidden></div>
         </section>
 
         <section class="panel antony-section" id="antony-section" data-widget="antony" aria-labelledby="antony-title" hidden>
@@ -144,22 +144,22 @@
           </section>
 
           <details class="antony-potential antony-secondary" aria-labelledby="antony-potential-title">
-            <summary><span id="antony-potential-title">Monatsausblick und Kundenwert</span><span>Modellrechnung</span></summary>
+            <summary><span id="antony-potential-title">Kundenwert</span><span>Rechner</span></summary>
             <div class="antony-potential-heading">
               <div>
-                <p class="eyebrow">Szenario · kein Ist-Ergebnis</p>
-                <h3>Monat bei gleichem Werktagstempo</h3>
+                <p class="eyebrow">Rechner</p>
+                <h3>Kundenwert</h3>
               </div>
               <label class="antony-customer-value">Ø Kundenwert
                 <span class="money-input"><input id="antony-ist-customer-value" type="number" min="1" step="100" placeholder="10000" inputmode="decimal" /><span>€</span></span>
                 <small id="antony-ist-value-status" aria-live="polite"></small>
               </label>
-              <div class="antony-potential-context" aria-label="Prognosezeitraum">
+              <div class="antony-potential-context" aria-label="Prognosezeitraum" hidden>
                 <p class="section-note" id="antony-potential-period"></p>
                 <p class="section-note" id="antony-potential-basis"></p>
               </div>
             </div>
-            <div class="antony-potential-values" id="antony-potential-values"></div>
+            <div class="antony-potential-values" id="antony-potential-values" hidden></div>
           </details>
 
           <details class="antony-planner" id="antony-planner">
@@ -221,7 +221,7 @@
                   <p class="eyebrow">KPI-Frage</p>
                   <h4>Social-Profit-Assistent</h4>
                 </div>
-                <p class="section-note">Zum aktuell gewählten Zeitraum</p>
+                <p class="section-note" hidden>Zum aktuell gewählten Zeitraum</p>
               </div>
               <form id="kpi-assistant-form" class="kpi-assistant-form">
                 <label for="kpi-assistant-question">Was möchtest du aus den Kennzahlen ableiten?</label>
@@ -234,8 +234,6 @@
               <div id="kpi-assistant-answer" class="kpi-assistant-answer" aria-live="polite" hidden></div>
             </div>
 
-        </section>
-
           <section class="weekly-review" id="weekly-review" aria-labelledby="weekly-review-title" hidden>
             <div class="weekly-review-heading">
               <div>
@@ -246,6 +244,8 @@
             </div>
             <div id="weekly-review-content" class="weekly-review-content" aria-live="polite"></div>
           </section>
+
+        </section>
 
         <div class="panel-row" id="dashboard-analysis-row">
           <section class="panel" id="widget-trichter" data-widget="trichter" aria-labelledby="funnel-title">
@@ -286,7 +286,7 @@
             </div>
             <div class="person-legend" id="series-legend"></div>
           </div>
-          <p class="section-note" id="series-note"></p>
+          <p class="section-note" id="series-note" hidden></p>
           <div class="chart-row" id="series-charts"></div>
         </section>
 
@@ -296,30 +296,16 @@
               <p class="eyebrow">Alle Kennzahlen</p>
               <h2 id="details-title">Details</h2>
             </div>
-            <p class="section-note">Zum Aufklappen — die vollständigen Werte je Person</p>
+            <p class="section-note" hidden>Zum Aufklappen — die vollständigen Werte je Person</p>
           </div>
           <div class="details-row" id="details-row"></div>
         </section>
 
-        <section class="panel" id="widget-trend" data-widget="trend" aria-labelledby="trend-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Drei Monate</p>
-              <h2 id="trend-title">Trend</h2>
-            </div>
-            <p class="section-note">Aktueller Monat und die zwei Vormonate</p>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead id="trend-head"></thead>
-              <tbody id="trend-rows"></tbody>
-            </table>
-          </div>
-
+        <section class="panel" id="widget-trend" data-widget="trend" aria-labelledby="trend-hours-title">
           <div class="section-heading trend-hours-heading">
             <div>
               <p class="eyebrow">Nach Uhrzeit</p>
-              <h3>Beste Anrufzeiten über drei Monate</h3>
+              <h3 id="trend-hours-title">Beste Anrufzeiten über drei Monate</h3>
             </div>
             <div class="rate-switch" role="group" aria-label="Quote für den Dreimonatszeitraum auswählen">
               <button data-trend-rate="quality" class="active" type="button">Gesamt</button>
@@ -338,7 +324,7 @@
               <p class="eyebrow">Steuerung</p>
               <h2 id="manager-title">Ziele</h2>
             </div>
-            <p class="section-note">Ziele bestimmen die Farben der Kennzahlen</p>
+            <p class="section-note" hidden>Ziele bestimmen die Farben der Kennzahlen</p>
           </div>
           <form class="goal-editor" id="goal-editor">
             <div class="goal-period">
@@ -358,7 +344,7 @@
               <p class="eyebrow">Betrieb</p>
               <h2 id="operations-title">Sync-Status</h2>
             </div>
-            <p class="section-note">Zeigt an, wie aktuell die Zahlen sind</p>
+            <p class="section-note" hidden>Zeigt an, wie aktuell die Zahlen sind</p>
           </div>
           <div class="summary-facts" id="sync-detail"></div>
         </section>
@@ -370,6 +356,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-09-loading-fix"></script>
+    <script type="module" src="./app.js?v=2026-09-09-clean-dashboard"></script>
   </body>
 </html>

@@ -14,22 +14,21 @@ function renderInventory(pipeline) {
   return nodes;
 }
 
-test('an October replacement remains planned in a September inventory, not a pending follow-up',()=>{
-  const rendered=renderInventory({persistent:true,as_of:'2026-09-08',counts:{total_open:1,setter_planned:1,setter_followup:0,from_previous_months:1,older_than_14_days:0},next_by_month:[{month:'2026-10-01',stage:'setter',count:1}]});
-  const html=rendered['#antony-pipeline-grid'].innerHTML;
-  assert.match(html,/2026-10-01/);assert.match(html,/1 Setter/);
-  assert.doesNotMatch(html,/Setter-Follow-up/);assert.doesNotMatch(html,/nicht erschienen/);
-  assert.match(rendered['#antony-pipeline-period'].textContent,/aktueller Gesamtbestand/);
+test('October replacements are concrete calendar entries, not unresolved cases or monthly forecasts',()=>{
+ const html=renderInventory({as_of:'2026-09-08',critical_counts:{no_show:0,cancelled:0,without_meeting:0},scheduled_meetings:[{lead_id:'lead_abc',meeting_id:'m1',starts_at:'2026-10-14T09:30:00Z',stage:'cc2'}],critical_cases:[]})['#antony-pipeline-grid'].innerHTML;
+ assert.match(html,/CC2 · 14.10.2026, 11:30 Uhr/);
+ assert.match(html,/app.close.com\/lead\/lead_abc/);
+ assert.match(html,/Keine offenen Fälle ohne Folgetermin/);
+ assert.doesNotMatch(html,/Weitere offene Verläufe|insgesamt|Hochrechnung/);
 });
 
-test('planning for Setter, Closer and CC2 shares a month total without inventing missing dates',()=>{
-  const rendered=renderInventory({persistent:true,as_of:'2026-09-08',counts:{total_open:5,setter_planned:1,closer_planned:1,cc2_planned:2,setter_followup:1},next_by_month:[{month:'2026-10-01',stage:'setter',count:1},{month:'2026-10-01',stage:'closer',count:1},{month:'2026-10-01',stage:'cc2',count:2}]});
-  const html=rendered['#antony-pipeline-grid'].innerHTML;
-  assert.match(html,/1 Setter · 1 Closer · 2 CC2/);assert.match(html,/<dd>4<\/dd>/);
-  assert.match(html,/Setter-Follow-up/);
-  const missing=renderInventory({persistent:true,as_of:'2026-09-08',counts:{total_open:1,setter_followup:1},next_by_month:[]});
-  assert.match(missing['#antony-pipeline-grid'].innerHTML,/Kein zukünftiger Termin eindeutig zugeordnet/);
-  assert.doesNotMatch(missing['#antony-pipeline-grid'].innerHTML,/2026-10/);
+test('Close-Up displays only explicit critical groups and preserves missing-data state',()=>{
+ const html=renderInventory({as_of:'2026-09-08',critical_counts:{no_show:1,cancelled:0,without_meeting:2},critical_cases:[{lead_id:'lead_abc',stage:'setter',reason:'no_show',status_since:'2026-09-02T08:00:00Z'}],scheduled_meetings:[],counts:{total_open:99}})['#antony-pipeline-grid'].innerHTML;
+ assert.match(html,/No-Show ohne neuen Termin<\/dt><dd>1/);
+ assert.match(html,/Weiterer Lead ohne zukünftigen Termin<\/dt><dd>2/);
+ assert.doesNotMatch(html,/99|Offen gesamt|Weitere offene Verläufe/);
+ assert.match(html,/Keine zukünftigen Termine vorhanden/);
+ assert.match(renderInventory({counts:{}})['#antony-pipeline-grid'].innerHTML,/noch nicht verfügbar/);
 });
 
 test('old cohorts become selectable only when persistent history is explicitly complete',()=>{

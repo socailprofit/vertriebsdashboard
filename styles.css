@@ -1383,3 +1383,28 @@ main { grid-template-columns: minmax(0, 1fr); }
   #antony-section .antony-activity { transition: none; }
   .antony-secondary[open] > :not(summary) { animation: none; }
 }
+
+/* Reduced dashboard: visible facts and controls; calculation rules are unchanged. */
+#goal-strip,
+#manager-section,
+#view-description,
+#antony-potential-values,
+.antony-potential-context,
+.chart-legend,
+.process-footnote,
+.antony-planner > summary > small {
+  display: none;
+}
+.detail-line { grid-template-columns: minmax(0, 1fr) auto; }
+#widget-trend .trend-hours-heading { margin-top: 0; border-top: 0; padding-top: 0; }
+#antony-section > .weekly-review { margin-top: 28px; }
+
+.process-stage > summary .process-rate > span,
+.process-stage > summary .process-start,
+.process-stage > summary .process-optional-label { display:none; }
+.open-work-list a { overflow-wrap:anywhere; }
+
+.transfer-donut-copy small { display:none; }
+
+.contact-type-table { margin-top:20px; font-size:.75rem; }
+.contact-type-table th:first-child { text-align:left; white-space:normal; min-width:160px; }

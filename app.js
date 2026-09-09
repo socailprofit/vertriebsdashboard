@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-loading-fix";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-loading-fix";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-loading-fix";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-loading-fix";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-clean-dashboard";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-clean-dashboard";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-clean-dashboard";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-clean-dashboard";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-loading-fix";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-clean-dashboard";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-loading-fix";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-loading-fix";
+import * as data from "./data.js?v=2026-09-09-clean-dashboard";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-clean-dashboard";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-loading-fix";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-loading-fix";
+} from "./call-time-score.mjs?v=2026-09-09-clean-dashboard";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-clean-dashboard";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -490,7 +490,7 @@ function renderHeader() {
 
   const role = state.profile.role;
   const leads = role === "manager" || role === "operator";
-  document.querySelector("#manager-section").hidden = state.view !== "chef" || !leads;
+  document.querySelector("#manager-section").hidden = true;
   document.querySelector("#operations-section").hidden = state.view !== "betrieb" || role !== "operator";
 }
 
@@ -550,7 +550,6 @@ function boardEntries() {
 function renderCore() {
   const coreGrid = document.querySelector("#core-grid");
   coreGrid.innerHTML = boardEntries().map((entry) => {
-    const score = entry.slug === "team" ? null : weightedScore(entry.metrics, entry.targetId);
     const values = coreMetrics().map((metric) => {
       const value = entry.metrics[metric.key];
       // metricTarget behandelt zielfreie Kennzahlen bereits richtig. Die
@@ -559,10 +558,9 @@ function renderCore() {
       const target = metricTarget(metric, entry.targetId);
       const tone = metricPerformanceClass(metric.key, value, target, entry.targetId);
       return `
-        <div class="core-value ${tone}"${metric.key === "callsGross" ? ` title="${escapeHtml(callGoalTooltip(entry.targetId))}"` : ""}>
+        <div class="core-value ${tone}">
           <span class="core-label">${metric.label}</span>
           <strong>${metric.format(value)}</strong>
-          <small>${metric.key === "callsGross" ? callGoalCopy(entry.targetId) : target === null ? "kein Ziel" : `Ziel ${metric.format(target)}`}</small>
         </div>`;
     }).join("");
 
@@ -573,7 +571,6 @@ function renderCore() {
             ${renderDashboardAvatar(entry.slug, entry.label)}
             <span class="core-name">${escapeHtml(entry.label)}</span>
           </span>
-          <span class="core-score ${performanceClass(score)}">${score === null ? "" : `${score}%`}</span>
         </header>
         <div class="core-values">${values}</div>
       </article>`;
@@ -898,7 +895,7 @@ function renderAntony() {
     : `Arbeit im Zeitraum ${periodCaption()} · einschließlich älterer Vorgänge. Zahl anklicken für Herkunft und Zeitbezug.`;
   const dataTime = p?.setter_attendance?.data_as_of || state.antonyPipeline?.data_as_of;
   document.querySelector("#antony-data-time").textContent = dataTime && Number.isFinite(Date.parse(dataTime))
-    ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))} · Berlin`
+    ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))}`
     : "Aktivitäten im gewählten Zeitraum";
   renderAntonyProcess();
   renderAntonyPerformance(); renderAntonyPipeline(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
@@ -975,7 +972,7 @@ function renderAntonyPerformance() {
       const last = rows[rows.length - 1];
       return `<span><i style="background:${series.color}"></i>${series.label}<b>${number(last[series.key])}</b></span>`;
     }).join("")}</div>
-    <div class="chart-axis-copy"><span>Anzahl · bis zum jeweiligen Zeitpunkt aufsummiert</span><span>${state.period === "day" ? "Uhrzeit" : "Datum"} · Berlin</span></div>
+    <div class="chart-axis-copy"><span>Anzahl · bis zum jeweiligen Zeitpunkt aufsummiert</span><span>${state.period === "day" ? "Uhrzeit" : "Datum"}</span></div>
     <svg viewBox="0 0 ${width} ${height}" role="group" aria-label="Kumulierter Antony-Funnel im gewählten Zeitraum">
       <g class="antony-performance-grid">${grid}</g>
       <g class="antony-performance-lines">${paths}</g>${hitAreas}
@@ -1116,56 +1113,23 @@ function renderLeadQualityTables(source) {
 }
 
 function renderAntonyPipeline() {
-  const grid = document.querySelector("#antony-pipeline-grid"), note = document.querySelector("#antony-pipeline-note"), period = document.querySelector("#antony-pipeline-period");
-  const pipeline = state.antonyPipeline;
-  if (!pipeline?.counts) {
-    period.textContent = "Aktueller Bestand";
-    grid.innerHTML = `<p class="antony-analysis-empty">Der aktuelle Prozessstand ist noch nicht verfügbar.</p>`;
-    note.textContent = "";
-    return;
-  }
-  const counts=pipeline.counts, persistent=pipeline.persistent === true;
-  const rows = [
-    ["Setter ausstehend",counts.setter_pending,"Ergebnis oder nächsten Termin klären"],
-    ["Setter-Follow-up",counts.setter_followup,"Nächsten Kontakt vereinbaren"],
-    ["Setter verschoben",counts.rescheduled_setter,"Ersatzdatum noch offen"],
-    ["Setter abgesagt",counts.setter_cancelled,"Weiteres Vorgehen klären"],
-    ["Setter: nicht erschienen",counts.setter_no_show,"Erneut kontaktieren"],
-    ["Closer qualifiziert",counts.closer_scheduled,"Nächsten Termin klären"],
-    ["Closer-Follow-up",counts.closer_followup,"Nächsten Kontakt vereinbaren"],
-    ["Closer abgesagt",counts.closer_cancelled,"Weiteres Vorgehen klären"],
-    ["Closer verschoben",counts.rescheduled_closer,"Ersatzdatum noch offen"],
-    ["Closer: nicht erschienen",counts.closer_no_show,"Erneut kontaktieren"],
-    ["CC2 / Entscheidung offen",counts.pending_decision_cc2,"Nächsten Schritt klären"],
-    ["Verkauft · Won fehlt",counts.sold_pending_won,"Abschluss in Close prüfen"],
-    ["Ergebnis unklar",counts.unrated,"Dokumentation prüfen"],
-    ["Terminzuordnung prüfen",counts.planning_needs_review,"Kalender und Prozessstufe passen noch nicht zusammen"],
-  ].filter(([,n])=>Number(n)>0);
-  const future=(Array.isArray(pipeline.next_by_month)?pipeline.next_by_month:[]).filter(row=>Number(row.count)>0);
-  const monthRows=new Map();
-  for(const row of future) {
-    if(!/^\d{4}-\d{2}-01$/.test(row.month)) continue;
-    const month=monthRows.get(row.month)||{setter:0,closer:0,cc2:0,unassigned:0};
-    if(["setter","closer","cc2","unassigned"].includes(row.stage))month[row.stage]+=Number(row.count);
-    monthRows.set(row.month,month);
-  }
-  const plannedTotal=["setter_planned","closer_planned","cc2_planned","planning_needs_review"].reduce((n,key)=>n+Number(counts[key]||0),0);
-  const renderOpen = rows.map(([label,n,detail])=>`<div><dt>${escapeHtml(label)}<span>${escapeHtml(detail)}</span></dt><dd>${number(n)}</dd></div>`).join("");
-  const renderMonths=[...monthRows].sort(([a],[b])=>a.localeCompare(b)).map(([month,t])=>`<div><dt>${escapeHtml(monthLabel(month))}<span>${[["setter","Setter"],["closer","Closer"],["cc2","CC2"],["unassigned","Zuordnung offen"]].filter(([key])=>t[key]>0).map(([key,label])=>`${number(t[key])} ${label}`).join(" · ")}</span></dt><dd>${number(t.setter+t.closer+t.cc2+t.unassigned)}</dd></div>`).join("");
-  period.textContent = `${germanDate(pipeline.as_of)} · ${persistent ? "aktueller Gesamtbestand, unabhängig vom Zeitraumfilter" : "verfügbarer Verlauf"}`;
-  const taskCoverage = pipeline.coverage?.tasks_complete === true;
-  const actions = (Array.isArray(pipeline.current_actions) ? pipeline.current_actions : []).filter(row=>/^lead_[A-Za-z0-9]+$/.test(row.lead_id));
-  const actionRows = actions.map(row=>{
-    const when = row.due_precision === "timestamp" && Number.isFinite(Date.parse(row.due_at))
-      ? new Intl.DateTimeFormat("de-DE", {timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(row.due_at))+" Uhr"
-      : row.due_date ? germanDate(row.due_date) : "Datum offen";
-    const stage = row.meeting_confirmed ? ({setter:"Setter",closer:"Closer",cc2:"CC2"}[row.stage] || "Folgetermin") : "Follow-up-Aufgabe";
-    const origin = row.first_meeting_at ? ` · erster Setter-Termin ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",month:"long",year:"numeric"}).format(new Date(row.first_meeting_at))}` : " · Ersttermin nicht dokumentiert";
-    return `<div><dt><a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(stage)} · ${escapeHtml(when)} ↗</a><span>${row.due_now ? "Aufgabe fällig" : "Geplant"}${escapeHtml(origin)}</span></dt></div>`;
-  }).join("");
-  grid.innerHTML = `<div class="open-inventory-total"><strong>${number(plannedTotal)}</strong><span>belegte Folgetermine</span><p>${taskCoverage ? `<b>${number(counts.task_due_now||0)}</b> fällige Follow-up-Aufgaben` : "Aufgabenstand noch nicht vollständig verfügbar"}</p></div><div class="open-work-columns"><section><h4>Bereits im Kalender</h4>${renderMonths ? `<dl class="open-work-list">${renderMonths}</dl>` : `<p class="open-work-empty">Kein zukünftiger Termin eindeutig zugeordnet.</p>`}<p class="process-footnote">Geplante Termine zählen erst bei belegter Durchführung als Leistung.</p></section><section><h4>Dokumentierte Folgeaufgaben</h4>${actionRows ? `<dl class="open-work-list">${actionRows}</dl>` : `<p class="open-work-empty">${taskCoverage ? "Keine zugeordnete Folgeaufgabe dokumentiert." : "Aufgabenstand wird geprüft."}</p>`}</section></div><details class="chart-values"><summary>Weitere offene Verläufe · ${number(counts.total_open)} insgesamt</summary><p class="process-footnote">Letzte dokumentierte Ergebnisse einschließlich Altbestand. Ohne aktuellen Termin oder Folgeaufgabe ist daraus keine heutige To-do-Liste ableitbar.</p>${rows.length ? `<dl class="open-work-list">${renderOpen}</dl>` : `<p class="open-work-empty">Keine weiteren offenen Ergebnisse.</p>`}</details>`;
-  const coverage=pipeline.coverage?.unlinked_processes;
-  note.textContent = `${number(counts.from_previous_months)} aus früheren Monaten · ${number(counts.older_than_14_days)} seit mehr als 14 Tagen in ihrer aktuellen Stufe${Number(coverage)>0 ? ` · ${number(coverage)} Vorgänge mit unvollständiger Zuordnung` : ""}.`;
+  const grid=document.querySelector("#antony-pipeline-grid"),note=document.querySelector("#antony-pipeline-note"),period=document.querySelector("#antony-pipeline-period");
+  const pipeline=state.antonyPipeline;
+  note.textContent="";
+  if(!pipeline?.critical_counts){period.textContent="";grid.innerHTML='<p class="antony-analysis-empty">Close-Up-Fälle noch nicht verfügbar.</p>';return;}
+  period.textContent=pipeline.data_as_of ? new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(pipeline.data_as_of)) : germanDate(pipeline.as_of);
+  const labels={no_show:"No-Show ohne neuen Termin",cancelled:"Abgesagt ohne Ersatztermin",without_meeting:"Weiterer Lead ohne zukünftigen Termin"};
+  const stageName=value=>({setter:"Setter",closer:"Closer",cc2:"CC2"}[value]||"Folgetermin");
+  const when=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(value))+" Uhr":"Datum offen";
+  const valid=rows=>(Array.isArray(rows)?rows:[]).filter(r=>/^lead_[A-Za-z0-9]+$/.test(r.lead_id));
+  const link=(r,text)=>`<a href="https://app.close.com/lead/${encodeURIComponent(r.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(text)} ↗</a>`;
+  const counts=Object.entries(labels).map(([key,label])=>`<div><dt>${escapeHtml(label)}</dt><dd>${number(pipeline.critical_counts[key]||0)}</dd></div>`).join("");
+  const allCases=valid(pipeline.critical_cases).sort((a,b)=>Object.keys(labels).indexOf(a.reason)-Object.keys(labels).indexOf(b.reason));
+  const caseLimit=state.closeupLimit||20;
+  const cases=allCases.slice(0,caseLimit).map(r=>`<div><dt>${link(r,`${stageName(r.stage)} · ${labels[r.reason]||"Follow-up"} · ${when(r.status_since)}`)}</dt></div>`).join("");
+  const meetings=valid(pipeline.scheduled_meetings).map(r=>`<div><dt>${link(r,`${stageName(r.stage)} · ${when(r.starts_at)}`)}</dt></div>`).join("");
+  const actions=valid(pipeline.current_actions).map(r=>`<div><dt>${link(r,`${r.meeting_confirmed?stageName(r.stage):"Follow-up-Aufgabe"} · ${r.due_precision==="timestamp"?when(r.due_at):r.due_date?germanDate(r.due_date):"Datum offen"}`)}</dt></div>`).join("");
+  grid.innerHTML=`<div class="open-work-columns"><section><h4>Fälle ohne Folgetermin</h4><dl class="open-work-list">${counts}</dl><details class="chart-values" ${state.closeupLimit?"open":""}><summary>Betroffene Leads</summary>${cases?`<dl class="open-work-list">${cases}</dl>${allCases.length>caseLimit?'<button type="button" data-closeup-more>Weitere 20 anzeigen</button>':""}`:'<p>Keine offenen Fälle ohne Folgetermin.</p>'}</details></section><section><h4>Bereits im Kalender</h4>${meetings?`<dl class="open-work-list">${meetings}</dl>`:'<p>Keine zukünftigen Termine vorhanden.</p>'}</section><section><h4>Dokumentierte Folgeaufgaben</h4>${actions?`<dl class="open-work-list">${actions}</dl>`:`<p>${pipeline.coverage?.tasks_complete?"Keine Folgeaufgaben dokumentiert.":"Aufgabenstand wird geprüft."}</p>`}</section></div>`;
 }
 
 function renderWeeklyReview() {
@@ -1311,7 +1275,7 @@ function lineChart(points, seriesByPerson, format, pointLabel = "Tage", unit = "
     const right = Math.min(width - pad.right, x(index) + hitWidth / 2);
     return `<rect class="chart-hit-area" x="${left}" y="${pad.top - 7}" width="${points.length === 1 ? width - pad.left - pad.right : right - left}" height="${height - pad.bottom - pad.top + 14}" tabindex="0" role="button" aria-label="${escapeHtml(`Werte anzeigen: ${time}`)}" data-chart-point="${escapeHtml(JSON.stringify(payload))}" />`;
   }).join("");
-  return `<div class="chart-axis-copy"><span>${escapeHtml(unit)} je ${hourly ? "Stunde" : "Kalendertag"}</span><span>${hourly ? "Uhrzeit" : "Datum"} · Berlin</span></div>
+  return `<div class="chart-axis-copy"><span>${escapeHtml(unit)} je ${hourly ? "Stunde" : "Kalendertag"}</span><span>${hourly ? "Uhrzeit" : "Datum"}</span></div>
     <svg viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(`${unit} je ${hourly ? 'Stunde' : 'Tag'}, ${labels[0]} bis ${labels[labels.length - 1]}; jede Farbe steht für eine Person`)}">${grid}${ticks}${lines}${hitAreas}</svg>
     ${chartValuesTable(labels, series, `${unit} je ${hourly ? "Stunde" : "Tag"}`)}`;
 }
@@ -1345,7 +1309,6 @@ function renderSeries() {
         <article class="chart-card">
           <h3>${label}</h3>
           <div class="chart-body">${lineChart(hours, seriesByPerson, number, "Stunden", "Anrufe")}</div>
-          <small>Einzelwerte pro Stunde, nicht aufsummiert. Auf den Graphen tippen oder klicken, um Zeitpunkt und Werte zu sehen. Alle Werte stehen auch in der Tabelle.</small>
         </article>`;
     }).join("");
     return;
@@ -1379,7 +1342,6 @@ function renderSeries() {
       <article class="chart-card">
         <h3>${metric.label}</h3>
         <div class="chart-body">${lineChart(days, seriesByPerson, metric.format, "Tage", metric.key === "appointments" ? "Termine" : metric.key === "decisionMakers" ? "Entscheiderkontakte" : "Anrufe")}</div>
-        <small>Einzelwerte je Kalendertag, nicht aufsummiert. Die senkrechte Skala zeigt die Anzahl; jede Farbe steht für eine Person.</small>
       </article>`;
   }).join("");
 }
@@ -1415,7 +1377,7 @@ function renderFunnel() {
       ? `${entry.label}: keine Vorzimmer-Kontakte`
       : `${entry.label}: ${Math.round(rate)} Prozent Durchstellquote, ${successes} von ${base}`;
     const breakdown=(state.transferBreakdown || []).filter(row=>entry.slug === "team" || row.slug === entry.slug);
-    const fields=[["Durchgestellt","transferred"],["Nicht durchgestellt","rejected"],["E-Mail senden","email_requested"],["Kein Interesse","no_interest"],["GF/CEO nicht erreichbar · ausgeschlossen","unavailable"],["Direkter Kontakt · ausgeschlossen","direct"],["Fehlendes / anderes Ergebnis · ausgeschlossen","unknown"]];
+    const fields=[["Entscheider/GF direkt erreicht","direct_reached"],["Entscheider/GF direkt nicht erreicht","direct_not_reached"],["Direkter Versuch ohne Ergebnis","direct_unknown"],["GF nicht erreicht · Kontaktweg unklar","unreachable_route_unknown"],["Durchgestellt","transferred"],["Nicht durchgestellt","rejected"],["E-Mail senden","email_requested"],["Kein Interesse","no_interest"],["GF/CEO nicht erreichbar · ausgeschlossen","unavailable"],["Direkter Kontakt · ausgeschlossen","direct"],["Fehlendes / anderes Ergebnis · ausgeschlossen","unknown"]];
     const payload={title:`${entry.label}: Durchstellquote`,time:periodCaption(),rows:[{label:"Durchgestellt / bewertbar",value:`${successes} / ${base}`}],note:"Mailbox, außerhalb der Geschäftszeiten und GF/CEO nicht erreichbar zählen nicht in die Durchstellquote."};
     if(breakdown.length)payload.rows.push(...fields.map(([label,key])=>({label,value:number(breakdown.reduce((sum,row)=>sum+Number(row[key]??0),0))})));
     const conflicts=breakdown.reduce((sum,row)=>sum+Number(row.conflicting_results??0),0);
@@ -1432,6 +1394,13 @@ function renderFunnel() {
       </article>`;
   }).join("");
 
+  const categories=[["Vorzimmer-Kontakt","evaluated"],["Entscheider/GF direkt erreicht","direct_reached"],
+    ["Entscheider/GF direkt nicht erreicht","direct_not_reached"],["GF nicht erreicht · Zugangsweg offen","unreachable_route_unknown"],
+    ["Direktversuch · Ergebnis offen","direct_unknown"]];
+  const contactBreakdown=`<div class="table-scroll"><table class="contact-type-table"><thead><tr><th>Kontaktart</th>${transferEntries.map(e=>`<th>${escapeHtml(e.label)}</th>`).join("")}</tr></thead><tbody>${categories.map(([label,key])=>`<tr><th>${escapeHtml(label)}</th>${transferEntries.map(entry=>{
+    const parts=(state.transferBreakdown||[]).filter(row=>entry.slug==="team"||row.slug===entry.slug);
+    return `<td>${parts.length?number(parts.reduce((n,row)=>n+Number(row[key]||0),0)):"–"}</td>`;
+  }).join("")}</tr>`).join("")}</tbody></table></div>`;
   document.querySelector("#funnel").innerHTML = steps.map(([label, key], index) => {
     const bars = people.map((person) => {
       const value = state.metrics[person.slug][key];
@@ -1443,7 +1412,7 @@ function renderFunnel() {
         <span class="funnel-bar">${bars}</span>
         <span class="funnel-total">${number(totals[index])}</span>
     </div>`;
-  }).join("");
+  }).join("") + contactBreakdown;
   document.querySelector("#funnel-note").textContent =
     "Durchstellquote = „Durchgestellt“ ÷ bewertbare Vorzimmer-Ergebnisse. „CEO/GF nicht erreichbar“, Mailbox, außerhalb der Geschäftszeiten und direkte Entscheidergespräche zählen nicht mit. Ablehnung, „E-Mail senden“ und „Kein Interesse“ zählen als nicht durchgestellt. Der Teamwert entsteht aus den Summen.";
 }
@@ -1549,10 +1518,9 @@ function renderDetails() {
       const target = metric.noTarget ? null : (metric.rateTarget ? targetFor(entry.targetId, metric.rateTarget) : targetFor(entry.targetId, metric.target));
       const tone = metricPerformanceClass(metric.key, value, target, entry.targetId);
       return `
-        <div class="detail-line ${tone}"${metric.key === "callsGross" ? ` title="${escapeHtml(callGoalTooltip(entry.targetId))}"` : ""}>
+        <div class="detail-line ${tone}">
           <span>${metric.label}</span>
           <strong>${metric.format(value)}</strong>
-          <small>${metric.key === "callsGross" ? callGoalCopy(entry.targetId) : target === null ? "—" : `Ziel ${metric.format(target)}`}</small>
         </div>`;
     }).join("");
     return `
@@ -1688,16 +1656,13 @@ function render() {
     return;
   }
   renderCore();
-  renderGoals();
   renderSeries();
   renderFunnel();
   renderHours();
   renderDetails();
   if (canViewThreeMonthReview()) {
     renderTrendHours();
-    renderTrends();
   }
-  renderManager();
   renderSyncBadge();
   updateUrl();
 }
@@ -1847,6 +1812,7 @@ function readInitialState() {
 document.querySelector("#retry-load").addEventListener("click",()=>refresh());
 
 document.addEventListener("click", (event) => {
+  if(event.target.closest("[data-closeup-more]")){state.closeupLimit=(state.closeupLimit||20)+20;renderAntonyPipeline();return;}
   const antonyRateModeButton = event.target.closest("[data-antony-rate-mode]");
   if (antonyRateModeButton) {
     state.antonyRateMode = antonyRateModeButton.dataset.antonyRateMode;
@@ -2265,6 +2231,9 @@ function samplePreview() {
   state.antonyPlannerProcess=state.antonyProcess;
   state.antonyProcessQuarter = {...state.antonyProcess,period:{start:"2026-07-01",end:"2026-09-07"}};
   state.antonyPipeline = {
+    critical_counts:{no_show:1,cancelled:1,without_meeting:2},
+    critical_cases:[{lead_id:"lead_preview",process_id:"preview",stage:"setter",reason:"no_show",status_since:"2026-09-07T09:00:00Z"}],
+    scheduled_meetings:[{lead_id:"lead_previewCalendar",meeting_id:"preview",starts_at:"2026-10-14T09:30:00Z",stage:"setter"}],
     persistent:true, data_as_of:"2026-09-07T16:00:00Z", next_by_month:[{month:"2026-09-01",stage:"setter",count:3},{month:"2026-10-01",stage:"setter",count:2}],
     as_of: "2026-09-07",
     window_start: "2026-07-01",
