@@ -155,11 +155,13 @@ function euros(cents) {
 }
 
 function germanDate(isoDate) {
+  if (!isoDate || !Number.isFinite(new Date(`${isoDate}T12:00:00Z`).getTime())) return "—";
   return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
     .format(new Date(`${isoDate}T12:00:00Z`));
 }
 
 function monthLabel(isoDate) {
+  if (!isoDate || !Number.isFinite(new Date(`${isoDate}T12:00:00Z`).getTime())) return "—";
   return new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" })
     .format(new Date(`${isoDate}T12:00:00Z`));
 }
