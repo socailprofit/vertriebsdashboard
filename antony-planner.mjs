@@ -1,4 +1,4 @@
-import { journeyRates } from './pipeline-metrics.mjs?v=2026-09-09-single-lead-table';
+import { journeyRates } from './pipeline-metrics.mjs?v=2026-09-09-clear-tracking';
 function nonNegative(v) { const n=Number(v);return Number.isFinite(n)?Math.max(0,n):0; }
 function positiveRate(v) { if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isFinite(n)&&n>0&&n<=100?n:null; }
 export function rate(n,d) { return nonNegative(d)>0?nonNegative(n)/nonNegative(d)*100:null; }

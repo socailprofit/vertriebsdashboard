@@ -1459,3 +1459,8 @@ main { grid-template-columns: minmax(0, 1fr); }
 
 #lead-quality-table a { color: #b9cff6; text-underline-offset: 3px; }
 #lead-quality-table a:hover { color: #fff; }
+
+.antony-activity .performed-by {font-size:.75rem;color:#d0def1;line-height:1.5;display:block;margin-top:10px;}
+.attendance-summary {display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:24px;padding:20px 0;border-top:1px solid var(--line);font-size:.85rem;}
+.attendance-summary details {flex-basis:100%;line-height:1.6;}
+.attendance-summary summary {cursor:pointer;}

@@ -1,4 +1,4 @@
-import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-single-lead-table";
+import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-clear-tracking";
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.
 //
 // Jede fachliche Kennzahl und ihre Grundgesamtheit kommt aus den
@@ -6,7 +6,7 @@ import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-singl
 // den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-09-single-lead-table";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-09-clear-tracking";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 

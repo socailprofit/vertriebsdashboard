@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-single-lead-table";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-single-lead-table";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-single-lead-table";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-single-lead-table";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-clear-tracking";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-clear-tracking";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-clear-tracking";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-clear-tracking";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-single-lead-table";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-clear-tracking";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-single-lead-table";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-single-lead-table";
+import * as data from "./data.js?v=2026-09-09-clear-tracking";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-clear-tracking";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-single-lead-table";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-single-lead-table";
+} from "./call-time-score.mjs?v=2026-09-09-clear-tracking";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-clear-tracking";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -888,7 +888,9 @@ function renderAntony() {
   container.innerHTML = rows.length ? rows.map(([label,n,detail]) => {
     const payload={title:label,time:periodCaption(),rows:[{label:"Im Zeitraum",value:format(n)}],note:detail};
     if(label === "Setter Calls" && p?.setter_by_day) payload.rows.push(...p.setter_by_day.map(row=>({label:`${germanDate(row.date)} · ${{michael:"Michael",felix:"Felix",antony:"Antony"}[row.owner] || "Weitere"}`,value:`${format(row.calls)} ${row.calls === 1 ? "Call" : "Calls"}`}))) ;
-    return `<button type="button" class="antony-activity" data-chart-point="${escapeHtml(JSON.stringify(payload))}"><span>${escapeHtml(label)}</span><strong>${format(n)}</strong><span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
+    const performedBy = label === "Setter Calls" && Array.isArray(p?.setter_by_day)
+      ? Object.entries(p.setter_by_day.reduce((totals,row)=>{const actor=({michael:"Michael",felix:"Felix",antony:"Antony"})[row.owner]||"Nicht zugeordnet";totals[actor]=(totals[actor]||0)+Number(row.calls||0);return totals;},{})).map(([actor,calls])=>`${actor}: ${format(calls)}`).join(" · ") : "";
+    return `<button type="button" class="antony-activity" data-chart-point="${escapeHtml(JSON.stringify(payload))}"><span>${escapeHtml(label)}</span><strong>${format(n)}</strong>${performedBy?`<span class="performed-by">Durchgeführt von ${escapeHtml(performedBy)}</span>`:""}<span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
   }).join("") : `<p class="antony-empty">Kennzahlen für diesen Zeitraum nicht verfügbar.</p>`;
   document.querySelector("#antony-note").textContent = flow
     ? `${format(flow.new_processes)} Vorgänge mit Ersttermin im Zeitraum · ${format(flow.carried_in)} ältere Vorgänge im Setter bearbeitet${flow.repeat_setter_calls ? ` · ${format(flow.repeat_setter_calls)} Setter-Folgegespräche` : ""}${flow.unlinked_setter_calls ? ` · ${format(flow.unlinked_setter_calls)} Setter ${Number(flow.unlinked_setter_calls)===1?"Call":"Calls"} ohne sichere Zuordnung` : ""}`
@@ -899,6 +901,9 @@ function renderAntony() {
   document.querySelector("#antony-data-time").textContent = dataTime && Number.isFinite(Date.parse(dataTime))
     ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))}`
     : "Aktivitäten im gewählten Zeitraum";
+  const attendance=p?.setter_attendance;
+  const attendanceBox=document.querySelector("#antony-attendance-summary");
+  attendanceBox.innerHTML=attendance ? `<strong>Setter-Showrate: ${attendance.elapsed ? format(100*attendance.attended/attendance.elapsed)+" %" : "—"}</strong><span>${format(attendance.attended)} durchgeführt / ${format(attendance.elapsed)} fällige Kalendertermine</span><span>${format(attendance.no_show)} nicht erschienen · ${format(attendance.cancelled)} abgesagt · ${format(attendance.rescheduled)} verschoben · ${format(attendance.unknown)} ohne Ergebnis</span><details><summary>Berechnungsgrundlage</summary><p>Nur zugeordnete Kalendertermine bis zum Datenstand. Absagen und ungeklärte fällige Termine bleiben im Nenner; Zukunftstermine zählen nicht. Zusätzliche Setter-Gespräche ohne diesen Kalendertermin zählen bei Setter Calls, aber nicht in dieser Quote. Fehlende Ergebnisse werden nicht als No-Show gewertet.</p></details>` : "";
   renderAntonyProcess();
   renderAntonyPerformance(); renderUpcomingMeetings(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }

@@ -417,6 +417,14 @@ async function main(){
    assert.equal((await report('day','2026-09-02')).lead_quality_rows.length,1);
    assert.equal((await report('week','2026-09-10')).lead_quality_rows.length,0);
   });
+  await db.exec(read('../supabase/migrations/20260909083835_current_team_reporting.sql'));
+  await scenario('former staff never reappear as personal acquisition targets and activity stays unchanged',async()=>{
+   await funnel('former');await activity('former','former','setter_follow_up','2026-09-02T08:00Z');
+   await db.query("update close_funnel_leads set opener_close_user_id='user_FPLFlQiqihA76cqW4vpbxfKYJFNsmGjtqNJpnOE87PF' where lead_id='former'");
+   const p=await report();assert.equal(p.lead_quality_rows[0].owner,'outside_current_team');
+   assert.equal(p.period_bridge.setter_calls,1);assert.equal(p.setter_by_day[0].owner,'michael');
+   assert(!JSON.stringify(p.owner_labels).includes('Rietig'));assert(!JSON.stringify(p.owner_labels).includes('Pyschneu'));
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
