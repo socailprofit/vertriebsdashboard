@@ -164,9 +164,9 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--michael); o
   position: relative;
   display: grid;
   place-items: center;
-  flex: 0 0 27px;
-  width: 27px;
-  height: 27px;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
   overflow: hidden;
   color: #061020;
   background: var(--avatar-color, var(--muted));
@@ -202,13 +202,33 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--michael); o
 
 .person-avatar img {
   display: block;
+  inset: auto;
+  left: var(--portrait-left, 0%);
+  top: var(--portrait-top, 0%);
+  width: var(--portrait-size, 100%);
+  height: var(--portrait-size, 100%);
   object-fit: cover;
   object-position: center;
 }
 
-.person-avatar--felix img {
-  transform: scale(1.65);
-  transform-origin: 45% 12%;
+/* Gesichtsausschnitte direkt aus den Originaldateien rendern; Größe und
+   Position über die Bildgeometrie festlegen, ohne CSS-Transform. */
+.person-avatar--michael {
+  --portrait-size: 150%;
+  --portrait-left: -25%;
+  --portrait-top: 0%;
+}
+
+.person-avatar--felix {
+  --portrait-size: 165%;
+  --portrait-left: -29.25%;
+  --portrait-top: -7.8%;
+}
+
+.person-avatar--antony {
+  --portrait-size: 140%;
+  --portrait-left: -14%;
+  --portrait-top: 3%;
 }
 
 .person-avatar-fallback {
@@ -454,7 +474,7 @@ tbody td:first-child { font-weight: 620; }
 
 @media (max-width: 620px) {
   .topbar { justify-content: center; text-align: center; }
-  .person-avatar { flex-basis: 23px; width: 23px; height: 23px; font-size: 0.55rem; }
+  .person-avatar { flex-basis: 30px; width: 30px; height: 30px; font-size: 0.55rem; }
   .nav-button--person { gap: 6px; }
   .goal-field { grid-template-columns: 1fr; }
   .goal-field input { width: 100%; }
@@ -518,7 +538,7 @@ tbody td:first-child { font-weight: 620; }
 .core-card.is-dimmed { opacity: 0.42; }
 .core-card header { display: grid; gap: 2px; }
 .core-identity { display: flex; align-items: center; gap: 10px; }
-.core-identity .person-avatar { flex-basis: 36px; width: 36px; height: 36px; font-size: 0.68rem; }
+.core-identity .person-avatar { flex-basis: 48px; width: 48px; height: 48px; font-size: 0.68rem; }
 .core-identity .person-avatar--team svg { width: 22px; height: 22px; }
 .core-name { font-size: clamp(1.3rem, 2.2vw, 1.9rem); font-weight: 700; letter-spacing: -0.02em; }
 .core-score { font-size: 0.85rem; font-weight: 650; color: var(--perf, var(--muted-2)); }
@@ -540,7 +560,7 @@ tbody td:first-child { font-weight: 620; }
    zusätzlichen Personenzeile in jeder Vertriebsansicht. */
 .antony-section { --antony: #9b8cff; }
 .section-person-heading { display: flex; align-items: center; gap: 12px; }
-.section-person-heading > .person-avatar { flex-basis: 42px; width: 42px; height: 42px; font-size: 0.72rem; }
+.section-person-heading .person-avatar { flex-basis: 52px; width: 52px; height: 52px; font-size: 0.72rem; }
 .antony-donuts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
