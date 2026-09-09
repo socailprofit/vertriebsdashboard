@@ -1,17 +1,9 @@
-# Current Truth
+# Profilbilder
 
-Finale Profilbilder liegen noch nicht vor. Solange der jeweilige Eintrag in `PROFILE_IMAGES` in `app.js` auf `null` steht, zeigt die Navigation Initialen.
+- Michael Giesbrecht: `michael.png`
+- Felix Wenk: `felix.png` (bereitgestelltes Originalfoto)
+- Antony Rigone: `antony.png`
 
-# Missing Context
+`PROFILE_IMAGES` in `app.js` bindet die Bilder in Navigation, Teamübersicht und persönlichen Überschriften ein. Bei einem Ladefehler erscheinen automatisch die Initialen.
 
-Die finalen Bildausschnitte und Dateien fehlen noch.
-
-# Sources
-
-- Michael Giesbrecht: `michael.webp`
-- Felix Wenk: `felix.webp`
-- Antony Rigone: `antony.webp`
-
-# Timeline
-
-Nach Ablage einer Datei in diesem Ordner den passenden Pfad in `PROFILE_IMAGES` in `app.js` eintragen. Weitere Änderungen an Navigation oder HTML sind nicht erforderlich.
+Felix' runder Gesichtsausschnitt wird über `.person-avatar--felix img` in `styles.css` festgelegt. Die Originaldatei bleibt unverändert.

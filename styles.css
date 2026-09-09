@@ -206,6 +206,11 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--michael); o
   object-position: center;
 }
 
+.person-avatar--felix img {
+  transform: scale(1.65);
+  transform-origin: 45% 12%;
+}
+
 .person-avatar-fallback {
   display: grid;
   place-items: center;

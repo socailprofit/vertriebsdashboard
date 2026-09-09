@@ -24,7 +24,7 @@ import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-contro
 // oder einem nicht ladbaren Bild bleibt automatisch der Initialen-Platzhalter.
 const PROFILE_IMAGES = Object.freeze({
   michael: "./assets/profiles/michael.png",
-  felix: null,
+  felix: "./assets/profiles/felix.png",
   antony: "./assets/profiles/antony.png",
 });
 
