@@ -21,6 +21,8 @@ async function main(){
   await db.exec(read('../supabase/migrations/20260909061101_respect_documented_open_followups.sql'));
   await db.exec(read('../supabase/migrations/20260909061553_stabilize_current_plans.sql'));
   await db.exec(read('../supabase/migrations/20260909062039_streamline_process_report.sql'));
+  await db.exec(read('../supabase/migrations/20260909071023_closeup_actionable_cases.sql'));
+  await db.exec(read('../supabase/migrations/20260909071406_direct_contact_breakdown.sql'));
   await db.query("insert into sales_people(close_user_id,slug,display_name,color) values($1,'michael','Test','#369'),($2,'felix','Test F','#f90')",[M,F]);
   await db.query("insert into close_reconciliation_state values('custom_and_won',$1),('funnel',$1)",[ASOF]);
   let serial=0,failures=0;
@@ -298,6 +300,46 @@ async function main(){
     const got=(await db.query('select get_antony_process_base_internal($1,$2) new,get_antony_process_metrics_legacy_internal($1,$2) old',[period,'2026-09-10'])).rows[0];
     for(const key of ['period','activity','lead_quality','setter_by_day','timeline','setter_attendance','coverage'])assert.deepEqual(got.new[key],got.old[key],period+':'+key);
    }
+  });
+  await scenario('Close-Up uses a later meeting on the same lead without requiring a process relation',async()=>{
+   await funnel('replacement');await event('replacement','setter_no_show','2026-09-09T08:00Z');
+   assert.equal((await stock()).critical_counts.no_show,1);
+   await meeting('replacement','2026-10-14T08:00Z');await db.exec('delete from close_process_meetings');
+   let s=await stock();assert.equal(s.critical_counts.total,0);assert.equal(s.counts.setter_no_show,0);
+   assert.equal(s.next_by_month[0].month,'2026-10-01');
+   assert.equal(s.scheduled_meetings.length,1);assert.equal(s.scheduled_meetings[0].lead_id,'replacement');assert.match(s.scheduled_meetings[0].starts_at,/2026-10-14/);
+   await db.exec("update close_meetings set status='canceled'");s=await stock();assert.equal(s.critical_counts.no_show,1);
+  });
+  await scenario('Close-Up ignores meetings and outcomes recorded after its data cutoff',async()=>{
+   await funnel('cutoff');await event('cutoff','setter_cancelled','2026-09-09T08:00Z');
+   await event('cutoff','customer_won','2026-09-10T11:30Z');
+   await meeting('cutoff','2026-10-14T08:00Z');
+   await db.exec("update close_meetings set date_created='2026-09-10T11:30Z',date_updated='2026-09-10T11:30Z'");
+   const s=await stock();assert.equal(s.critical_counts.cancelled,1);assert.deepEqual(s.next_by_month,[]);
+   assert.equal((await rows())[0].won_at,null);
+  });
+  await scenario('Close-Up lists each lead once and separates calendar plans from unresolved leads',async()=>{
+   await funnel('old','2026-08-01T08:00Z','DMC',{lead_id:'same',opened_at:'2026-08-01T07:00Z'});
+   await event('old','setter_no_show','2026-08-01T08:00Z');
+   await funnel('new','2026-09-01T08:00Z','DMC',{lead_id:'same',opened_at:'2026-09-01T07:00Z'});
+   let s=await stock();assert.equal(s.critical_counts.total,1);assert.equal(s.critical_cases[0].process_id,'new');
+   assert.equal(s.critical_counts.no_show,0);
+  });
+  await scenario('contact diagnosis separates reached, unavailable and unknown without changing the transfer denominator',async()=>{
+   await funnel('contact');
+   async function contact(gate,decision,contacts){
+    const raw=await activity('contact','contact','setter_follow_up','2026-09-09T08:00Z');
+    await db.query("update close_raw_activities set payload=$2 where close_activity_id=$1",[raw,JSON.stringify({custom_activity_type_id:'actitype_3YiimGlbRMzQxr2O3hPKHJ','custom.cf_8Bjba56AJvfLXwNKJwhjVJwSmCdaHBlTVyH25kxp3M1':gate,'custom.cf_LBuW6DB7vmgifhe2JUasZIhYvrOIjcAd7xB8hzYQrJ9':decision})]);
+    await db.query("update close_activity_facts set decision_maker_contacts=$2,gatekeeper_contacts=$3,connected_calls=$3 where source_activity_id=$1",[raw,contacts,gate==='✅ Durchgestellt'?1:0]);
+   }
+   await contact('✅ Durchgestellt','2: 🟡 Follow Up',1);
+   await contact('🛑 Kein Gatekeeper','2: 🟡 Follow Up',1);
+   await contact('🛑 Kein Gatekeeper','Nicht erreicht',0);
+   await contact('CEO nicht erreichbar',null,0);
+   await contact('🛑 Kein Gatekeeper',null,0);
+   const c=(await db.query("select get_transfer_breakdown('month','2026-09-10') j")).rows[0].j[0];
+   assert.equal(c.evaluated,1);assert.equal(c.transferred,1);assert.equal(c.direct,3);assert.equal(c.unavailable,1);
+   assert.equal(c.direct_reached,1);assert.equal(c.direct_not_reached,1);assert.equal(c.direct_unknown,1);assert.equal(c.unreachable_route_unknown,1);
   });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
