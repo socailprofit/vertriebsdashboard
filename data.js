@@ -1,4 +1,4 @@
-import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-antony-release";
+import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-loading-fix";
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.
 //
 // Jede fachliche Kennzahl und ihre Grundgesamtheit kommt aus den
@@ -6,7 +6,7 @@ import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-anton
 // den erklärten, nicht gespeicherten Stunden-Qualitätswert.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-09-antony-release";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js?v=2026-09-09-loading-fix";
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
@@ -26,7 +26,7 @@ function requireClient() {
 // Ein fehlgeschlagener Aufruf soll sagen, welche Abfrage gescheitert ist. Ohne
 // das steht im Browser nur eine PostgREST-Meldung ohne Zusammenhang.
 async function run(label, query) {
-  const { data, error } = await query;
+  const { data, error } = await query.abortSignal(AbortSignal.timeout(30000));
   if (error) {
     const cause = error.message || error.code || "unbekannter Fehler";
     throw new Error(`${label}: ${cause}`);

@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-antony-release";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-antony-release";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-antony-release";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-antony-release";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-loading-fix";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-loading-fix";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-loading-fix";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-loading-fix";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-antony-release";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-loading-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-antony-release";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-antony-release";
+import * as data from "./data.js?v=2026-09-09-loading-fix";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-loading-fix";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-antony-release";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-antony-release";
+} from "./call-time-score.mjs?v=2026-09-09-loading-fix";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-loading-fix";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -276,14 +276,14 @@ function toPerson(row) {
 
 let refreshRevision = 0;
 async function loadAll(revision = refreshRevision) {
-  const period=state.period,referenceDate=state.referenceDate,antonyAccess=canViewAntony();
+  const period=state.period,referenceDate=state.referenceDate,view=state.view,antonyAccess=canViewAntony() && view === "antony";
   const plannerPeriodRange=calendarMonthRange(referenceDate),goalsRange=goalPeriodRange(period,referenceDate);
   const metricRequest=data.loadMetrics(period,referenceDate);
   const [people,metricRows,hourRows,trends,trendHours,weeklyReview,report,plannerMetricRows,antonyGoal,transferBreakdown] = await Promise.all([
     data.loadPeople(),metricRequest,data.loadHourPerformance(period,referenceDate),
     period === "month" ? data.loadTrends() : [],
     period === "month" ? data.loadHourPerformance("trend",referenceDate) : [],
-    canViewWeeklyReview() ? data.loadLatestWeeklyReview().catch(()=>null) : null,
+    antonyAccess && canViewWeeklyReview() ? data.loadLatestWeeklyReview().catch(()=>null) : null,
     antonyAccess ? data.loadAntonyReport(period,referenceDate) : null,
     !antonyAccess ? [] : period === "month" ? metricRequest : data.loadMetrics("month",referenceDate),
     antonyAccess ? data.loadAntonyGoal("month",plannerPeriodRange.start) : null,
@@ -295,7 +295,7 @@ async function loadAll(revision = refreshRevision) {
     state.profile.role === "operator" ? data.loadLatestSyncRun() : null,
   ]);
   // Never overwrite a newer selection or resurrect data after logout.
-  if(revision !== refreshRevision || period !== state.period || referenceDate !== state.referenceDate)return false;
+  if(revision !== refreshRevision || period !== state.period || referenceDate !== state.referenceDate || view !== state.view)return false;
   const metrics=Object.fromEntries(metricRows.map(row=>[row.slug,toPerson(row)]));
   for(const person of people){
     const m=metrics[person.slug];if(!m)continue;
@@ -1758,8 +1758,22 @@ function showPasswordSetup() {
   document.querySelector("#password-setup-screen").hidden = false;
 }
 
-async function startSession() {
+let sessionGeneration = 0;
+let pendingSessionStart = null;
+function startSession() {
+  const generation = sessionGeneration;
+  if (pendingSessionStart?.generation === generation) return pendingSessionStart.promise;
+  const promise = initializeSession(generation);
+  pendingSessionStart = { generation, promise };
+  const clear = () => { if (pendingSessionStart?.promise === promise) pendingSessionStart = null; };
+  promise.then(clear, clear);
+  return promise;
+}
+
+async function initializeSession(generation) {
   const [profile, session] = await Promise.all([data.loadProfile(), data.currentSession()]);
+  if (generation !== sessionGeneration || !session) return;
+  state.sessionUserId = session.user.id;
   state.profile = { ...profile, email: session?.user?.email ?? null };
   if (state.forcePasswordSetup || state.profile.mustChangePassword) {
     state.status = "password-setup";
@@ -1772,7 +1786,9 @@ async function startSession() {
   if (state.view === "antony" && !canViewAntony()) state.view = "team";
 
   showApp(true);
+  renderNav();
   await refresh();
+  if (generation !== sessionGeneration) return;
 
   // Wer einer Person zugeordnet ist, startet in der eigenen Ansicht.
   const own = state.people.find((person) => person.id === state.profile.salesPersonId);
@@ -1786,6 +1802,8 @@ async function startSession() {
 }
 
 function endSession() {
+  sessionGeneration++;
+  state.sessionUserId = null;
   refreshRevision++;
   state.antonyPlannerProcess=null;state.transferBreakdown=null;
   state.unsubscribe?.();
@@ -1839,8 +1857,10 @@ document.addEventListener("click", (event) => {
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
     if (viewButton.dataset.view === "antony" && !canViewAntony()) return;
+    const previousView = state.view;
     state.view = viewButton.dataset.view;
     render();
+    if (previousView !== state.view && (previousView === "antony" || state.view === "antony")) refresh();
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
@@ -2363,6 +2383,9 @@ function boot() {
     // Kennzahlen. Bei eingeladenen Konten greift zusätzlich die serverseitige
     // must_change_password-Sperre aus dem Profil.
     if (event === "PASSWORD_RECOVERY") state.forcePasswordSetup = true;
+    // Focus and token refresh can emit another sign-in event for the same user.
+    // They must not restart every dashboard query or compete with boot().
+    if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED"].includes(event) && state.sessionUserId === session.user.id) return;
     if (!state.passwordChangeInProgress) startSession().catch(reportStartupFailure);
   });
 
