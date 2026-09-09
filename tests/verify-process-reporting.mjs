@@ -365,6 +365,33 @@ async function main(){
    assert.equal(august[0].setter_arrived,0);assert.equal(august[0].closer_arrived,0);
    const p=await origins();assert.equal(p.period_bridge.setter_calls,2);assert.equal(p.period_bridge.setter_from_prior_bookings,1);assert.equal(p.period_bridge.setter_from_period_bookings,1);assert.equal(p.period_bridge.closer_calls,1);
   });
+  // The latest contract attributes acquisition to the explicit Close Opener.
+  await reset();await funnel('same-totals');await activity('same-totals','same-totals','setter_qualified','2026-09-02T08:00Z');
+  const oldTotals=(await report()).activity;
+  await db.exec(read('../supabase/migrations/20260909075330_attribute_tracking_to_close_opener.sql'));
+  assert.deepEqual((await report()).activity,oldTotals,'changing acquisition credit must not change performed activity');
+  await scenario('North Data and Messe appointments follow explicit Opener, never the booking actor',async()=>{
+   for(const source of ['North Data','Messe','DMC','LinkedIn']){
+    await funnel(source);await db.query('update close_funnel_leads set lead_source=$2,opener_close_user_id=$3 where lead_id=$1',[source,source,F]);
+    await db.query('update close_lead_reporting set lead_source=$2 where lead_id=$1',[source,source]);
+    await meeting(source,'2026-09-09T08:00Z');
+   }
+   for(const r of await rows())assert.equal(r.owner,'felix');
+   const c=await cohorts();assert.equal(c.reduce((n,r)=>n+r.booked_leads,0),4);assert(c.every(r=>r.owner==='felix'));
+   const full=(await db.query("select get_antony_report('month','2026-09-10') j")).rows[0].j;
+   assert.equal(full.planner.appointment_by_owner.felix,4);assert.equal(full.planner.appointment_by_owner.michael,undefined);
+   assert.equal(full.process.owner_labels.felix,'Felix Wenk');
+   assert.equal(full.process.setter_attendance.by_source.find(r=>r.source==='LinkedIn').owner,'felix');
+  });
+  await scenario('missing and historical Openers remain distinct and do not become Michael',async()=>{
+   await funnel('missing');await funnel('historical');
+   await db.query("update close_funnel_leads set opener_close_user_id='user_FPLFlQiqihA76cqW4vpbxfKYJFNsmGjtqNJpnOE87PF' where lead_id='historical'");
+   const r=await rows();assert.equal(r.find(x=>x.lead_id==='missing').owner,'unassigned');
+   assert.equal(r.find(x=>x.lead_id==='historical').owner,'user_FPLFlQiqihA76cqW4vpbxfKYJFNsmGjtqNJpnOE87PF');
+   const p=await report();assert.equal(p.owner_labels.user_FPLFlQiqihA76cqW4vpbxfKYJFNsmGjtqNJpnOE87PF,'Paul Rietig');
+   await db.query("update close_funnel_leads set opener_close_user_id=$1 where lead_id='missing'",[M]);assert.equal((await rows()).find(x=>x.lead_id==='missing').owner,'michael');
+   await db.query("update close_funnel_leads set opener_close_user_id=$1 where lead_id='missing'",[F]);assert.equal((await rows()).find(x=>x.lead_id==='missing').owner,'felix');
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }

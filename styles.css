@@ -1434,3 +1434,19 @@ main { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 720px) {
   #antony-pipeline-grid > .open-work-columns { grid-template-columns: minmax(0, 1fr); gap: 32px; }
 }
+
+/* Primary tracking tables: regular sections with readable data and headings. */
+.tracking-group { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); color: var(--text); }
+.tracking-group > h3 { margin: 0 0 24px; font-size: 1.05rem; }
+.tracking-table-panel { margin-top: 24px; padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--text); }
+.tracking-table-panel h4 { margin: 0 0 12px; font-size: .95rem; }
+.tracking-table-panel .chart-table-scroll { max-height: none; margin-top: 16px; }
+.tracking-table-panel table { width: 100%; border-collapse: collapse; font-size: .85rem; color: var(--text); }
+.tracking-table-panel th, .tracking-table-panel td { padding: 13px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tracking-table-panel th { color: var(--text); }
+.tracking-table-panel th:first-child { text-align: left; }
+.tracking-table-panel tbody th { font-size: .85rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
+.tracking-table-panel thead th { font-size: .72rem; font-weight: 650; white-space: normal; min-width: 90px; }
+.tracking-table-panel caption, .tracking-note { text-align: left; color: #b9c9de; font-size: .8rem; line-height: 1.6; padding: 8px 0; }
+.tracking-table-panel tbody tr:hover { background: rgba(255,255,255,.035); }
+@media(max-width:720px) { .tracking-table-panel { padding: 16px; } }

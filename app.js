@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-next-meetings";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-next-meetings";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-next-meetings";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-next-meetings";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-opener-tracking";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-opener-tracking";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-opener-tracking";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-opener-tracking";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-next-meetings";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-opener-tracking";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-next-meetings";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-next-meetings";
+import * as data from "./data.js?v=2026-09-09-opener-tracking";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-opener-tracking";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-next-meetings";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-next-meetings";
+} from "./call-time-score.mjs?v=2026-09-09-opener-tracking";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-opener-tracking";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -996,7 +996,7 @@ function renderAntonyProcess() {
     container.innerHTML = `<p class="antony-analysis-empty">Für diesen Zeitraum liegt kein vollständiger Datenbestand vor. Verfügbar ab ${escapeHtml(germanDate(source.coverage.retention_start))}.</p>`;return;
   }
   const choices = [source,state.antonyProcessQuarter].flatMap(item=>[...(item?.cohort_history || []),...(item?.activity_by_origin || []),...(item?.quality_by_source || [])]);
-  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",linkedin:"LinkedIn",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
+  const owners = source.owner_labels || {unassigned:"Opener fehlt"};
   const sources = [...new Set(choices.map(row=>row.source))].sort();
   const suppliers = [...new Set(choices.map(row=>row.owner))].sort(), filters = state.antonyProcessFilters;
   if (filters.source !== "all" && !sources.includes(filters.source)) filters.source="all";
@@ -1006,8 +1006,8 @@ function renderAntonyProcess() {
   if(filters.cohort !== "period" && !groups.includes(filters.cohort)) filters.cohort="period";
   const selected=selectCohort(source,filters,scale);
   const options = (items,key,labels={}) => items.map(v=>`<option value="${escapeHtml(v)}"${filters[key]===v?" selected":""}>${escapeHtml(labels[v] || v)}</option>`).join("");
-  const toolbar = `<div class="process-toolbar"><p class="process-scope">Quelle und Terminlieferant</p>
-    <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Terminlieferant<select data-process-filter="owner"><option value="all">Alle Terminlieferanten</option>${options(suppliers,"owner",owners)}</select></label></div></div>`;
+  const toolbar = `<div class="process-toolbar"><p class="process-scope">Quelle und Opener</p>
+    <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Opener<select data-process-filter="owner"><option value="all">Alle Opener</option>${options(suppliers,"owner",owners)}</select></label></div></div>`;
   if(futurePeriod) {
     container.innerHTML=toolbar+renderSetterAttendance(source);
     return;
@@ -1015,9 +1015,9 @@ function renderAntonyProcess() {
   container.innerHTML = `<div class="process-controls">${toolbar}<label class="cohort-select">Ersttermin-Gruppe<select data-process-filter="cohort"><option value="period"${filters.cohort==="period"?" selected":""}>Ersttermine im gewählten Zeitraum</option>${options(groups,"cohort",Object.fromEntries(groups.map(v=>[v,bookingGroupLabel(v,scale)])))}</select></label></div><p class="process-cohort-caption">Ersttermine ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt dieser Vorgänge bis ${escapeHtml(germanDate(source.period.end))}</p>
     ${selected.cohort_complete?renderProcessPipeline(selected):`<p class="process-data-gap">Für diese Buchungsgruppe ist der gespeicherte Verlauf unvollständig. Deshalb werden keine Übergangsquoten berechnet.</p>`}
     ${renderSetterAttendance(source)}
-    <details class="antony-secondary"><summary><span>Gesprächsergebnisse und Leadqualität</span><span>Ergebnisse im Zeitraum</span></summary>${renderPeriodOutcomes(source)}${renderLeadQualityTables(selected)}</details>`;
+    <section class="tracking-group"><h3>Gesprächsergebnisse und Leadqualität</h3>${renderPeriodOutcomes(source)}${renderLeadQualityTables(selected)}</section>`;
   const quarter=state.antonyProcessQuarter ? selectCohort(state.antonyProcessQuarter,{...filters,cohort:"period"},"month") : null;
-  if(state.period==="month" && quarter?.funnel_by_source && quarter.coverage?.complete_period !== false)container.insertAdjacentHTML("beforeend",`<details class="chart-values"><summary>Drei-Monats-Rückblick · erste Setter-Termine ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</summary>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}${renderSetterAttendance(quarter)}${renderPeriodOutcomes(quarter)}</details>`);
+  if(state.period==="month" && quarter?.funnel_by_source && quarter.coverage?.complete_period !== false)container.insertAdjacentHTML("beforeend",`<section class="tracking-group"><h3>Drei-Monats-Rückblick · erste Setter-Termine ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</h3>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}${renderSetterAttendance(quarter)}${renderPeriodOutcomes(quarter)}</section>`);
 }
 
 function bookingGroupLabel(date,scale) {
@@ -1041,7 +1041,7 @@ function renderPeriodOutcomes(source) {
   const b=a;
   const setterBase=a.setter_calls,decided=Number(a.cc1_sales)+Number(a.cc2_sales)+Number(a.closer_lost);
   const row=(label,n,d,basis)=>`<div><dt>${escapeHtml(label)}</dt><dd>${processRate(n,d,basis)}</dd></div>`;
-  return `<section class="period-outcomes"><div class="antony-analysis-heading"><h3>Ergebnisse der Gespräche</h3><span>${escapeHtml(germanDate(source.period.start))} – ${escapeHtml(germanDate(source.period.end))} · gewählte Quelle und Terminlieferant</span></div>
+  return `<section class="period-outcomes"><div class="antony-analysis-heading"><h3>Ergebnisse der Gespräche</h3><span>${escapeHtml(germanDate(source.period.start))} – ${escapeHtml(germanDate(source.period.end))} · gewählte Quelle und Opener</span></div>
     <div class="process-branches"><section><h4>Setter · ${number(setterBase)} Gespräche im Zeitraum</h4><dl>
       ${row("Zum Closer qualifiziert",a.setter_qualified,setterBase,"Setter Calls")}${row("Ergebnis: Follow-up",a.setter_followups,setterBase,"Setter Calls")}${row("Disqualifiziert",a.setter_disqualified,setterBase,"Setter Calls")}${a.setter_unrated?row("Ergebnis unklar",a.setter_unrated,setterBase,"Setter Calls"):""}</dl></section>
     <section><h4>Closer · ${number(a.closer_calls)} Calls</h4><dl>
@@ -1090,26 +1090,24 @@ document.querySelector("#antony-process-content").addEventListener("change",even
 function renderLeadQualityTables(source) {
   const value = n => n === null || n === undefined ? "—" : number(n);
   const share = (n,d) => n === null || n === undefined || !d ? "—" : `${new Intl.NumberFormat("de-DE", {maximumFractionDigits:2}).format(n / d * 100)} %`;
-  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",linkedin:"LinkedIn",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
-  const identity = row => `${escapeHtml(row.source)} · ${escapeHtml(owners[row.owner] || "Nicht zugeordnet")}`;
+  const owners = source.owner_labels || {unassigned:"Opener fehlt"};
+  const identity = row => `${escapeHtml(row.source)} · ${escapeHtml(owners[row.owner] || row.owner || "Opener fehlt")}`;
   const rows = (Array.isArray(source.booking_cohort) ? source.booking_cohort : []).filter(matchesProcessFilter);
   const quality = (Array.isArray(source.quality_by_source) ? source.quality_by_source : []).filter(matchesProcessFilter);
   const table = (caption,heads,body) => `<div class="chart-table-scroll"><table><caption>${caption}</caption><thead><tr>${heads.map(h=>`<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   const cells = (row,keys) => keys.map(key=>`<td>${value(row[key])}</td>`).join("");
   const bookingTable = rows.length ? table("Vorgänge der gewählten Ersttermin-Gruppe; Ergebnisse bis zum Stichtag.",
-    ["Quelle · Terminlieferant","Vorgänge","Im Setter","Anteil im Setter","Zum Closer qualifiziert","Disqualifiziert","Setter-Follow-up","Setter-Ergebnis fehlt"],
+    ["Quelle · Opener","Vorgänge","Im Setter","Anteil im Setter","Zum Closer qualifiziert","Disqualifiziert","Setter-Follow-up","Setter-Ergebnis fehlt"],
     rows.map(row=>`<tr><th scope="row">${identity(row)}</th>${cells(row,["booked_leads","setter_arrived"])}<td>${processRate(row.setter_arrived,row.booked_leads)}</td>${cells(row,["qualified","disqualified","followup","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine Terminbuchungen im gewählten Zeitraum erfasst.</p>`;
   const remainderTable = rows.length ? table("Noch nicht im Setter: letzter erfasster Terminstatus. Spätere Prozessstufen: je Vorgang einmal gezählt.",
-    ["Quelle · Terminlieferant","Noch kein Setter/Status","Nicht erschienen","Abgesagt","Verschoben","Im Closer","Verkauft laut Gespräch","Neukunde laut Won"],
+    ["Quelle · Opener","Noch kein Setter/Status","Nicht erschienen","Abgesagt","Verschoben","Im Closer","Verkauft laut Gespräch","Neukunde laut Won"],
     rows.map(row=>`<tr><th scope="row">${identity(row)}</th>${cells(row,["pending","no_show","cancelled","rescheduled","closer_arrived","sold_leads","new_customers"])}</tr>`).join("")) : "";
   const qualityTable = quality.length ? table("Im Zeitraum bearbeitete Setter-Vorgänge, einschließlich älterer Vorgänge. Letztes Setter-Ergebnis je Vorgang.",
-    ["Quelle · Terminlieferant","Zuordnung","Im Setter","Zum Closer","Qualifiziert / im Setter","Follow-up","Disqualifiziert","Ergebnis fehlt"],
+    ["Quelle · Opener","Zuordnung","Im Setter","Zum Closer","Qualifiziert / im Setter","Follow-up","Disqualifiziert","Ergebnis fehlt"],
     quality.map(row=>`<tr><th scope="row">${identity(row)}</th><td>${row.attribution === "sales_process" ? "Dokumentierter Vorgang" : row.attribution === "booking_activity" ? "Terminbuchung" : row.attribution === "current_opener" ? "Aktueller Opener (Ersatz)" : "Unbekannt"}</td>${cells(row,["assessed_leads","qualified"])}<td>${processRate(row.qualified,row.assessed_leads)}</td>${cells(row,["followup","disqualified","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine durchgeführten Setter Calls in diesem Zeitraum erfasst.</p>`;
-  return `<details class="chart-values"><summary>Vergleich nach Quelle und Terminlieferant · Vorgänge</summary>${bookingTable}
-    <p class="chart-legend">Das Kalenderdatum des ersten Setter-Termins legt die Gruppe fest. Der Lieferant wird aus der dokumentierten Buchung und ausdrücklich festgelegten Kanalregeln zugeordnet. „Anteil im Setter“ zeigt den Fortschritt bis zum Stichtag; zukünftige oder noch offene Termine sind enthalten. Das ist keine bereinigte Teilnahmequote.</p>
-    ${remainderTable}<p class="chart-legend">Nicht erschienen, abgesagt und verschoben zählen hier nur für Vorgänge, die anschließend noch nicht im Setter waren. Diese Ergebnisse sind keine Disqualifikation. Verkaufsgespräch und gewonnene Opportunity sind eigenständige Nachweise; einer kann fehlen.</p></details>
-    <details class="chart-values"><summary>Qualifizierung der Setter-Vorgänge im Zeitraum</summary>${qualityTable}
-    <p class="chart-legend">Leadquellen stammen aus dem aktuellen Close-Feld. Fehlt die ursprüngliche Buchung auch in Close, bleibt der Terminlieferant unbekannt. Er wird nicht aus dem aktuellen Opener-Feld geraten. Kleine Fallzahlen eignen sich noch nicht für eine belastbare Rangliste.</p></details>`;
+  return `<section class="tracking-table-panel"><h4>Vergleich nach Quelle und Opener · Vorgänge</h4><p class="tracking-note">Opener laut Close-Feld „3.01 Opener“. Die Leadquelle wird separat ausgewiesen. Ein fehlender Opener bleibt unzugeordnet.</p>${bookingTable}${remainderTable}</section>
+    <section class="tracking-table-panel"><h4>Qualifizierung der Setter-Vorgänge im Zeitraum</h4>${qualityTable}</section>`;
+
 }
 
 function renderUpcomingMeetings() {
