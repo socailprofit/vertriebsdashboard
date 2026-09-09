@@ -51,7 +51,7 @@ const CLOSE_ERROR_HINTS = [
 type JsonRecord = Record<string, unknown>;
 type SyncMode = "dry-run" | "write";
 type SyncTrigger = "manual" | "supabase-cron";
-type FunnelLeadRow = { lead_id: string; lead_source: string | null; opener_close_user_id: string | null;
+type FunnelLeadRow = { lead_id: string; display_name?: string | null; lead_source: string | null; opener_close_user_id: string | null;
   setter_id: string | null; closer_id: string | null; status_id: string | null; source_updated_at: string | null };
 type StoredMeetingLink = MeetingLink & { starts_at: string };
 type MeetingTimeRevision = { meeting_id: string; source_updated_at: string; old_starts_at: string; new_starts_at: string };
@@ -523,7 +523,7 @@ Deno.serve(async (request) => {
         readPersistentRows<StoredMeetingLink>(supabase, "close_meetings", "meeting_id,lead_id,booking_activity_id,booking_owner_id,starts_at", "meeting_id", "removed_at"),
         readPersistentRows<{payload: FunnelProcess}>(supabase, "close_sales_processes", "payload", "process_id", "retired_at"),
         readPersistentRows<{payload: MeetingProcessRelation}>(supabase, "close_process_meetings", "payload", "meeting_id", "removed_at"),
-        readPersistentRows<FunnelLeadRow>(supabase, "close_funnel_leads", "lead_id,lead_source,opener_close_user_id,setter_id,closer_id,status_id,source_updated_at", "lead_id"),
+        readPersistentRows<FunnelLeadRow>(supabase, "close_funnel_leads", "lead_id,display_name,lead_source,opener_close_user_id,setter_id,closer_id,status_id,source_updated_at", "lead_id"),
         readPersistentRows<MeetingTimeRevision>(supabase, "close_meeting_time_history", "meeting_id,source_updated_at,old_starts_at,new_starts_at", "revision_id"),
         readHistoricalBookingSourceIds(supabase),
       ]);
@@ -585,7 +585,7 @@ Deno.serve(async (request) => {
     const leadAttributions = new Map<string, ReturnType<typeof leadAttribution>>();
     await markPhase("refreshing_lead_metadata", { requestedLeads: leadIds.length });
     const refreshedLeads = await fetchCloseLeadMetadata(leadIds,
-      ["id", "status_id", "date_updated", `custom.${CUSTOM_FIELDS.leadOpener}`, `custom.${CUSTOM_FIELDS.leadSetter}`, `custom.${CUSTOM_FIELDS.leadCloser}`, `custom.${CUSTOM_FIELDS.leadSource}`],
+      ["id", "display_name", "status_id", "date_updated", `custom.${CUSTOM_FIELDS.leadOpener}`, `custom.${CUSTOM_FIELDS.leadSetter}`, `custom.${CUSTOM_FIELDS.leadCloser}`, `custom.${CUSTOM_FIELDS.leadSource}`],
       body => closeRequest<CloseSearchPage>(closeApiKey, "/data/search/", {}, closeReads, body));
     await markPhase("lead_metadata_refreshed", { refreshedLeads: refreshedLeads.length });
     for (const lead of refreshedLeads) {
@@ -594,7 +594,7 @@ Deno.serve(async (request) => {
         const fields = customFieldsFrom(lead);
         const attribution = leadAttribution(fields);
         const source = fields.find(field => field.id === CUSTOM_FIELDS.leadSource)?.value;
-        funnelLeadById.set(leadId, { lead_id: leadId, opener_close_user_id: attribution.openerUserId,
+        funnelLeadById.set(leadId, { lead_id: leadId, display_name: typeof lead.display_name === "string" ? lead.display_name.trim() || null : null, opener_close_user_id: attribution.openerUserId,
           setter_id: attribution.setterUserId, closer_id: attribution.closerUserId,
           status_id: lead.status_id as string, source_updated_at: lead.date_updated as string,
           lead_source: typeof source === "string" && LEAD_SOURCES.has(source) ? source : null });

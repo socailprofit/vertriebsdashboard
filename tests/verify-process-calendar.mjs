@@ -24,6 +24,10 @@ for(const m of ['20260907121749_normalize_transfer_opportunities','2026090807133
  '20260908132556_calendar_reconciliation_execution','20260908145135_lead_funnel_event_history','20260908145158_process_calendar_replacements'])
  await db.exec(read('../supabase/migrations/'+m+'.sql'));
 
+// Exercise the actual new metadata schema and reconciliation against this import fixture.
+// Reporting functions are covered with their full dependency chain in verify-process-reporting.
+await db.exec(read('../supabase/migrations/20260909105717_clarify_antony_reporting.sql').split('create or replace function public.get_reporting_calendar_internal')[0]+'commit;');
+
 const F=CLOSE_USERS.felix,A=CLOSE_USERS.antony;
 const asOf='2026-09-15T11:45:00Z';
 function custom(id,lead,at,type,fields,user=A) {
@@ -57,7 +61,7 @@ const facts=c.facts.map(f=>({...Object.fromEntries(Object.entries(f).map(([k,v])
  metric_date:metricTimeInReportingTimezone(f.occurredAt).metricDate,metric_hour:metricTimeInReportingTimezone(f.occurredAt).metricHour,mapped_at:asOf}));
 const raw=c.raw.map(r=>({close_activity_id:r.id,activity_type:'custom_activity',lead_id:r.lead_id,close_user_id:r.user_id,occurred_at:r.activity_at,payload:r}));
 const leads=['replacement-lead','repeat-lead'].map(lead_id=>({lead_id,lead_source:'Cold Calling',opener_close_user_id:F}));
-const funnelLeads=leads.map(l=>({...l,setter_id:A,closer_id:A}));
+const funnelLeads=leads.map(l=>({...l,display_name:"Regular Close name",setter_id:A,closer_id:A}));
 const rpc=(at,overrides={})=>{
  const rows={raw,facts,opportunities:[],leads,bookings:c.bookings,meetings,calendarLeads:leads,events,processes:flow.processes,
   meetingRelations:flow.meetingRelations,eventRelations:flow.eventRelations,funnelLeads,...overrides};
@@ -67,6 +71,7 @@ const rpc=(at,overrides={})=>{
 const metrics=async(start,end)=>(await db.query('select get_antony_meeting_metrics($1,$2) j',[start,end])).rows[0].j;
 const count=async table=>Number((await db.query(`select count(*) n from ${table}`)).rows[0].n);
 await rpc(asOf);
+assert.equal((await db.query("select display_name from close_funnel_leads limit 1")).rows[0].display_name,"Regular Close name");
 assert.equal((await metrics('2026-09-01','2026-09-30')).scheduled,1);
 assert.equal((await metrics('2026-09-01','2026-09-30')).cancelled,0);
 assert.equal((await metrics('2026-09-01','2026-09-30')).attended,1);
@@ -78,6 +83,7 @@ assert.deepEqual(inherited,{booking_activity_id:'new-booking',booking_owner_id:F
 assert.equal((await db.query("select booking_activity_id from close_meetings where meeting_id='october-replacement'")).rows[0].booking_activity_id,null);
 assert.equal((await db.query("select booking_activity_id from close_meetings where meeting_id='cancelled-original'")).rows[0].booking_activity_id,'new-booking');
 assert.equal(flow.meetingRelations.filter(r=>r.counts_as_setting_success).length,2);
+assert.equal(flow.processes.find(p=>p.lead_id==='replacement-lead').first_meeting_at,'2026-10-15T08:00:00Z');
 console.log('PASS real source normalizer → deterministic processes → atomic RPC → effective calendar; raw unique links preserved.');
 
 // Repeating the same source snapshot updates observation time, not event or

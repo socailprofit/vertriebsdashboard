@@ -242,3 +242,16 @@ test("structured model output covers every required review topic", () => {
   assert.throws(() => parseReviewSentences(JSON.stringify({ strength: "Nur einer." })));
   assert.throws(() => parseReviewSentences(JSON.stringify({ ...JSON.parse(json), action: "" })));
 });
+
+
+test("AI preserves current cohort cutoff and independently evidenced closer counts without lead names", () => {
+  const input = buildProcessInput({cohort_data_as_of:"2026-09-09T10:22:00Z",month_planning:{first_meetings:4,lead_id:"private-lead"},quality_by_origin:[{owner:"michael",source:"DMC",closer_due:2,closer_attended:1,closer_unclassified:1,display_name:"private-name"}],
+    funnel_by_source:[{source:"LinkedIn",owner:"linkedin",observed_closer:3,closer_arrived:1,display_name:"private-name"}],
+    lead_quality_rows:[{display_name:"private-name",lead_id:"private-lead"}]});
+  assert.equal(input.cohort_data_as_of,"2026-09-09T10:22:00.000Z");
+  assert.equal(input.funnel_by_source[0].observed_closer,3);
+  assert.equal(input.month_planning.first_meetings,4);
+  assert.equal(input.quality_by_origin[0].closer_unclassified,1);
+  assert.equal(input.funnel_by_source[0].closer_arrived,1);
+  assert.equal(JSON.stringify(input).includes("private-"),false);
+});

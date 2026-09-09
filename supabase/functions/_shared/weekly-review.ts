@@ -171,7 +171,7 @@ export const PROCESS_COUNT_KEYS = [
   "setter_no_shows", "setter_cancellations", "setter_rescheduled", "closer_no_shows", "closer_cancellations", "closer_rescheduled",
   "closer_calls", "cc1_sales", "cc2_sales", "cc2_agreed", "closer_lost", "closer_unrated",
 ] as const;
-const JOURNEY_KEYS = ["booked_leads","setter_arrived","closer_qualified","closer_arrived","decided_leads","sold_leads","new_customers","observed_customers","unlinked_closer","unlinked_customer","cc2_agreed","cc2_held","cc2_decided","cc2_sold","cc2_lost","cc2_waiting","cc2_open","cc2_cancelled", "cc2_no_show", "cc2_rescheduled", "cc2_missing_agreement","cc1_sold","cc1_lost"] as const;
+const JOURNEY_KEYS = ["booked_leads","setter_arrived","closer_qualified","closer_arrived","decided_leads","sold_leads","new_customers","observed_customers","observed_closer","unlinked_closer","unlinked_customer","cc2_agreed","cc2_held","cc2_decided","cc2_sold","cc2_lost","cc2_waiting","cc2_open","cc2_cancelled", "cc2_no_show", "cc2_rescheduled", "cc2_missing_agreement","cc1_sold","cc1_lost"] as const;
 const BRIDGE_KEYS = ["setter_calls","setter_leads","setter_processes","setter_from_period_bookings","setter_from_prior_bookings","setter_without_booking","new_customers","customers_from_period_bookings","customers_from_prior_bookings","customers_without_booking","sales_after_prior_won","cc2_calls","cc1_calls","cc1_lost","cc2_lost","cc_unassigned_calls","closer_lost_unassigned"] as const;
 const FLOW_KEYS = ["new_processes","carried_in","first_qualified","repeat_setter_calls","unlinked_setter_calls"] as const;
 const ATTENDANCE_KEYS = ["scheduled","elapsed","future","attended","no_show","cancelled","rescheduled","unknown"] as const;
@@ -204,6 +204,9 @@ export function buildProcessInput(source: unknown) {
   const qualityRows = Array.isArray(root.quality_by_source) ? root.quality_by_source : null;
   return {
     period: {start: dateString(period.start), end: dateString(period.end), timezone: REPORTING_TIMEZONE},
+    cohort_data_as_of: timestampString(root.cohort_data_as_of),
+    month_planning: counts(record(root.month_planning),["first_meetings"]),
+    quality_by_origin: aggregateCohortCounts(root.quality_by_origin,["setter_due","setter_attended","closer_due","closer_attended","closer_unclassified","processes","customers"]),
     flow: {...counts(flow,FLOW_KEYS),cohort_basis: flow.cohort_basis === "first_scheduled_meeting" ? "first_scheduled_meeting" : "unknown"},
     coverage: {history_complete: boolean(coverage.history_complete),complete_period: typeof coverage.complete_period === "boolean" ? coverage.complete_period : null},
     setter_attendance: {

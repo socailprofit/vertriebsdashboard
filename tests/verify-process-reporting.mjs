@@ -502,6 +502,79 @@ async function main(){
    await db.exec("update close_meetings set excluded_purpose=true");
    assert.equal((await report()).calendar_rows.length,0);
   });
+
+  await db.exec(read('../supabase/migrations/20260909105717_clarify_antony_reporting.sql'));
+  await scenario('explicit Closer no-show is displayed without inventing a Closer showrate',async()=>{
+   await funnel('no-show-closer','2026-08-01T08:00Z');await meeting('no-show-closer','2026-09-04T08:00Z');
+   await db.exec("update close_meetings set excluded_purpose=true");
+   await event('no-show-closer','closer_no_show','2026-09-04T08:20Z');
+   const r=(await report()).calendar_rows;assert.equal(r.length,1);assert.equal(r[0].stage,'closer');assert.equal(r[0].outcome,'no_show');assert.equal(r[0].showrate_due,false);
+   await meeting('no-show-closer','2026-09-04T08:10Z');await db.exec("update close_meetings set excluded_purpose=true");
+   assert.equal((await report()).calendar_rows.length,0,'overlapping slots cannot borrow the same negative outcome');
+  });
+  await scenario('August cohort follows documented September progress while activity stays September',async()=>{
+   await funnel('august-progress','2026-08-20T08:00Z');
+   await activity('august-progress','august-progress','setter_qualified','2026-08-20T08:15Z');
+   await activity('august-progress','august-progress','closer_completed','2026-09-03T08:15Z');
+   const aug=await report('month','2026-08-31');assert.equal(aug.funnel_by_source[0].closer_arrived,1);assert.equal(aug.activity.closer_calls,0);
+   const sep=await report();assert.equal(sep.activity.closer_calls,1);assert.equal(sep.flow.new_processes,0);
+  });
+  await scenario('Won and Closer evidence survive missing qualification without inventing a transition',async()=>{
+   await funnel('gap','2026-09-01T08:00Z');await activity('gap','gap','closer_completed','2026-09-03T08:00Z');
+   await won('gap','2026-09-04');await event('gap','customer_won','2026-09-04T12:00Z');
+   const t=(await report()).funnel_by_source[0];assert.equal(t.observed_closer,1);assert.equal(t.closer_arrived,0);assert.equal(t.observed_customers,1);assert.equal(t.new_customers,0);
+  });
+  await scenario('lead names flow into existing process and calendar details without creating records',async()=>{
+   await funnel('named','2026-09-04T08:00Z');await meeting('named','2026-09-04T08:00Z');
+   await db.query("update close_funnel_leads set display_name=$1",['Example & Partner']);
+   const r=await report();assert.equal(r.lead_quality_rows[0].display_name,'Example & Partner');assert.equal(r.calendar_rows[0].display_name,'Example & Partner');
+   assert.equal((await db.query('select count(*)::int n from close_sales_processes')).rows[0].n,1);
+   assert.equal((await db.query("select has_function_privilege('anon','get_reporting_calendar_internal(text,date)','execute') ok")).rows[0].ok,false);
+  });
+  await scenario('month planning follows the valid first appointment into October and excludes old-process followups',async()=>{
+   await funnel('moving','2026-09-18T08:00Z');await meeting('moving','2026-09-18T08:00Z');
+   await funnel('older','2026-08-04T08:00Z');await meeting('older','2026-09-19T08:00Z');
+   assert.equal((await report()).month_planning.first_meetings,1);
+   assert.equal((await report('month','2026-10-31')).month_planning.first_meetings,0);
+   await db.exec(`update close_sales_processes set payload=jsonb_set(payload,'{first_meeting_at}','"2026-10-15T08:00:00Z"') where process_id='moving';
+     update close_meetings set starts_at='2026-10-15T08:00Z',ends_at='2026-10-15T08:30Z' where lead_id='moving';`);
+   assert.equal((await report()).month_planning.first_meetings,0);
+   const october=await report('month','2026-10-31');assert.equal(october.month_planning.first_meetings,1);assert.equal(october.flow.new_processes,0);
+   assert.equal(october.calendar_rows[0].source,'DMC');assert.equal(october.calendar_rows[0].showrate_due,false);
+  });
+  {
+   await db.exec(read('../supabase/migrations/20260909110603_antony_month_pipeline_status_details.sql'));
+   await scenario('monthly stage details distinguish pending, cancelled and rejected CC1 without old cohorts',async()=>{
+    await funnel('cc1-cancel','2026-09-01T08:00Z');await event('cc1-cancel','setter_qualified','2026-09-01T08:20Z');await event('cc1-cancel','closer_cancelled','2026-09-04T08:00Z');
+    await funnel('cc1-lost','2026-09-02T08:00Z');await event('cc1-lost','closer_lost','2026-09-05T08:00Z');
+    await funnel('future-first','2026-09-18T08:00Z');await meeting('future-first','2026-09-18T08:00Z');
+    await funnel('old-first','2026-08-01T08:00Z');await event('old-first','closer_completed','2026-09-05T08:00Z');
+    const r=await report(),d=r.month_pipeline_rows;assert.equal(d.length,3);
+    assert.equal(d.find(x=>x.process_id==='cc1-cancel').cc1_result,'closer_cancelled');assert.equal(d.find(x=>x.process_id==='cc1-lost').cc1_result,'closer_lost');
+    assert.equal(d.find(x=>x.process_id==='future-first').first_outcome,'planned');
+    assert.equal(d.find(x=>x.process_id==='cc1-cancel').stages.closer1[0],'cancelled');
+    assert.ok(d.find(x=>x.process_id==='cc1-lost').stages.closer1.includes('attended'));
+    assert.equal(d.find(x=>x.process_id==='future-first').stages.first[0],'planned');
+    assert.equal((await db.query("select has_function_privilege('anon','get_month_pipeline_details_internal(date)','execute') ok")).rows[0].ok,false);
+   });
+   await scenario('CC1 and CC2 retain their own outcomes and a status conflict is never decided by event ID',async()=>{
+    await funnel('stages','2026-09-01T08:00Z');await event('stages','cc2_agreed','2026-09-02T08:00Z');await event('stages','closer_no_show','2026-09-04T08:00Z');
+    const r=(await report()).month_pipeline_rows[0];assert.equal(r.cc1_result,'cc2_agreed');assert.equal(r.cc2_result,'closer_no_show');
+    await event('stages','closer_sold','2026-09-05T08:00Z');await event('stages','closer_lost','2026-09-05T08:00Z');
+    assert.equal((await report()).month_pipeline_rows[0].cc2_result,'unclear');
+   });
+  }
+  {
+   await db.exec(read('../supabase/migrations/20260909111002_antony_origin_quality_rates.sql'));
+   await scenario('quality credit remains with the opener, future CC2 is excluded and uncertain denominators stay unknown',async()=>{
+    const base={owner:'michael',source:'DMC',performed_by:'Antony',starts_at:'2026-09-04T08:00Z',data_as_of:ASOF};
+    const calendar=[{...base,stage:'setter',showrate_due:true,outcome:'attended'},{...base,stage:'closer',outcome:'attended'},{...base,stage:'cc2',outcome:'no_show'},{...base,stage:'cc2',starts_at:'2026-10-01T08:00Z',outcome:'planned'}];
+    const leads=[{owner:'michael',source:'DMC',won_at:'2026-09-05'},{owner:'michael',source:'DMC',won_at:null}];
+    const quality=async c=>(await db.query('select get_origin_quality_rates_internal($1,$2) j',[JSON.stringify(c),JSON.stringify(leads)])).rows[0].j;
+    const [r]=await quality(calendar);assert.equal(r.owner,'michael');assert.equal(r.setter_rate,100);assert.equal(r.closer_rate,50);assert.equal(r.closer_due,2);assert.equal(r.customer_rate,50);
+    const [partial]=await quality([...calendar,{...base,stage:'unassigned',outcome:'unknown'}]);assert.equal(partial.closer_rate,null);assert.equal(partial.closer_unclassified,1);
+   });
+  }
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
