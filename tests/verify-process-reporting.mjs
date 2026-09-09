@@ -590,6 +590,23 @@ async function main(){
    assert.ok(row.stages.cc2?.includes('sold'),'documented CC2 sale should remain visible with missing agreement flagged');
   });
   }
+  {
+   await db.exec('create or replace function public.has_dashboard_access() returns boolean language sql as $$select true$$;');
+   await db.exec(read('../supabase/migrations/20260909115217_exclude_linkedin_channel_from_personal_appointments.sql'));
+   await scenario('personal appointment totals exclude LinkedIn channel but retain LinkedIn Cold Calls consistently by day and hour',async()=>{
+    for(const [i,source] of ['DMC','LinkedIn','Inbound LinkedIn Ads','LinkedIn Follow Up','LinkedIn Cold Calls','North Data'].entries()) {
+     const lead='team-source-'+i;
+     await db.query("insert into close_funnel_leads(lead_id,lead_source,opener_close_user_id,last_seen_at) values($1,$2,$3,now())",[lead,source,M]);
+     await db.query("insert into close_activity_facts(source_activity_id,source_type,close_user_id,lead_id,occurred_at,metric_date,metric_hour,appointments,calls_gross,mapping_version) values($1,'custom_activity',$2,$1,'2026-09-09T08:00Z','2026-09-09',10,1,1,'test')",[lead,M]);
+    }
+    await db.query("select recalculate_daily_sales_metrics('2026-09-09','2026-09-09')");
+    const daily=(await db.query("select appointments,calls_gross from daily_sales_metrics m join sales_people p on p.id=m.sales_person_id where p.slug='michael' and metric_date='2026-09-09'")).rows[0];
+    assert.equal(Number(daily.appointments),3);assert.equal(Number(daily.calls_gross),6);
+    const hourly=(await db.query("select sum(appointments) appointments from get_call_hour_performance('day','2026-09-09') where slug='michael'")).rows[0];
+    assert.equal(Number(hourly.appointments),3);
+    assert.equal(Number((await db.query('select sum(appointments) n from close_activity_facts')).rows[0].n),6);
+   });
+  }
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }

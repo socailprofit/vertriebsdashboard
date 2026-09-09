@@ -32,3 +32,9 @@ Close ist die Quelle. Supabase berechnet Zuordnung, Belege, Grundgesamtheiten un
 Bestehender regelmäßiger Close-Sync, atomare Snapshot-Verarbeitung und Rollenprüfung bleiben erhalten. Leadnamen werden beim regulären Metadaten-Sync aktualisiert. Private Einzelvorgänge werden nicht in den KI-Kontext übernommen. Die KI erhält nur autorisierte aggregierte Werte und dieselben Kohortenregeln.
 
 Regressionen: Planner-/Status-/Quellenfilter-Tests, lokale SQL-Reporting-Szenarien sowie Normalisierung → Prozessableitung → atomare RPC → Kalender-Integration. Der Monatswechsel wird ohne Reimport geprüft.
+
+## Persönliche Terminvereinbarungen und Kalendertermine
+
+Team, Michael und Felix zählen Terminvereinbarungen am Tag der Close-Aktivität. LinkedIn-Kanalquellen (`LinkedIn`, `Inbound LinkedIn Ads`, `LinkedIn Follow Up`) zählen nicht als persönliche Terminvereinbarung, auch wenn Michael die Aktivität erfasst. Die bestehende Regel `get_close_opener_internal` entscheidet. `LinkedIn Cold Calls` bleibt persönliche Akquiseleistung. Tagesaggregate und Stundenbericht verwenden dieselbe Regel; die reguläre Neuberechnung erhält sie. Rohaktivitäten und sonstige Kennzahlen bleiben erhalten.
+
+Antony zählt fällige Setter-Kalendertermine am gültigen Termindatum. Die Monats-Pipeline zählt neue Vorgänge nach ihrem ersten Setter-Termin. Daher sind diese drei Zählweisen nicht gleichzusetzen. September-Abgleich am 09.09.2026: Team 8 Michael + 1 Felix = 9 Vereinbarungen; vorher zusätzlich 2 LinkedIn-Kanalbuchungen bei Michael. Antony 10 fällige Kalendertermine, davon 9 neue September-Vorgänge und 1 Vorgang aus Juni. Dass zwei Größen aktuell beide 9 betragen, ist keine allgemeine Gleichheitsregel.
