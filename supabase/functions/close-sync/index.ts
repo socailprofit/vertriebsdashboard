@@ -1,4 +1,4 @@
-import { fetchAllClosePages, ClosePaginationError } from "../_shared/close-list-pages.ts";
+import { fetchStableClosePages, ClosePaginationError } from "../_shared/close-list-pages.ts";
 import { CLOSE_TASK_FIELDS } from "../_shared/close-tasks.ts";
 import { isProcessReportingFact, normalizeCustomRecord, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
 import { MEETING_FIELDS, prepareMeetingSnapshot, type MeetingLink } from "../_shared/close-meetings.ts";
@@ -222,7 +222,7 @@ async function closeList<T>(apiKey: string, path: string, params: Record<string,
   const diagnostic = (outcome: string) => console.log(JSON.stringify({ event: "close_resource_read", outcome,
     closePath: redactClosePath(path), count, pages, elapsedMs: Date.now() - startedAt }));
   try {
-    return await fetchAllClosePages<T>((skip, limit) => closeRequest(apiKey, path, {
+    return await fetchStableClosePages<T>((skip, limit) => closeRequest(apiKey, path, {
       ...params, _limit: String(limit), _skip: String(skip),
     }, reader), { pageSize: PAGE_SIZE, maxRecords: MAX_RECORDS_PER_RESOURCE,
       onProgress: progress => {
@@ -700,7 +700,7 @@ Deno.serve(async (request) => {
         // Only the final RPC publishes it; keep time for newsletter/metrics.
         // Allow upload/checkpoint latency plus the finalizer's 20s SQL budget.
         // Keep the existing overall deadline and downstream time reservation.
-        const uploadBudgetMs = Math.min(45_000, 140_000 - (Date.now() - Date.parse(snapshotStartedAt)));
+        const uploadBudgetMs = Math.min(60_000, 140_000 - (Date.now() - Date.parse(snapshotStartedAt)));
         if (uploadBudgetMs < 1000 || !syncRunId) throw new SyncError("funnel_upload_budget_exhausted", "No time remains for a complete funnel upload");
         const uploaded = await uploadCloseFunnelSnapshot({
           runId: syncRunId,

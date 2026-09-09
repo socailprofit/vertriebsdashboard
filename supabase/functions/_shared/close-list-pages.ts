@@ -92,3 +92,14 @@ export async function fetchAllClosePages<T>(
     nextOffset += offsets.length * pageSize;
   }
 }
+
+/** Restart the entire resource once when offset pagination moved underneath
+ * the reader. Never merge partial attempts or silently drop duplicate IDs.
+ * The caller's shared request deadline applies to both attempts. */
+export async function fetchStableClosePages<T>(fetchPage:(skip:number,limit:number)=>Promise<CloseOffsetPage<T>>,options:Options<T>={}) {
+  try { return await fetchAllClosePages(fetchPage,options); }
+  catch(error) {
+    if(!(error instanceof ClosePaginationError)||!['close_pagination_duplicate_id','close_pagination_inconsistent'].includes(error.code))throw error;
+    return await fetchAllClosePages(fetchPage,options);
+  }
+}

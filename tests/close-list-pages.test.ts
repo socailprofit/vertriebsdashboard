@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchAllClosePages, ClosePaginationError, type CloseOffsetPage, type ClosePageProgress } from "../supabase/functions/_shared/close-list-pages.ts";
+import { fetchStableClosePages, fetchAllClosePages, ClosePaginationError, type CloseOffsetPage, type ClosePageProgress } from "../supabase/functions/_shared/close-list-pages.ts";
 
 type Row = { id: string; value?: number };
 const records = (length: number) => Array.from({ length }, (_, i) => ({ id: `record-${i}`, value: i }));
@@ -127,4 +127,10 @@ test("invalid options cannot dispatch any request", async () => {
     await assert.rejects(() => fetchAllClosePages(async () => { calls++; return { data: [], has_more: false }; }, options),
       failsWith("close_pagination_invalid_options")); assert.equal(calls, 0);
   }
+});
+
+test("unstable pagination restarts the entire resource once without combining snapshots",async()=>{
+ let attempts=0;
+ const rows=await fetchStableClosePages<Row>(async(skip)=>{if(skip===0){attempts++;return {data:[{id:'a'},{id:'b'}],has_more:true};}return {data:[{id:attempts===1?'b':'c'}],has_more:false};},{pageSize:2,maxRecords:10,concurrency:1});
+ assert.equal(attempts,2);assert.deepEqual(rows.map(r=>r.id),['a','b','c']);
 });

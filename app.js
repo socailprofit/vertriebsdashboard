@@ -1,22 +1,23 @@
-import { renderOriginPipelines } from "./pipeline-view.mjs?v=2026-09-09-origin-pipelines";
-import {TRACKING_MEMBERS, originTotals, memberResults} from "./tracking-view.mjs?v=2026-09-09-origin-pipelines";
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-origin-pipelines";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-origin-pipelines";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-origin-pipelines";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-origin-pipelines";
+import {calendarDetails, meetingShowrate, monthCohort} from "./calendar-view.mjs?v=2026-09-09-calendar-audit";
+import { renderOriginPipelines } from "./pipeline-view.mjs?v=2026-09-09-calendar-audit";
+import {TRACKING_MEMBERS, originTotals, memberResults} from "./tracking-view.mjs?v=2026-09-09-calendar-audit";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-calendar-audit";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-calendar-audit";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-calendar-audit";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-calendar-audit";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-origin-pipelines";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-calendar-audit";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-origin-pipelines";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-origin-pipelines";
+import * as data from "./data.js?v=2026-09-09-calendar-audit";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-calendar-audit";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-origin-pipelines";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-origin-pipelines";
+} from "./call-time-score.mjs?v=2026-09-09-calendar-audit";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-calendar-audit";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -907,7 +908,7 @@ function renderAntony() {
   const attendance=p?.setter_attendance;
   const attendanceBox=document.querySelector("#antony-attendance-summary");
   attendanceBox.innerHTML=attendance ? `<strong>Setter-Showrate: ${attendance.elapsed ? format(100*attendance.attended/attendance.elapsed)+" %" : "—"}</strong><span>${format(attendance.attended)} durchgeführt / ${format(attendance.elapsed)} fällige Kalendertermine</span><span>${format(attendance.no_show)} nicht erschienen · ${format(attendance.cancelled)} abgesagt · ${format(attendance.rescheduled)} verschoben · ${format(attendance.unknown)} ohne Ergebnis</span>` : "";
-  document.querySelector("#antony-origin-pipelines").innerHTML = renderOriginPipelines(p?.period_pipelines);
+  document.querySelector("#antony-origin-pipelines").innerHTML = monthCohort(state.antonyPlannerProcess);
   renderAntonyProcess();
   renderAntonyPerformance(); renderUpcomingMeetings(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
@@ -1006,7 +1007,11 @@ function renderAntonyProcess() {
   const grouped=memberResults(rows).filter(r=>selection.owner==="all"||r.owner===selection.owner);
   container.innerHTML=`<div class="tracking-controls"><label>Ersttermin-Zeitraum<select id="tracking-period">${[["day","Tag"],["week","Woche"],["month","Monat"]].map(([v,l])=>`<option value="${v}" ${selection.period===v?"selected":""}>${l}</option>`).join("")}</select></label><label>Datum<input type="date" id="tracking-date" value="${escapeHtml(selection.date)}"></label><label>Herkunft<select id="tracking-owner"><option value="all">Alle</option>${Object.entries(TRACKING_MEMBERS).map(([v,l])=>`<option value="${v}" ${selection.owner===v?"selected":""}>${l}</option>`).join("")}</select></label><button type="button" id="tracking-reset">Wie oben</button></div>
   <div id="tracking-status" role="status">${source?`${germanDate(source.period.start)} – ${germanDate(source.period.end)}`:"Wird geladen …"}</div>
-  <div class="chart-table-scroll"><table id="lead-quality-table"><thead><tr>${["Herkunft","Ersttermin-Leads","Setter erfolgt","davon Folgemonate","Closer erfolgt","davon Folgemonate","Qualifiziert","Follow-up","Disqualifiziert","Neukunden"].map(t=>`<th scope="col">${t}</th>`).join("")}</tr></thead><tbody>${source?grouped.map(r=>`<tr><th scope="row">${escapeHtml(r.label)}</th>${[r.leads,r.setter,r.laterSetter,r.closer,r.laterCloser,r.qualified,r.followup,r.disqualified,r.customers].map(n=>`<td>${number(n)}</td>`).join("")}</tr>`).join(""):'<tr><td colspan="10">Wird geladen …</td></tr>'}</tbody></table></div>`;
+  <div class="chart-table-scroll"><table id="lead-quality-table"><thead><tr>${["Herkunft","Ersttermin-Leads","Setter erfolgt","davon Folgemonate","Closer erfolgt","davon Folgemonate","Qualifiziert","Follow-up","Disqualifiziert","Neukunden","Setter-Showrate"].map(t=>`<th scope="col">${t}</th>`).join("")}</tr></thead><tbody>${source?grouped.map(r=>{const meetings=(source.calendar_rows||[]).filter(m=>m.owner===r.owner);return `<tr><th scope="row">${escapeHtml(r.label)}</th>${[r.leads,r.setter,r.laterSetter,r.closer,r.laterCloser,r.qualified,r.followup,r.disqualified,r.customers].map(n=>`<td>${number(n)}</td>`).join("")}<td>${meetingShowrate(meetings)}</td></tr><tr><td colspan="11"><details><summary>Kalendertermine · ${meetings.length}</summary>${calendarDetails(meetings)}</details></td></tr>`;}).join(""):'<tr><td colspan="10">Wird geladen …</td></tr>'}</tbody></table></div>`;
+  if(source&&selection.owner==="all"){
+    const unassigned=(source.calendar_rows||[]).filter(m=>!Object.hasOwn(TRACKING_MEMBERS,m.owner));
+    if(unassigned.length)container.querySelector("tbody").insertAdjacentHTML("beforeend",`<tr><td colspan="11"><details><summary>Termine ohne aktuellen Team-Opener · ${unassigned.length}</summary>${calendarDetails(unassigned)}</details></td></tr>`);
+  }
   for(const id of ["tracking-period","tracking-date","tracking-owner"])document.querySelector("#"+id).addEventListener("change",updateTrackingSelection);
   document.querySelector("#tracking-reset").addEventListener("click",()=>{trackingRequest++;trackingSelection=null;trackingSource=null;renderAntonyProcess();});
 }

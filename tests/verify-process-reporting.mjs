@@ -479,6 +479,16 @@ async function main(){
    assert.equal(r.quarter,null);assert.deepEqual(r.planner.process,r.process);
    assert.equal(r.process.period_pipelines.groups[0].setter_calls,1);
   });
+  await db.exec(read('../supabase/migrations/20260909090616_meeting_audit_and_month_cohort.sql'));
+  await db.exec(read('../supabase/migrations/20260909091221_calendar_internal_snapshot.sql'));
+  await db.exec(read('../supabase/migrations/20260909091413_verified_closer_calendar.sql'));
+  await scenario('calendar audit keeps prior and current slots while future never lowers attendance',async()=>{
+   await funnel('old','2026-06-19T13:30Z');await meeting('old','2026-09-03T07:00Z');
+   await funnel('new','2026-09-04T08:00Z');await meeting('new','2026-09-04T08:00Z');await meeting('new','2026-09-15T08:00Z');
+   const p=await report();assert.equal(p.calendar_rows.length,3);assert.equal(p.lead_quality_rows.length,1);
+   const future=p.calendar_rows.find(r=>r.starts_at.startsWith('2026-09-15'));assert.equal(future.outcome,'planned');assert.equal(future.showrate_due,false);
+   assert(p.calendar_rows.find(r=>r.lead_id==='old').first_meeting_at.startsWith('2026-06-19'));
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
