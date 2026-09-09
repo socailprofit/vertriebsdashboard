@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-opener-tracking";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-opener-tracking";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-opener-tracking";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-opener-tracking";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-linkedin-exception";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-linkedin-exception";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-linkedin-exception";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-linkedin-exception";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-opener-tracking";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-linkedin-exception";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-opener-tracking";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-opener-tracking";
+import * as data from "./data.js?v=2026-09-09-linkedin-exception";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-linkedin-exception";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-opener-tracking";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-opener-tracking";
+} from "./call-time-score.mjs?v=2026-09-09-linkedin-exception";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-linkedin-exception";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -1091,7 +1091,7 @@ function renderLeadQualityTables(source) {
   const value = n => n === null || n === undefined ? "—" : number(n);
   const share = (n,d) => n === null || n === undefined || !d ? "—" : `${new Intl.NumberFormat("de-DE", {maximumFractionDigits:2}).format(n / d * 100)} %`;
   const owners = source.owner_labels || {unassigned:"Opener fehlt"};
-  const identity = row => `${escapeHtml(row.source)} · ${escapeHtml(owners[row.owner] || row.owner || "Opener fehlt")}`;
+  const identity = row => row.owner === "linkedin" ? escapeHtml(row.source) : `${escapeHtml(row.source)} · ${escapeHtml(owners[row.owner] || row.owner || "Opener fehlt")}`;
   const rows = (Array.isArray(source.booking_cohort) ? source.booking_cohort : []).filter(matchesProcessFilter);
   const quality = (Array.isArray(source.quality_by_source) ? source.quality_by_source : []).filter(matchesProcessFilter);
   const table = (caption,heads,body) => `<div class="chart-table-scroll"><table><caption>${caption}</caption><thead><tr>${heads.map(h=>`<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1105,7 +1105,7 @@ function renderLeadQualityTables(source) {
   const qualityTable = quality.length ? table("Im Zeitraum bearbeitete Setter-Vorgänge, einschließlich älterer Vorgänge. Letztes Setter-Ergebnis je Vorgang.",
     ["Quelle · Opener","Zuordnung","Im Setter","Zum Closer","Qualifiziert / im Setter","Follow-up","Disqualifiziert","Ergebnis fehlt"],
     quality.map(row=>`<tr><th scope="row">${identity(row)}</th><td>${row.attribution === "sales_process" ? "Dokumentierter Vorgang" : row.attribution === "booking_activity" ? "Terminbuchung" : row.attribution === "current_opener" ? "Aktueller Opener (Ersatz)" : "Unbekannt"}</td>${cells(row,["assessed_leads","qualified"])}<td>${processRate(row.qualified,row.assessed_leads)}</td>${cells(row,["followup","disqualified","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine durchgeführten Setter Calls in diesem Zeitraum erfasst.</p>`;
-  return `<section class="tracking-table-panel"><h4>Vergleich nach Quelle und Opener · Vorgänge</h4><p class="tracking-note">Opener laut Close-Feld „3.01 Opener“. Die Leadquelle wird separat ausgewiesen. Ein fehlender Opener bleibt unzugeordnet.</p>${bookingTable}${remainderTable}</section>
+  return `<section class="tracking-table-panel"><h4>Vergleich nach Quelle und Opener · Vorgänge</h4><p class="tracking-note">Opener laut Close-Feld „3.01 Opener“. LinkedIn bleibt ohne Personenname; nur LinkedIn Cold Calls wird einem Opener zugeordnet. Ein fehlender Opener bleibt unzugeordnet.</p>${bookingTable}${remainderTable}</section>
     <section class="tracking-table-panel"><h4>Qualifizierung der Setter-Vorgänge im Zeitraum</h4>${qualityTable}</section>`;
 
 }

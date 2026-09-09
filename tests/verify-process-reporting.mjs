@@ -392,6 +392,16 @@ async function main(){
    await db.query("update close_funnel_leads set opener_close_user_id=$1 where lead_id='missing'",[M]);assert.equal((await rows()).find(x=>x.lead_id==='missing').owner,'michael');
    await db.query("update close_funnel_leads set opener_close_user_id=$1 where lead_id='missing'",[F]);assert.equal((await rows()).find(x=>x.lead_id==='missing').owner,'felix');
   });
+  await db.exec(read('../supabase/migrations/20260909080903_retain_linkedin_channel_except_cold_calls.sql'));
+  await scenario('only LinkedIn Cold Calls has variable personal acquisition credit',async()=>{
+   for(const source of ['LinkedIn','Inbound LinkedIn Ads','LinkedIn Follow Up','LinkedIn Cold Calls','Messe','North Data']){
+    await funnel(source);await db.query('update close_funnel_leads set lead_source=$2,opener_close_user_id=$3 where lead_id=$1',[source,source,F]);
+   }
+   const r=await rows();
+   for(const row of r)assert.equal(row.owner,['LinkedIn','Inbound LinkedIn Ads','LinkedIn Follow Up'].includes(row.source)?'linkedin':'felix');
+   await db.query("update close_funnel_leads set opener_close_user_id=null where lead_id='LinkedIn Cold Calls'");
+   assert.equal((await rows()).find(x=>x.source==='LinkedIn Cold Calls').owner,'unassigned');
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
