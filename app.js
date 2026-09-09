@@ -1,20 +1,21 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-clear-tracking";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-clear-tracking";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-clear-tracking";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-clear-tracking";
+import {TRACKING_MEMBERS, originTotals, memberResults} from "./tracking-view.mjs?v=2026-09-09-tracking-filters";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-tracking-filters";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-tracking-filters";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-tracking-filters";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-tracking-filters";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-clear-tracking";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-tracking-filters";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-clear-tracking";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-clear-tracking";
+import * as data from "./data.js?v=2026-09-09-tracking-filters";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-tracking-filters";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-clear-tracking";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-clear-tracking";
+} from "./call-time-score.mjs?v=2026-09-09-tracking-filters";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-tracking-filters";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -886,24 +887,25 @@ function renderAntony() {
     ["Neukunden", c.new_customers, b ? `${format(b.customers_from_period_bookings)} aus Vorgängen mit Ersttermin im Zeitraum · ${format(b.customers_from_prior_bookings)} aus älteren Vorgängen · ${format(b.customers_without_booking)} ohne dokumentierten Ersttermin. Ein späteres Ja zählt einen bereits gewonnenen Kunden nicht erneut. Maßgeblich ist das Won-Datum in Close, kein aus Notizen vermutetes Unterschriftsdatum.` : "Erste gewonnene Neukunden-Opportunity je Lead, am Won-Datum in Close."],
   ] : [];
   container.innerHTML = rows.length ? rows.map(([label,n,detail]) => {
-    const payload={title:label,time:periodCaption(),rows:[{label:"Im Zeitraum",value:format(n)}],note:detail};
+    const payload={title:label,time:periodCaption(),rows:[{label:"Im Zeitraum",value:format(n)}],note:""};
     if(label === "Setter Calls" && p?.setter_by_day) payload.rows.push(...p.setter_by_day.map(row=>({label:`${germanDate(row.date)} · ${{michael:"Michael",felix:"Felix",antony:"Antony"}[row.owner] || "Weitere"}`,value:`${format(row.calls)} ${row.calls === 1 ? "Call" : "Calls"}`}))) ;
     const performedBy = label === "Setter Calls" && Array.isArray(p?.setter_by_day)
       ? Object.entries(p.setter_by_day.reduce((totals,row)=>{const actor=({michael:"Michael",felix:"Felix",antony:"Antony"})[row.owner]||"Nicht zugeordnet";totals[actor]=(totals[actor]||0)+Number(row.calls||0);return totals;},{})).map(([actor,calls])=>`${actor}: ${format(calls)}`).join(" · ") : "";
-    return `<button type="button" class="antony-activity" data-chart-point="${escapeHtml(JSON.stringify(payload))}"><span>${escapeHtml(label)}</span><strong>${format(n)}</strong>${performedBy?`<span class="performed-by">Durchgeführt von ${escapeHtml(performedBy)}</span>`:""}<span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
+    const originKey=({"Setter Calls":"setter_calls","Closer Calls":"closer_calls","CC2 vereinbart":"cc2_agreed","Neukunden":"new_customers"})[label];
+    const origins=originKey?originTotals(p?.activity_by_origin,originKey):null;
+    const originHtml=origins?.length ? `<div class="kpi-origin"><span>Ersttermin aus</span>${origins.map(([month,count])=>`<span>${month==="unknown"?"Nicht zugeordnet":new Intl.DateTimeFormat("de-DE",{month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(month+"-01T12:00Z"))}: <b>${format(count)}</b></span>`).join("")}</div>` : label==="Setter-Termine"&&flow ? `<div class="kpi-origin"><span>Ersttermine: <b>${format(flow.new_processes)}</b></span><span>Weitere Termine: <b>${format(Math.max(0,Number(n)-Number(flow.new_processes)))}</b></span></div>` : "";
+    return `<button type="button" class="antony-activity" data-chart-point="${escapeHtml(JSON.stringify(payload))}"><span>${escapeHtml(label)}</span><strong>${format(n)}</strong>${performedBy?`<span class="performed-by">Durchgeführt von ${escapeHtml(performedBy)}</span>`:""}${originHtml}<span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
   }).join("") : `<p class="antony-empty">Kennzahlen für diesen Zeitraum nicht verfügbar.</p>`;
   document.querySelector("#antony-note").textContent = flow
     ? `${format(flow.new_processes)} Vorgänge mit Ersttermin im Zeitraum · ${format(flow.carried_in)} ältere Vorgänge im Setter bearbeitet${flow.repeat_setter_calls ? ` · ${format(flow.repeat_setter_calls)} Setter-Folgegespräche` : ""}${flow.unlinked_setter_calls ? ` · ${format(flow.unlinked_setter_calls)} Setter ${Number(flow.unlinked_setter_calls)===1?"Call":"Calls"} ohne sichere Zuordnung` : ""}`
     : `Arbeit im Zeitraum ${periodCaption()} · einschließlich älterer Vorgänge. Zahl anklicken für Herkunft und Zeitbezug.`;
-  const purposes={"Setter-Termine":"Zeigt das Kalenderaufkommen, nicht die Zahl durchgeführter Gespräche.","Setter Calls":"Zeigt die tatsächlich geleistete Setter-Arbeit, einschließlich älterer Leads.","Erstmals zum Closer":"Zeigt, wie viele Vorgänge erstmals die Qualifizierung erreicht haben.","Closer Calls":"Zeigt die tatsächlich geleistete Abschlussarbeit.","CC2 vereinbart":"Zeigt vereinbarte nächste Schritte; kein Nachweis einer Durchführung.","Neukunden":"Zeigt neu gewonnene Kunden, ohne spätere Bestätigungen oder Upsells erneut zu zählen."};
-  document.querySelector("#antony-kpi-explanation").innerHTML=`<p>Oben: Aktivitäten im gewählten Zeitraum bis zum letzten Datenstand. Unten: Qualität derselben Ersttermin-Gruppe. Gespräche mit älteren Leads erhöhen die Monatsaktivität, aber nicht die Qualität einer neuen Gruppe.</p><dl>${rows.map(([label,n,detail])=>`<dt>${escapeHtml(label)} · ${format(n)}</dt><dd>${escapeHtml(detail)} ${escapeHtml(purposes[label]||"")}</dd>`).join("")}</dl>`;
   const dataTime = p?.setter_attendance?.data_as_of || state.antonyPipeline?.data_as_of;
   document.querySelector("#antony-data-time").textContent = dataTime && Number.isFinite(Date.parse(dataTime))
     ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))}`
     : "Aktivitäten im gewählten Zeitraum";
   const attendance=p?.setter_attendance;
   const attendanceBox=document.querySelector("#antony-attendance-summary");
-  attendanceBox.innerHTML=attendance ? `<strong>Setter-Showrate: ${attendance.elapsed ? format(100*attendance.attended/attendance.elapsed)+" %" : "—"}</strong><span>${format(attendance.attended)} durchgeführt / ${format(attendance.elapsed)} fällige Kalendertermine</span><span>${format(attendance.no_show)} nicht erschienen · ${format(attendance.cancelled)} abgesagt · ${format(attendance.rescheduled)} verschoben · ${format(attendance.unknown)} ohne Ergebnis</span><details><summary>Berechnungsgrundlage</summary><p>Nur zugeordnete Kalendertermine bis zum Datenstand. Absagen und ungeklärte fällige Termine bleiben im Nenner; Zukunftstermine zählen nicht. Zusätzliche Setter-Gespräche ohne diesen Kalendertermin zählen bei Setter Calls, aber nicht in dieser Quote. Fehlende Ergebnisse werden nicht als No-Show gewertet.</p></details>` : "";
+  attendanceBox.innerHTML=attendance ? `<strong>Setter-Showrate: ${attendance.elapsed ? format(100*attendance.attended/attendance.elapsed)+" %" : "—"}</strong><span>${format(attendance.attended)} durchgeführt / ${format(attendance.elapsed)} fällige Kalendertermine</span><span>${format(attendance.no_show)} nicht erschienen · ${format(attendance.cancelled)} abgesagt · ${format(attendance.rescheduled)} verschoben · ${format(attendance.unknown)} ohne Ergebnis</span>` : "";
   renderAntonyProcess();
   renderAntonyPerformance(); renderUpcomingMeetings(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
@@ -993,14 +995,29 @@ function renderAntonyPerformance() {
     : "Aktivitäten aller Quellen am Ereignisdatum, aufsummiert. Punkt anklicken für Datum und Werte.";
 }
 
+let trackingSelection=null, trackingSource=null, trackingRequest=0;
 function renderAntonyProcess() {
-  const container=document.querySelector("#antony-process-content"),source=state.antonyProcess;
-  if(!Array.isArray(source?.lead_quality_rows)){container.innerHTML="<p>Lead-Auswertung noch nicht verfügbar.</p>";return;}
-  const owners=source.owner_labels||{};
-  const result=row=>({setter_qualified:"Zum Closer qualifiziert",setter_disqualified:"Disqualifiziert",setter_follow_up:"Setter-Follow-up",setter_completed:"Gespräch ohne Bewertung",unclear:"Widersprüchlich"}[row.setter_result]||({no_show:"Nicht erschienen",cancelled:"Abgesagt",rescheduled:"Verschoben"}[row.state])||"Noch nicht bewertet");
-  const date=value=>value&&Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(value)):"—";
-  const rows=source.lead_quality_rows;
-  container.innerHTML=`<p class="tracking-note">Ersttermine ${escapeHtml(germanDate(source.period.start))} – ${escapeHtml(germanDate(source.period.end))}. Eine Zeile je dokumentiertem Vorgang; Ersatztermine bleiben derselbe Vorgang. Ergebnisse einschließlich Folgemonaten bis zum letzten Datenstand. Qualität = dokumentiertes Setter-Ergebnis, kein KI-Score.</p><div class="chart-table-scroll"><table id="lead-quality-table"><thead><tr>${["Opener / Kanal","Quelle","Lead in Close","Ersttermin","Lead-Qualität","Setter am","Closer am","Neukunde am"].map(t=>`<th scope="col">${t}</th>`).join("")}</tr></thead><tbody>${rows.length?rows.map(row=>`<tr><td>${escapeHtml(owners[row.owner]||row.owner||"Opener fehlt")}</td><td>${escapeHtml(row.source||"Nicht zugeordnet")}</td><td>${/^lead_[A-Za-z0-9]+$/.test(row.lead_id)?`<a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(row.lead_id.slice(-10))} ↗</a>`:"Nicht zugeordnet"}</td><td>${date(row.first_meeting_at)}</td><td>${escapeHtml(result(row))}</td><td>${date(row.setter_at)}</td><td>${date(row.closer_at)}</td><td>${date(row.won_at)}</td></tr>`).join(""):'<tr><td colspan="8">Keine fälligen Ersttermine in diesem Zeitraum.</td></tr>'}</tbody></table></div>`;
+  const container=document.querySelector("#antony-process-content");
+  const selection=trackingSelection||{period:state.period,date:state.referenceDate,owner:"all"};
+  const source=trackingSelection?trackingSource:state.antonyProcess;
+  const rows=Array.isArray(source?.lead_quality_rows)?source.lead_quality_rows:[];
+  const grouped=memberResults(rows).filter(r=>selection.owner==="all"||r.owner===selection.owner);
+  container.innerHTML=`<div class="tracking-controls"><label>Ersttermin-Zeitraum<select id="tracking-period">${[["day","Tag"],["week","Woche"],["month","Monat"]].map(([v,l])=>`<option value="${v}" ${selection.period===v?"selected":""}>${l}</option>`).join("")}</select></label><label>Datum<input type="date" id="tracking-date" value="${escapeHtml(selection.date)}"></label><label>Herkunft<select id="tracking-owner"><option value="all">Alle</option>${Object.entries(TRACKING_MEMBERS).map(([v,l])=>`<option value="${v}" ${selection.owner===v?"selected":""}>${l}</option>`).join("")}</select></label><button type="button" id="tracking-reset">Wie oben</button></div>
+  <div id="tracking-status" role="status">${source?`${germanDate(source.period.start)} – ${germanDate(source.period.end)}`:"Wird geladen …"}</div>
+  <div class="chart-table-scroll"><table id="lead-quality-table"><thead><tr>${["Herkunft","Ersttermin-Leads","Setter erfolgt","davon Folgemonate","Closer erfolgt","davon Folgemonate","Qualifiziert","Follow-up","Disqualifiziert","Neukunden"].map(t=>`<th scope="col">${t}</th>`).join("")}</tr></thead><tbody>${source?grouped.map(r=>`<tr><th scope="row">${escapeHtml(r.label)}</th>${[r.leads,r.setter,r.laterSetter,r.closer,r.laterCloser,r.qualified,r.followup,r.disqualified,r.customers].map(n=>`<td>${number(n)}</td>`).join("")}</tr>`).join(""):'<tr><td colspan="10">Wird geladen …</td></tr>'}</tbody></table></div>`;
+  for(const id of ["tracking-period","tracking-date","tracking-owner"])document.querySelector("#"+id).addEventListener("change",updateTrackingSelection);
+  document.querySelector("#tracking-reset").addEventListener("click",()=>{trackingRequest++;trackingSelection=null;trackingSource=null;renderAntonyProcess();});
+}
+async function updateTrackingSelection(event) {
+  const previous=trackingSelection||{period:state.period,date:state.referenceDate,owner:"all"};
+  const next={period:document.querySelector("#tracking-period").value,date:document.querySelector("#tracking-date").value,owner:document.querySelector("#tracking-owner").value};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(next.date))return;
+  const source=trackingSelection?trackingSource:state.antonyProcess;
+  trackingSelection=next;
+  if(next.period===previous.period&&next.date===previous.date){trackingSource=source;renderAntonyProcess();return;}
+  const request=++trackingRequest;trackingSource=null;renderAntonyProcess();
+  try {const result=await data.loadAntonyProcessMetrics(next.period,next.date);if(request!==trackingRequest)return;trackingSource=result;renderAntonyProcess();}
+  catch {if(request===trackingRequest)document.querySelector("#tracking-status").textContent="Laden fehlgeschlagen. Zeitraum erneut wählen.";}
 }
 
 function bookingGroupLabel(date,scale) {
@@ -1104,10 +1121,13 @@ function renderUpcomingMeetings() {
     unique.set(row.meeting_id,row);
   }
   const rows=[...unique.values()].sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at));
+  let previousMonth="";
   container.innerHTML=rows.length?`<dl class="open-work-list">${rows.map(row=>{
     const stage=({setter:"Setter",closer:"Closer",cc2:"CC2"}[row.stage]||"Folgetermin");
     const when=new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(row.starts_at));
-    return `<div><dt><a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(stage)} · ${escapeHtml(when)} Uhr ↗</a></dt></div>`;
+    const month=new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",month:"long",year:"numeric"}).format(new Date(row.starts_at));
+    const heading=month!==previousMonth?`<div class="calendar-month"><dt>${escapeHtml(month)}</dt></div>`:"";previousMonth=month;
+    return `${heading}<div><dt><a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(stage)} · ${escapeHtml(when)} Uhr ↗</a></dt></div>`;
   }).join("")}</dl>`:"<p>Keine weiteren Kalendertermine vorhanden.</p>";
 }
 

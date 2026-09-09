@@ -1464,3 +1464,9 @@ main { grid-template-columns: minmax(0, 1fr); }
 .attendance-summary {display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:24px;padding:20px 0;border-top:1px solid var(--line);font-size:.85rem;}
 .attendance-summary details {flex-basis:100%;line-height:1.6;}
 .attendance-summary summary {cursor:pointer;}
+
+.kpi-origin {display:grid;gap:5px;margin-top:16px;font-size:.75rem;color:#d0def1;line-height:1.4;}
+.tracking-controls {display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+.tracking-controls label {display:grid;gap:8px;font-size:.8rem;}
+.tracking-controls select,.tracking-controls input,.tracking-controls button {padding:10px;background:#0b1524;color:#fff;border:1px solid #34435a;border-radius:6px;}
+#tracking-status {font-size:.8rem;margin:12px 0;}
