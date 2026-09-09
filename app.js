@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-elapsed-only";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-elapsed-only";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-elapsed-only";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-elapsed-only";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-next-meetings";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-next-meetings";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-next-meetings";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-next-meetings";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-elapsed-only";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-next-meetings";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-elapsed-only";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-elapsed-only";
+import * as data from "./data.js?v=2026-09-09-next-meetings";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-next-meetings";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-elapsed-only";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-elapsed-only";
+} from "./call-time-score.mjs?v=2026-09-09-next-meetings";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-next-meetings";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -898,7 +898,7 @@ function renderAntony() {
     ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))}`
     : "Aktivitäten im gewählten Zeitraum";
   renderAntonyProcess();
-  renderAntonyPerformance(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
+  renderAntonyPerformance(); renderUpcomingMeetings(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
 
 const antonyPerformanceSeries = Object.freeze([
@@ -1110,6 +1110,24 @@ function renderLeadQualityTables(source) {
     ${remainderTable}<p class="chart-legend">Nicht erschienen, abgesagt und verschoben zählen hier nur für Vorgänge, die anschließend noch nicht im Setter waren. Diese Ergebnisse sind keine Disqualifikation. Verkaufsgespräch und gewonnene Opportunity sind eigenständige Nachweise; einer kann fehlen.</p></details>
     <details class="chart-values"><summary>Qualifizierung der Setter-Vorgänge im Zeitraum</summary>${qualityTable}
     <p class="chart-legend">Leadquellen stammen aus dem aktuellen Close-Feld. Fehlt die ursprüngliche Buchung auch in Close, bleibt der Terminlieferant unbekannt. Er wird nicht aus dem aktuellen Opener-Feld geraten. Kleine Fallzahlen eignen sich noch nicht für eine belastbare Rangliste.</p></details>`;
+}
+
+function renderUpcomingMeetings() {
+  const container=document.querySelector("#upcoming-meetings");
+  const planned=state.antonyPipeline?.scheduled_meetings;
+  if(!Array.isArray(planned)){container.innerHTML="<p>Kalenderstand noch nicht verfügbar.</p>";return;}
+  const cutoff=Math.max(Date.now(),Date.parse(state.antonyPipeline.data_as_of)||0);
+  const unique=new Map();
+  for(const row of planned) {
+    if(!/^lead_[A-Za-z0-9]+$/.test(row.lead_id)||!row.meeting_id||!Number.isFinite(Date.parse(row.starts_at))||Date.parse(row.starts_at)<=cutoff)continue;
+    unique.set(row.meeting_id,row);
+  }
+  const rows=[...unique.values()].sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at));
+  container.innerHTML=rows.length?`<dl class="open-work-list">${rows.map(row=>{
+    const stage=({setter:"Setter",closer:"Closer",cc2:"CC2"}[row.stage]||"Folgetermin");
+    const when=new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(row.starts_at));
+    return `<div><dt><a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(stage)} · ${escapeHtml(when)} Uhr ↗</a></dt></div>`;
+  }).join("")}</dl>`:"<p>Keine weiteren Kalendertermine vorhanden.</p>";
 }
 
 function renderAntonyPipeline() {
