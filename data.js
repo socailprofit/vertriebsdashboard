@@ -243,7 +243,7 @@ export async function saveAntonyGoal(goal) {
 export async function loadHourPerformance(period, referenceDate) {
   return run(
     "Anrufzeiten laden",
-    requireClient().rpc("get_call_hour_performance", {
+    requireClient().rpc("get_call_hour_report", {
       p_period: period,
       p_reference_date: referenceDate,
     }),

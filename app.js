@@ -4,19 +4,15 @@ import {activityCards, processDetails, quota, filterTrackingSource, LEAD_SOURCE_
 import {TRACKING_MEMBERS, memberResults} from "./tracking-view.mjs?v=2026-09-09-origin-aligned";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-cc2-evidence-fix";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-cc2-evidence-fix";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-best-call-times";
 installChartPopover();
 import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-evidence-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-cc2-evidence-fix";
+import * as data from "./data.js?v=2026-09-09-best-call-times";
 import { calculateAntonyPlan, calculateAntonyMonthForecast } from "./antony-planner.mjs?v=2026-09-09-cc2-evidence-fix";
-import {
-  aggregateCallTimeRows,
-  calculateCallTimeQuality,
-  callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-cc2-evidence-fix";
+import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
@@ -1319,96 +1315,20 @@ function renderFunnel() {
     "Durchstellquote = „Durchgestellt“ ÷ bewertbare Vorzimmer-Ergebnisse. „CEO/GF nicht erreichbar“, Mailbox, außerhalb der Geschäftszeiten und direkte Entscheidergespräche zählen nicht mit. Ablehnung, „E-Mail senden“ und „Kein Interesse“ zählen als nicht durchgestellt. Der Teamwert entsteht aus den Summen.";
 }
 
-// Das Stundenprofil bleibt dicht: eine Zeile je Uhrzeit, Michael und Felix in
-// der Teamansicht nebeneinander. Die Gesamtqualität verbindet die vier
-// Stufenraten. Close-Outcomes Mailbox und außerhalb der Geschäftszeiten werden
-// dabei aus den nur technisch "answered" gemeldeten Calls herausgerechnet.
-const HOUR_MIN_BASE = 3;
-
+// Beide Stundenansichten verwenden dieselbe Regel und dieselben Unter-KPIs.
 function renderHours() {
-  const rateSwitch = document.querySelector("#hours-rate-switch");
   document.querySelector("#hours-title").textContent = state.period === "day"
-    ? `Anrufzeiten am ${germanDate(state.periodRange.start)}`
-    : "Beste Anrufzeiten";
-  rateSwitch.hidden = false;
-  zeichneStunden("#hours-chart", state.hours, state.heatmapRate);
+    ? `Anrufzeiten am ${germanDate(state.periodRange.start)}` : "Beste Anrufzeiten";
+  document.querySelector("#hours-rate-switch").hidden = false;
+  document.querySelector("#hours-chart").innerHTML = renderCallTimeProfile(
+    state.hours, orderedPeople(), state.heatmapRate, periodCaption(),
+  );
 }
 
-// Dieselbe Darstellung über den Dreimonatszeitraum. Dort trägt sie mehr: Über
-// einen Tag beruht jede Stundenquote auf wenigen Fällen, über drei Monate auf
-// genug, um daraus eine Anrufzeit abzuleiten.
 function renderTrendHours() {
-  zeichneStunden("#trend-hours", state.trendHours, state.trendRate);
-}
-
-function hourRateText(value) {
-  return value === null || value === undefined ? "–" : `${Math.round(value)} %`;
-}
-
-function zeichneStunden(selektor, quelle, mode) {
-  const container = document.querySelector(selektor);
-  const hours = Array.from({ length: 10 }, (_, index) => index + 8);
-  const people = orderedPeople();
-  const baselines = Object.fromEntries(people.map((person) => [
-    person.slug,
-    aggregateCallTimeRows(quelle.filter(
-      (row) => row.slug === person.slug && hours.includes(Number(row.metric_hour)),
-    )),
-  ]));
-  const evaluated = new Map();
-
-  for (const person of people) {
-    for (const hour of hours) {
-      const row = quelle.find((entry) => entry.slug === person.slug && Number(entry.metric_hour) === hour) ?? {};
-      const quality = calculateCallTimeQuality(row, baselines[person.slug]);
-      evaluated.set(`${person.slug}:${hour}`, { quality, metric: callTimeMetric(quality, mode) });
-    }
-  }
-
-  const bestByPerson = Object.fromEntries(people.map((person) => {
-    const candidates = hours
-      .map((hour) => ({ hour, ...evaluated.get(`${person.slug}:${hour}`) }))
-      .filter(({ metric }) => metric.value !== null && metric.base >= HOUR_MIN_BASE)
-      .sort((a, b) => b.metric.value - a.metric.value || b.metric.base - a.metric.base || a.hour - b.hour);
-    return [person.slug, candidates[0]?.hour ?? null];
-  }));
-
-  const head = `<div class="hour-matrix-head" aria-hidden="true">
-    <span>Uhrzeit</span>
-    <span class="hour-bars">${people.map((person) => `<b style="--person-color:${safeColor(person.color)}">${escapeHtml(firstName(person.display_name))}</b>`).join("")}</span>
-  </div>`;
-
-  const rows = hours.map((hour) => {
-    const bars = people.map((person) => {
-      const { quality, metric } = evaluated.get(`${person.slug}:${hour}`);
-      const missing = metric.value === null || metric.base === 0;
-      const thin = !missing && metric.base < HOUR_MIN_BASE;
-      const best = !missing && bestByPerson[person.slug] === hour;
-      const value = missing ? 0 : Math.min(100, Math.max(0, metric.value));
-      const visibleValue = mode === "quality" ? `${Math.round(value)} / 100` : `${Math.round(value)} %`;
-      const title = missing
-        ? `${firstName(person.display_name)}, ${hour}:00 Uhr: keine belastbare Grundgesamtheit`
-        : `${firstName(person.display_name)}, ${hour}:00 Uhr · Qualität ${Math.round(quality.quality)} von 100 · erreichbar ${hourRateText(quality.rates.productive)} · durchgestellt ${hourRateText(quality.rates.connection)} · Entscheider ${hourRateText(quality.rates.decision)} · Termine ${hourRateText(quality.rates.appointment)} · Mailbox ${quality.mailbox_calls} · außerhalb Geschäftszeit ${quality.outside_business_hours_calls}`;
-
-      return `<span class="hour-bar ${missing ? "is-missing" : ""} ${thin ? "is-thin" : ""} ${best ? "is-best" : ""}"
-                style="--person-color:${safeColor(person.color)}" title="${escapeHtml(title)}">
-                <span class="hour-bar-top">
-                  <span class="hour-person">${escapeHtml(firstName(person.display_name))}</span>
-                  <b>${missing ? "–" : visibleValue}</b>
-                  ${best ? "<em>Beste</em>" : ""}
-                </span>
-                <span class="hour-track"><i style="width:${missing ? 0 : Math.max(1, value)}%"></i></span>
-                <small class="hour-meta">${quality.calls_gross} Anrufe · ${quality.productive_calls} produktiv · MB ${quality.mailbox_calls} · AG ${quality.outside_business_hours_calls}</small>
-              </span>`;
-    }).join("");
-    return `<div class="hour-row"><span class="hour-label">${String(hour).padStart(2, "0")}:00–${String(hour + 1).padStart(2, "0")}:00</span><span class="hour-bars">${bars}</span></div>`;
-  }).join("");
-
-  const modeCopy = mode === "quality"
-    ? "Gesamtqualität: 35 % produktive Erreichbarkeit, 25 % Durchstellung, je 20 % Entscheider- und Terminquote. Kleine Stichproben werden zum persönlichen Periodenmittel geglättet."
-    : `${callTimeMetric(calculateCallTimeQuality({}, {}), mode).label}: sichtbare Treffer geteilt durch ihre jeweilige Grundgesamtheit.`;
-  container.innerHTML = head + rows +
-    `<p class="chart-legend">Jede Zeile fasst die Anrufe in diesem Stundenfenster über den gewählten Zeitraum zusammen (Berliner Zeit). ${mode === "quality" ? "Die Balken zeigen Qualitätspunkte von 0 bis 100, keine Prozentquote." : "Die Balken zeigen eine Quote von 0 bis 100 Prozent."} ${mode === "connection" || mode === "quality" ? "Für die Durchstellquote bleiben CEO/GF nicht erreichbar, Mailbox und außerhalb der Geschäftszeiten ausgeschlossen." : ""} ${modeCopy} MB = Mailbox, AG = außerhalb der Geschäftszeiten; beide mindern nur hier die produktive Erreichbarkeit. „Beste“ benötigt mindestens ${HOUR_MIN_BASE} Fälle. Grundlage ist die tatsächliche Close-Stunde in Europe/Berlin.</p>`;
+  document.querySelector("#trend-hours").innerHTML = renderCallTimeProfile(
+    state.trendHours, orderedPeople(), state.trendRate, "Dreimonatsrückblick",
+  );
 }
 
 // --- Details -----------------------------------------------------------------

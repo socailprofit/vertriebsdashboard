@@ -1012,6 +1012,21 @@ tbody td:first-child { font-weight: 620; }
 /* Stundenprofil: Teamwerte pro Stunde nebeneinander statt als lange
    Einzelzeilen. Dadurch bleibt die Analyse trotz zusätzlicher Signale dicht. */
 .hours-chart { display: grid; gap: 5px; }
+.hour-recommendations { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 12px; margin-bottom: 14px; }
+.hour-person-picks { min-width: 0; }
+.hour-person-picks h4 { display: grid; gap: 3px; margin: 0 0 8px; font-size: .88rem; }
+.hour-person-picks h4 span { color: var(--muted); font-size: .68rem; font-weight: 500; }
+.hour-pick { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 8px; margin-top: 5px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; text-align: left; font: inherit; cursor: pointer; }
+.hour-pick:hover { border-color: var(--person-color); }
+.hour-pick-rank { color: var(--person-color); font-weight: 750; font-size: .8rem; }
+.hour-pick-main { display: grid; min-width: 0; gap: 4px; }
+.hour-pick-main b { font-size: .78rem; }
+.hour-pick small { color: var(--muted); font-size: .64rem; font-weight: 400; }
+.hour-pick-value { display: grid; gap: 4px; margin-left: auto; text-align: right; white-space: nowrap; font-size: .8rem; font-weight: 700; }
+.hour-pick-empty { margin: 9px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.hour-rules { margin-top: 12px; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.hour-rules summary { cursor: pointer; }
+.hour-rules p { margin-top: 8px; }
 .hour-matrix-head, .hour-row { display: grid; grid-template-columns: 46px 1fr; align-items: center; gap: 8px; }
 .hour-label { color: var(--muted-2); font-size: 0.74rem; }
 .hour-bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(142px, 1fr)); gap: 6px; }
@@ -1026,6 +1041,11 @@ tbody td:first-child { font-weight: 620; }
 
 .hour-bar {
   display: grid;
+  width: 100%;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   min-width: 0;
   gap: 4px;
   padding: 5px 7px 6px;
@@ -1179,7 +1199,7 @@ main { grid-template-columns: minmax(0, 1fr); }
 .panel-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
 .chart-hit-area { fill: transparent; cursor: pointer; pointer-events: all; }
 .chart-hit-area:hover, .chart-hit-area:focus { fill: rgba(143,163,191,.09); outline: none; stroke: var(--muted); stroke-width: 1; }
-.chart-popover { position: fixed; z-index: 1000; width: min(310px, calc(100vw - 24px)); box-sizing: border-box; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 12px 38px #0008; font-size: .85rem; }
+.chart-popover { position: fixed; z-index: 1000; width: min(310px, calc(100vw - 24px)); max-height: min(680px, calc(100dvh - 24px)); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 12px 38px #0008; font-size: .85rem; }
 .chart-popover[hidden] { display: none; }
 .chart-popover > strong { display: block; padding-right: 26px; }
 .chart-popover-time { color: var(--muted); margin: 8px 0 12px; font-size: .78rem; }
