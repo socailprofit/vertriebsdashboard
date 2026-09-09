@@ -1288,3 +1288,98 @@ main { grid-template-columns: minmax(0, 1fr); }
 .cohort-select { display:grid; gap:.4rem; font-size:.75rem; color:var(--muted); }
 .cohort-select select { background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:.65rem; max-width:100%; }
 @media(max-width:700px) { .cohort-heading { align-items:stretch; flex-direction:column; } .cohort-select select { width:100%; } }
+
+/* Antony: period work, progress, and next steps each have one clear surface. */
+#antony-section .section-heading { align-items: center; }
+#antony-section .antony-donuts { background: transparent; border: 0; border-radius: 0; gap: 0; margin-top: 24px; }
+#antony-section .antony-activity { background: transparent; border-left: 1px solid var(--line); padding: 8px 20px 12px; transition: background .16s ease; }
+#antony-section .antony-activity:first-child { border-left: 0; padding-left: 0; }
+#antony-section .antony-activity:hover { background: color-mix(in srgb, var(--antony) 5%, transparent); }
+#antony-section .antony-activity:focus-visible { outline: 2px solid var(--antony); outline-offset: -2px; }
+#antony-section .antony-activity strong { font-size: clamp(2rem,3.6vw,3rem); letter-spacing: -.045em; font-weight: 650; }
+#antony-section .antony-activity:last-child strong { color: var(--good); }
+#antony-section .antony-activity > span:first-child { color: var(--text); font-size: .82rem; min-height: 2.1em; }
+#antony-section #antony-note { margin: 16px 0 0; max-width: none; color: var(--muted); font-size: .8rem; }
+#antony-section .antony-performance, #antony-section .antony-pipeline { margin-top: 34px; padding-top: 28px; }
+#antony-section .antony-analysis-heading { margin-bottom: 20px; }
+#antony-section .process-toolbar { margin-bottom: 20px; }
+#antony-section .cohort-heading { margin: 20px 0 26px; }
+#antony-section .cohort-heading h4 { font-size: .92rem; }
+.process-controls { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; }
+#antony-section .process-controls .process-toolbar { margin: 0; }
+.process-controls .process-scope { display: none; }
+.process-controls .cohort-select select { min-height: 38px; padding: 7px 30px 7px 10px; background: var(--bg); border-color: var(--line-strong); border-radius: 6px; font-size: .78rem; }
+.process-cohort-caption { color: var(--muted); font-size: .8rem; margin: 18px 0 26px; }
+#antony-section .process-rail { margin-bottom: 22px; }
+#antony-section .process-stage .process-detail-toggle { font-size: .75rem; }
+.antony-secondary { margin-top: 14px; border-top: 1px solid var(--line); }
+.antony-secondary > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; cursor: pointer; color: var(--text); font-size: .83rem; list-style: none; }
+.antony-secondary > summary::-webkit-details-marker { display: none; }
+.antony-secondary > summary::after { content: "+"; color: var(--antony); font-size: 1.2rem; line-height: 1; }
+.antony-secondary[open] > summary::after { content: "−"; }
+.antony-secondary > summary > span:first-child { margin-right: auto; }
+.antony-secondary > summary > span:nth-child(2) { color: var(--muted); font-size: .75rem; }
+.antony-secondary > summary:focus-visible { outline: 2px solid var(--antony); outline-offset: 4px; }
+.antony-secondary[open] > :not(summary) { animation: process-reveal .16s ease-out; }
+.antony-secondary .period-outcomes { margin-top: 16px; }
+.process-history .process-branches { border-top: 0; margin-top: 8px; }
+.setter-attendance { display: block; padding-top: 20px; border-top: 1px solid var(--line); margin: 24px 0 0; }
+.attendance-overview { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.attendance-overview > div { display: flex; align-items: center; gap: 28px; }
+.attendance-overview h4 { margin: 0; font-size: .95rem; }
+.attendance-overview .process-rate { grid-template-columns: auto auto; align-items: baseline; gap: 14px; }
+.attendance-overview .process-rate b { font-size: 1.5rem; }
+.attendance-overview > p { margin: 0; color: var(--muted); font-size: .8rem; }
+.attendance-overview > p b { color: var(--text); font-size: .95rem; }
+.attendance-overview > p span { display: block; margin-top: 5px; }
+.attendance-outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; margin: 0; }
+.attendance-outcomes > div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding: 12px 0; }
+.attendance-outcomes dt { font-size: .82rem; }
+.attendance-outcomes dd { margin: 0; font-variant-numeric: tabular-nums; }
+#antony-pipeline-grid { display: grid; grid-template-columns: 145px minmax(0,1fr); gap: 32px; align-items: start; }
+.open-inventory-total { padding-top: 2px; display: grid; gap: 6px; }
+.open-inventory-total > strong { font-size: 3.2rem; letter-spacing: -.045em; line-height: 1; font-weight: 650; color: var(--antony); }
+.open-inventory-total > span { font-size: .82rem; }
+.open-inventory-total > p { font-size: .77rem; line-height: 1.6; color: var(--muted); margin: 12px 0 0; }
+.open-inventory-total > p b { color: var(--text); }
+.open-work-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+.open-work-columns section { min-width: 0; }
+.open-work-columns h4 { font-size: .85rem; font-weight: 650; margin: 0 0 8px; }
+.open-work-list { margin: 0; }
+.open-work-list > div { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.open-work-list dt { font-size: .85rem; }
+.open-work-list dt span { display: block; color: var(--muted); margin-top: 4px; font-size: .74rem; }
+.open-work-list dd { margin: 0; font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.open-work-empty { color: var(--muted); line-height: 1.6; font-size: .8rem; margin: 16px 0; }
+#antony-section .antony-performance-chart { background: transparent; border: 0; border-radius: 0; padding: 0 10px 12px; }
+#antony-section details.antony-potential { padding-top: 0; }
+#antony-section details.antony-potential > summary { padding: 20px 0; }
+#antony-section details.antony-potential .antony-potential-heading { margin-top: 8px; }
+@media (max-width: 1100px) {
+  #antony-section .antony-donuts { grid-template-columns: repeat(3,minmax(0,1fr)); row-gap: 22px; }
+  #antony-section .antony-activity:nth-child(4) { border-left: 0; padding-left: 0; }
+  #antony-pipeline-grid { grid-template-columns: 110px minmax(0,1fr); gap: 24px; }
+  .open-work-columns { gap: 24px; }
+}
+@media (max-width: 700px) {
+  .attendance-overview, .attendance-overview > div { align-items: start; flex-direction: column; gap: 12px; }
+  .attendance-overview { flex-direction: row; }
+  .attendance-overview .process-rate { grid-template-columns: 1fr; gap: 3px; }
+  .attendance-outcomes { grid-template-columns: 1fr; }
+  #antony-pipeline-grid { grid-template-columns: 1fr; gap: 24px; }
+  .open-inventory-total { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+  .open-inventory-total > strong { font-size: 2.5rem; }
+  .open-inventory-total > p { margin: 0; }
+  .open-work-columns { grid-template-columns: 1fr; gap: 28px; }
+  .antony-secondary > summary { flex-wrap: wrap; gap: 6px 12px; }
+  .antony-secondary > summary > span:nth-child(2) { display: none; }
+}
+@media (max-width: 480px) {
+  #antony-section .antony-donuts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #antony-section .antony-activity:nth-child(odd) { border-left: 0; padding-left: 0; }
+  #antony-section .antony-activity:nth-child(even) { border-left: 1px solid var(--line); padding-left: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #antony-section .antony-activity { transition: none; }
+  .antony-secondary[open] > :not(summary) { animation: none; }
+}

@@ -7,19 +7,23 @@ export function kpiRate(numerator: unknown, denominator: unknown): number | null
 
 export const KPI_RULES = [
   "Durchstellung: nur exakt durchgestellt / bewertbare Vorzimmerkontakte; GF/CEO nicht erreichbar, Mailbox, ausserhalb Geschaeftszeit und direkte Entscheider ausgeschlossen. Anrufzahlen bleiben erhalten.",
-  "Setter-Conversion: Closer terminiert / durchgefuehrte Setter Calls; Michael, Felix und Antony nach Aktivitaetsnutzer. Keine Showrate.",
+  "Setter-Gespraechsergebnisse: Closer terminiert / durchgefuehrte Setter Calls ist der Qualifizierungsanteil aller Gespraeche, einschliesslich Wiederholungen; keine Showrate und keine Quote neuer Vorgaenge. flow.first_qualified zaehlt die erste Qualifizierung je Vorgang im Zeitraum.",
   "Closer: Antony nach Aktivitaetsnutzer. Abschlussquote: Verkauft / explizite Entscheidungen (Verkauft oder Nicht verkauft). Offene CC2 und fehlende Ergebnisse sind keine Entscheidungen.",
   "Periodenverhaeltnisse verbinden unterschiedliche Ereignisse desselben Zeitraums; keine Kohortenconversion und keine Teilnahmequote. Werte ueber 100 Prozent sind moeglich. Keine Ursache oder Funnelverluste daraus behaupten.",
-  "Kundenabschluesse: Won-Datum und Lead-Feld 3.03 Closer; Status Kunde, keine Upsells. Aeltere Termine koennen erst jetzt gewonnen werden.",
+  "Kundenabschluesse: erste gewonnene Neukunden-Opportunity je Lead am dokumentierten Won-Datum, keine Upsells oder Verlaengerungen. Aeltere Vorgaenge koennen erst jetzt gewonnen werden; ein spaeteres Ja verschiebt oder verdoppelt den Neukunden nicht.",
   "Null bedeutet keine Grundgesamtheit. Weder null noch fehlende Historie als 0 Prozent oder Leistungsverlust bewerten.",
-  "Leadqualitaet: letztes Setter-Ergebnis je eindeutigem Lead, getrennt nach Quelle und Terminlieferant. Terminlieferant aus erster dokumentierter Buchungsaktivitaet; fehlt diese, bleibt die Zuordnung unbekannt. Aktuelle Leadquelle ist keine historische Zuordnung.",
-  "Buchungskohorte: eindeutige Leads mit ihrer ersten dokumentierten Terminbuchung im Zeitraum und danach dokumentierte Ergebnisse bis Stichtag. Die Erstbuchung bleibt auch bei Wochen- und Monatswechseln fest. Wiederholte Buchungen verschieben keinen Lead in eine neue Gruppe. Anteil im Setter ist Fortschritt bis Stichtag, keine bereinigte Showrate; offene Termine, No-Shows und Absagen sind keine Disqualifikationen.",
+  "Leadqualitaet: letztes Setter-Ergebnis je dokumentiertem Vertriebsvorgang im Aktivitaetszeitraum, getrennt nach Quelle und Terminlieferant dieses Vorgangs; zwei echte Vorgaenge desselben Leads bleiben getrennt. Ohne Vorgangszuordnung wird ein Lead separat als unbekannt ausgewertet. Aktuelle Leadquelle ist keine historische Quellenmessung.",
+  "Terminzeitpunkt: nur nachweisbare Setter-Kalendertermine, zugeordnet nach tatsaechlichem Meeting-Datum und nicht Erstell- oder Buchungsdatum. Zukunftstermine sind Planung und weder Setter/Closer Calls noch Shows, No-Shows oder sonstige Ist-Performance. Aktueller Tag nur bis data_as_of, keine Hochrechnung.",
+  "Vorgangskohorte: ein dokumentierter Vertriebsvorgang zaehlt einmal nach seinem ersten zugeordneten Setter-Kalendertermin; Erstellzeit und erste Buchung des gesamten Leads sind keine Kohortenbasis. Ergebnisse bis Stichtag muessen zum selben Vorgang gehoeren. Eindeutige Ersatztermine erzeugen keinen neuen Vorgang; eine Verschiebung vor dem ersten durchgefuehrten Setter verschiebt die Kalenderzuordnung. Erst beendeter Vorgang plus neue dokumentierte Buchung erlaubt einen neuen Vorgang.",
+  "Setter-Showrate: attended / elapsed aus setter_attendance, also nachweislich durchgefuehrte unter den faelligen geplanten Meetings dieses Zeitraums. future ist ausgeschlossen; unknown ist kein No-Show. setter_arrived / booked_leads ist dagegen Vorgangsfortschritt bis Stichtag und enthaelt offene Termine.",
   "Follow-up-Kontakte, Setter-Follow-ups und CC2-Vereinbarungen sind protokollierte Ereignisse; nicht automatisch aktuell offen. Leadqualitaet auf kleinen Stichproben nicht als endgueltige Rangliste bewerten.",
-  "Pipeline ist eine aus gespeicherten Ereignissen abgeleitete Momentaufnahme, keine vollstaendige aktuelle Close-Pipeline.",
-  "funnel_by_source verknuepft dieselben gebuchten Leads chronologisch: Buchung, Setter, Qualifizierung, Closer, ausdrueckliche Entscheidung, Verkauf und Won. Jede Quote braucht Zaehler und konkrete Vorstufenbasis; dokumentierte Ergebnisse ohne Vorstufen stehen unter unlinked und duerfen nicht erfunden werden.",
+  "open_pipeline ist bei persistent=true der aktuelle Bestand dokumentierter offener Vorgaenge zum angegebenen Datenstand, unabhaengig vom Zeitraumfilter und nicht auf drei Monate begrenzt. Es ist keine Kopie beliebiger Close-Statuswerte und kein historischer Wochentrend. Bei persistent=false gilt nur das angegebene gespeicherte Fenster.",
+  "Geplante Vorgaenge in setter_planned/closer_planned/cc2_planned und next_by_month sind bereits terminiert, kein fehlender Follow-up-Schritt und kein Verlust. planning_needs_review bedeutet unklare Terminphase; weder Setter noch Closer erfinden. next_by_month und counts ueberlappen und duerfen nicht addiert werden. Nur bestaetigten aktuellen offenen Zustand fuer Handlungsbedarf verwenden, nicht historische Follow-up-Ergebnisse.",
+  "funnel_by_source verknuepft dieselben Vorgaenge chronologisch: erster Setter-Kalendertermin, Setter, Qualifizierung, Closer, optionale CC2 und Neukunde. Jede Quote braucht Zaehler und konkrete Vorstufenbasis; dokumentierte Ergebnisse ohne Vorstufen stehen unter unlinked. observed_customers zaehlt belegte Neukunden dieser Vorgangsgruppe auch bei fehlenden Zwischenschritten; diese werden nicht erfunden.",
   "CC2 ist ein optionaler Folgeweg nach CC1, keine Pflichtstufe fuer direkte CC1-Verkaeufe. Vereinbart ist nicht durchgefuehrt. Folgegespraech nur nach dokumentierter CC2-Vereinbarung oder ausdruecklichem Verkauf in CC2. Ohne passende Historie ist die Phase unklar.",
-  "activity_by_origin zeigt die urspruengliche Buchung mit booked_date und die dazugehoerigen Aktivitaeten im Berichtszeitraum. Niemals September-Setter durch September-Buchungen teilen, wenn die Setter aus August stammen. Uebergangsquoten ausschliesslich aus derselben Buchungsgruppe in funnel_by_source. Fehlende Buchungen nicht in diese Quoten aufnehmen.",
-  "period_bridge trennt jetzige Aktivitaeten aus jetzigen, frueheren oder fehlenden Buchungen. Neukunde zaehlt einmal am ersten verfuegbaren Won-Datum je Lead, ohne Upsell/Verlaengerung. Eine spaetere Verkaufsbestaetigung verschiebt den Kunden nicht in einen neuen Monat. Kein Unterschriftsdatum aus Notizen ableiten.",
+  "activity_by_origin und period_bridge ordnen jetzige Aktivitaeten dem ersten Setter-Termin ihres eigenen Vorgangs zu: im Zeitraum, frueher oder unbekannt. CC2-Historie bleibt innerhalb desselben Vorgangs. Niemals September-Gespraeche aus August-Vorgaengen durch neue September-Vorgaenge teilen. Uebergangsquoten nur aus derselben Vorgangskohorte; unbekannte Zuordnung nicht auffuellen.",
+  "flow.new_processes sind Vorgaenge mit Ersttermin im Zeitraum; carried_in sind aeltere Vorgaenge mit Setter-Arbeit im Zeitraum; repeat_setter_calls sind Folgegespraeche, keine neuen Qualifizierungen. unlinked_setter_calls ist fehlende Zuordnung. Diese Mengen koennen sich ueberschneiden und bilden keine additive Pipeline.",
+  "Terminlieferant und Gespraechsmitarbeiter sind getrennt: owner=linkedin ist ein Lieferkanal, keine Person. Eine LinkedIn-Zuordnung aendert nicht, wer einen tatsaechlichen Call durchgefuehrt hat. Fehlende Lieferantenzuordnung nicht aus Aktivitaetsnutzer oder aktuellem Opener erfinden.",
 ];
 
 export const REPORTING_TIMEZONE = "Europe/Berlin";
@@ -49,6 +53,12 @@ function boolean(value: unknown): boolean {
 
 function dateString(value: unknown): string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
+function timestampString(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
 function limitedText(value: unknown, maxLength = 500): string {
@@ -162,9 +172,11 @@ export const PROCESS_COUNT_KEYS = [
   "closer_calls", "cc1_sales", "cc2_sales", "cc2_agreed", "closer_lost", "closer_unrated",
 ] as const;
 const JOURNEY_KEYS = ["booked_leads","setter_arrived","closer_qualified","closer_arrived","decided_leads","sold_leads","new_customers","observed_customers","unlinked_closer","unlinked_customer","cc2_agreed","cc2_held","cc2_decided","cc2_sold","cc2_lost","cc2_waiting","cc2_open","cc2_cancelled", "cc2_no_show", "cc2_rescheduled", "cc2_missing_agreement","cc1_sold","cc1_lost"] as const;
-const BRIDGE_KEYS = ["setter_calls","setter_leads","setter_from_period_bookings","setter_from_prior_bookings","setter_without_booking","new_customers","customers_from_period_bookings","customers_from_prior_bookings","customers_without_booking","sales_after_prior_won","cc2_calls","cc1_lost","cc2_lost"] as const;
+const BRIDGE_KEYS = ["setter_calls","setter_leads","setter_processes","setter_from_period_bookings","setter_from_prior_bookings","setter_without_booking","new_customers","customers_from_period_bookings","customers_from_prior_bookings","customers_without_booking","sales_after_prior_won","cc2_calls","cc1_calls","cc1_lost","cc2_lost","cc_unassigned_calls","closer_lost_unassigned"] as const;
+const FLOW_KEYS = ["new_processes","carried_in","first_qualified","repeat_setter_calls","unlinked_setter_calls"] as const;
+const ATTENDANCE_KEYS = ["scheduled","elapsed","future","attended","no_show","cancelled","rescheduled","unknown"] as const;
 const QUALITY_KEYS = ["assessed_leads", "qualified", "followup", "disqualified", "unrated"] as const;
-const COHORT_KEYS = ["booked_leads", "setter_arrived", "not_in_setter", "pending", "no_show", "cancelled", "rescheduled", "qualified", "followup", "disqualified", "unrated", "closer_arrived", "sold_leads", "new_customers"] as const;
+const COHORT_KEYS = ["booked_leads", "setter_arrived", "not_in_setter", "pending", "future", "no_show", "cancelled", "rescheduled", "qualified", "followup", "disqualified", "unrated", "closer_arrived", "sold_leads", "new_customers"] as const;
 function counts(source: unknown, keys: readonly string[]) {
   const row = record(source);
   return Object.fromEntries(keys.map(key => [key, kpiCount(row[key])]));
@@ -173,7 +185,7 @@ function safeQualityDimensions(source: unknown) {
   const row = record(source);
   return {
     source: typeof row.source === "string" && LEAD_SOURCES.has(row.source) ? row.source : "Nicht zugeordnet",
-    owner: ["michael", "felix", "antony", "other", "unassigned"].includes(String(row.owner)) ? String(row.owner) : "unassigned",
+    owner: ["michael", "felix", "antony", "linkedin", "other", "unassigned"].includes(String(row.owner)) ? String(row.owner) : "unassigned",
   };
 }
 function aggregateCohortCounts(source: unknown, keys: readonly string[]) {
@@ -188,21 +200,30 @@ function aggregateCohortCounts(source: unknown, keys: readonly string[]) {
 }
 // Only categorical labels and aggregates: never lead IDs, names, notes or email.
 export function buildProcessInput(source: unknown) {
-  const root = record(source), period = record(root.period);
+  const root = record(source), period = record(root.period), flow = record(root.flow), coverage = record(root.coverage), attendance = record(root.setter_attendance);
+  const qualityRows = Array.isArray(root.quality_by_source) ? root.quality_by_source : null;
   return {
     period: {start: dateString(period.start), end: dateString(period.end), timezone: REPORTING_TIMEZONE},
+    flow: {...counts(flow,FLOW_KEYS),cohort_basis: flow.cohort_basis === "first_scheduled_meeting" ? "first_scheduled_meeting" : "unknown"},
+    coverage: {history_complete: boolean(coverage.history_complete),complete_period: typeof coverage.complete_period === "boolean" ? coverage.complete_period : null},
+    setter_attendance: {
+      period_start:dateString(attendance.period_start),period_end:dateString(attendance.period_end),data_as_of:timestampString(attendance.data_as_of),
+      ...counts(attendance,ATTENDANCE_KEYS),show_rate:kpiRate(attendance.attended,attendance.elapsed),
+      by_source:aggregateCohortCounts(attendance.by_source,ATTENDANCE_KEYS).slice(0,225),
+    },
     activity: counts(root.activity, PROCESS_COUNT_KEYS),
     period_bridge: counts(root.period_bridge, BRIDGE_KEYS),
     activity_by_origin: (Array.isArray(root.activity_by_origin) ? root.activity_by_origin : []).slice(0,500).map(value=>({
       ...safeQualityDimensions(value), booked_date: dateString(record(value).booked_date) || null,
-      ...counts(value,[...PROCESS_COUNT_KEYS,"new_customers"]),
+      ...counts(value,[...PROCESS_COUNT_KEYS,...BRIDGE_KEYS,"appointments"]),
     })),
     funnel_by_source: aggregateCohortCounts(root.funnel_by_source,JOURNEY_KEYS).slice(0,225),
-    lead_quality: counts(root.lead_quality, QUALITY_KEYS),
+    // Derive totals from the same process groups instead of a legacy lead total.
+    lead_quality: qualityRows ? Object.fromEntries(QUALITY_KEYS.map(key => [key,qualityRows.some(row=>kpiCount(record(row)[key])===null) ? null : qualityRows.reduce((sum,row)=>sum+Number(record(row)[key]),0)])) : counts(root.lead_quality, QUALITY_KEYS),
     quality_by_source: (Array.isArray(root.quality_by_source) ? root.quality_by_source : []).slice(0,225).map(value => {
       const row = record(value);
       return {...safeQualityDimensions(row), ...counts(row, QUALITY_KEYS),
-        attribution: ["booking_activity", "current_opener", "unassigned"].includes(String(row.attribution)) ? row.attribution : "unassigned",
+        attribution: ["sales_process", "booking_activity", "current_opener", "unassigned"].includes(String(row.attribution)) ? row.attribution : "unassigned",
         qualified_share: kpiRate(row.qualified, row.assessed_leads)};
     }),
     booking_cohort: aggregateCohortCounts(root.booking_cohort,COHORT_KEYS).slice(0,225).map(value => {
@@ -220,14 +241,29 @@ export function buildProcessInput(source: unknown) {
 export function buildPipelineInput(source: unknown) {
   const root = record(source);
   const counts = record(root.counts);
+  const persistent = boolean(root.persistent),coverage=record(root.coverage);
+  const planned = new Map<string,{month:string;stage:string;count:number}>();
+  for(const value of Array.isArray(root.next_by_month) ? root.next_by_month : []) {
+    const row=record(value),month=dateString(row.month),count=kpiCount(row.count);
+    if(!/^\d{4}-(?:0[1-9]|1[0-2])-01$/.test(month) || !["setter","closer","cc2","unassigned"].includes(String(row.stage)) || count===null) continue;
+    if(dateString(root.as_of) && month < dateString(root.as_of).slice(0,7)+"-01") continue;
+    const stage=String(row.stage),key=month+":"+stage,previous=planned.get(key);
+    planned.set(key,{month,stage,count:(previous?.count ?? 0)+count});
+  }
 
   return {
+    persistent,
     as_of: dateString(root.as_of),
+    data_as_of:timestampString(root.data_as_of),
     timezone: REPORTING_TIMEZONE,
     window_start: dateString(root.window_start),
-    retention_months: kpiCount(root.retention_months),
+    retention_months: persistent ? null : kpiCount(root.retention_months),
     counts: {
       total_open: kpiCount(counts.total_open),
+      setter_planned:kpiCount(counts.setter_planned),setter_cancelled:kpiCount(counts.setter_cancelled),
+      closer_planned:kpiCount(counts.closer_planned),cc2_planned:kpiCount(counts.cc2_planned),
+      closer_followup:kpiCount(counts.closer_followup),closer_cancelled:kpiCount(counts.closer_cancelled),
+      planning_needs_review:kpiCount(counts.planning_needs_review),
       setter_pending: kpiCount(counts.setter_pending),
       setter_followup: kpiCount(counts.setter_followup),setter_no_show:kpiCount(counts.setter_no_show),
       rescheduled_setter:kpiCount(counts.rescheduled_setter),closer_no_show:kpiCount(counts.closer_no_show),
@@ -238,8 +274,12 @@ export function buildPipelineInput(source: unknown) {
       from_previous_months: kpiCount(counts.from_previous_months),
       older_than_14_days: kpiCount(counts.older_than_14_days),
     },
+    next_by_month:[...planned.values()].sort((a,b)=>a.month.localeCompare(b.month)||a.stage.localeCompare(b.stage)).slice(0,120),
+    coverage:{unlinked_processes:kpiCount(coverage.unlinked_processes)},
     oldest_open_date: dateString(root.oldest_open_date),
-    interpretation: "Punktuelle, aggregierte offene Funnel-Stufen aus dem rollierenden Drei-Monats-Fenster; keine Ursachen oder aktiven Close-Opportunity-Statuswerte.",
+    interpretation: persistent
+      ? "Aktueller Gesamtbestand dokumentierter offener Vorgaenge zum Datenstand, unabhaengig vom Zeitraumfilter und ohne Drei-Monatsbegrenzung. Kalenderplanung ist kein ueberfaelliger Follow-up und keine Ist-Performance. Planungsliste und Stufenzaehler ueberlappen."
+      : "Aggregierter Bestand nur aus dem angegebenen gespeicherten Fenster; Vollstaendigkeit unbekannt. Kein historischer Trend und keine Kopie aktueller Close-Opportunity-Statuswerte.",
   };
 }
 

@@ -128,3 +128,15 @@ test("assistant output accepts only the strict answer field", () => {
   assert.equal(parseAssistantAnswer(response), "Die Terminquote ist stabil.");
   assert.throws(() => parseAssistantAnswer({ output: [] }));
 });
+
+test("assistant keeps reporting-period process progress separate from current future planning", () => {
+  const result=buildAssistantInput({question:"Welche Follow-ups sind offen?",period:"month",referenceDate:"2026-08-31",
+    currentMetrics:metrics,previousMetrics:metrics,currentClosing:closing,previousClosing:closing,
+    currentProcess:{flow:{new_processes:7,carried_in:2,first_qualified:3,repeat_setter_calls:4,cohort_basis:"first_scheduled_meeting"}},
+    previousProcess:{flow:{first_qualified:1}},context,
+    pipeline:{persistent:true,as_of:"2026-09-10",data_as_of:"2026-09-10T11:15:00Z",counts:{total_open:2,setter_planned:2,setter_followup:0},
+      next_by_month:[{month:"2026-10-01",stage:"setter",count:2,lead_id:"private-lead"}]}});
+  assert.equal(result.current.process.flow.first_qualified,3);assert.equal(result.comparison.process.flow.first_qualified,1);
+  assert.equal(result.open_pipeline.as_of,"2026-09-10");assert.equal(result.open_pipeline.counts.setter_followup,0);
+  assert.equal(result.open_pipeline.next_by_month[0].month,"2026-10-01");assert.equal(JSON.stringify(result).includes("private-lead"),false);
+});

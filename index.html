@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-08-calendar-basis" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-09-antony-release" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -105,18 +105,30 @@
             <div class="section-person-heading">
               <span id="antony-profile-avatar"></span>
               <div>
-                <p class="eyebrow">Closer-Strecke</p>
-                <h2 id="antony-title">Vom Termin zum Neukunden</h2>
+                <p class="eyebrow">Antony · Vertriebsübersicht</p>
+                <h2 id="antony-title">Termine, Fortschritt, Neukunden</h2>
               </div>
             </div>
-            <p class="section-note">Aktivitäten im gewählten Zeitraum</p>
+            <p class="section-note" id="antony-data-time">Aktivitäten im gewählten Zeitraum</p>
           </div>
           <div class="antony-donuts" id="antony-donuts"></div>
           <p class="chart-legend" id="antony-note"></p>
 
           <section class="antony-performance" aria-labelledby="antony-process-title">
-            <div class="antony-analysis-heading"><div><p class="eyebrow">Leadqualität und Prozess</p><h3 id="antony-process-title">Vertriebspipeline</h3></div></div>
+            <div class="antony-analysis-heading"><div><p class="eyebrow">Fortschritt</p><h3 id="antony-process-title">Vom Ersttermin zum Neukunden</h3></div></div>
             <div id="antony-process-content"></div>
+          </section>
+
+          <section class="antony-pipeline" aria-labelledby="antony-pipeline-title">
+            <div class="antony-analysis-heading">
+              <div>
+                <p class="eyebrow">Nächste Schritte</p>
+                <h3 id="antony-pipeline-title">Offen und bereits weitergeplant</h3>
+              </div>
+              <p class="section-note" id="antony-pipeline-period"></p>
+            </div>
+            <div class="antony-pipeline-grid" id="antony-pipeline-grid"></div>
+            <p class="chart-legend" id="antony-pipeline-note"></p>
           </section>
 
           <section class="antony-performance" aria-labelledby="antony-performance-title">
@@ -127,28 +139,16 @@
               </div>
               <p class="section-note" id="antony-performance-period"></p>
             </div>
-            <div class="antony-performance-summary" id="antony-performance-summary"></div>
             <div class="antony-performance-chart" id="antony-performance-chart"></div>
             <p class="chart-legend" id="antony-performance-note"></p>
           </section>
 
-          <section class="antony-pipeline" aria-labelledby="antony-pipeline-title">
-            <div class="antony-analysis-heading">
-              <div>
-                <p class="eyebrow">Offene Strecke</p>
-                <h3 id="antony-pipeline-title">Was noch bearbeitet werden muss</h3>
-              </div>
-              <p class="section-note" id="antony-pipeline-period"></p>
-            </div>
-            <div class="antony-pipeline-grid" id="antony-pipeline-grid"></div>
-            <p class="chart-legend" id="antony-pipeline-note"></p>
-          </section>
-
-          <section class="antony-potential" aria-labelledby="antony-potential-title">
+          <details class="antony-potential antony-secondary" aria-labelledby="antony-potential-title">
+            <summary><span id="antony-potential-title">Monatsausblick und Kundenwert</span><span>Modellrechnung</span></summary>
             <div class="antony-potential-heading">
               <div>
-                <p class="eyebrow">IST · Monatsausblick</p>
-                <h3 id="antony-potential-title">Monat bei gleichem Werktagstempo</h3>
+                <p class="eyebrow">Szenario · kein Ist-Ergebnis</p>
+                <h3>Monat bei gleichem Werktagstempo</h3>
               </div>
               <label class="antony-customer-value">Ø Kundenwert
                 <span class="money-input"><input id="antony-ist-customer-value" type="number" min="1" step="100" placeholder="10000" inputmode="decimal" /><span>€</span></span>
@@ -160,7 +160,7 @@
               </div>
             </div>
             <div class="antony-potential-values" id="antony-potential-values"></div>
-          </section>
+          </details>
 
           <details class="antony-planner" id="antony-planner">
             <summary>
@@ -370,6 +370,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-08-calendar-basis"></script>
+    <script type="module" src="./app.js?v=2026-09-09-antony-release"></script>
   </body>
 </html>

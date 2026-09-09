@@ -127,6 +127,46 @@ test("pipeline input exposes aggregate counts but drops raw Close details", () =
   assert.equal(serialised.includes("person@example.test"), false);
 });
 
+test("persistent pipeline preserves future planning without inflating the current stock or leaking identifiers", () => {
+  const input=buildPipelineInput({persistent:true,as_of:"2026-09-10",data_as_of:"2026-09-10T11:15:00+00:00",retention_months:3,
+    counts:{total_open:4,setter_planned:3,planning_needs_review:1,setter_followup:0,closer_followup:0,closer_cancelled:0,closer_planned:0,cc2_planned:0,lead_id:"private-lead"},
+    coverage:{unlinked_processes:1,notes:"private-note"},
+    next_by_month:[{month:"2026-10-01",stage:"setter",count:2,meeting_id:"private-meeting"},{month:"2026-10-01",stage:"setter",count:1},
+      {month:"2026-11-01",stage:"unassigned",count:1,email:"private-mail"},{month:"2026-08-01",stage:"setter",count:20},
+      {month:"2026-12-01",stage:"private-person",count:2},{month:"2026-99-01",stage:"setter",count:1},{month:"2026-12-01",stage:"setter",count:"private-count"}]
+  });
+  assert.equal(input.persistent,true);assert.equal(input.retention_months,null);assert.equal(input.data_as_of,"2026-09-10T11:15:00.000Z");
+  assert.equal(input.counts.total_open,4);assert.equal(input.counts.setter_planned,3);assert.equal(input.counts.setter_followup,0);assert.equal(input.counts.planning_needs_review,1);
+  assert.deepEqual(input.next_by_month,[{month:"2026-10-01",stage:"setter",count:3},{month:"2026-11-01",stage:"unassigned",count:1}]);
+  assert.equal(input.coverage.unlinked_processes,1);assert.equal(JSON.stringify(input).includes("private-"),false);
+});
+
+test("process input separates old work, first qualifications and due attendance while deriving quality from the same process population", () => {
+  const input=buildProcessInput({period:{start:"2026-09-01",end:"2026-09-10"},
+    flow:{new_processes:7,carried_in:2,first_qualified:3,repeat_setter_calls:4,unlinked_setter_calls:1,cohort_basis:"first_scheduled_meeting",process_id:"private-process"},
+    coverage:{history_complete:true,complete_period:true,raw:"private-history"},
+    setter_attendance:{period_start:"2026-09-01",period_end:"2026-09-10",data_as_of:"2026-09-10T11:15:00Z",scheduled:9,elapsed:7,future:2,attended:4,no_show:1,cancelled:1,rescheduled:0,unknown:1,show_rate:99,
+      by_source:[{source:"LinkedIn",owner:"linkedin",scheduled:9,elapsed:7,future:2,attended:4,lead_id:"private-lead"}]},
+    lead_quality:{assessed_leads:999,qualified:999},
+    quality_by_source:[{source:"LinkedIn",owner:"linkedin",attribution:"sales_process",assessed_leads:2,qualified:1,followup:1,disqualified:0,unrated:0,notes:"private-notes"}],
+    activity_by_origin:[{source:"LinkedIn",owner:"linkedin",booked_date:"2026-08-01",setter_calls:4,setter_from_prior_bookings:4,cc_unassigned_calls:1,closer_lost_unassigned:1,notes:"private-notes"}],
+    booking_cohort:[{source:"LinkedIn",owner:"linkedin",booked_leads:7,setter_arrived:3,future:2}]
+  });
+  assert.deepEqual(input.flow,{new_processes:7,carried_in:2,first_qualified:3,repeat_setter_calls:4,unlinked_setter_calls:1,cohort_basis:"first_scheduled_meeting"});
+  assert.equal(input.setter_attendance.show_rate,57.14);assert.equal(input.setter_attendance.future,2);assert.equal(input.setter_attendance.unknown,1);
+  assert.equal(input.setter_attendance.by_source[0].owner,"linkedin");assert.equal(input.lead_quality.assessed_leads,2);
+  assert.equal(input.quality_by_source[0].qualified_share,50);assert.equal(input.quality_by_source[0].attribution,"sales_process");
+  assert.equal(input.activity_by_origin[0].setter_from_prior_bookings,4);assert.equal(input.activity_by_origin[0].closer_lost_unassigned,1);
+  assert.equal(input.booking_cohort[0].future,2);assert.equal(JSON.stringify(input).includes("private-"),false);
+});
+
+test("missing process evidence remains unknown and future-only attendance has no show rate", () => {
+  const missing=buildProcessInput(null);assert.equal(missing.flow.first_qualified,null);assert.equal(missing.coverage.history_complete,false);
+  const future=buildProcessInput({setter_attendance:{scheduled:3,elapsed:0,future:3,attended:0,no_show:0}});
+  assert.equal(future.setter_attendance.show_rate,null);assert.equal(future.setter_attendance.no_show,0);
+  assert.equal(buildPipelineInput({data_as_of:"private-date"}).data_as_of,null);
+});
+
 test("weekly comparison covers every aggregate KPI with stable deltas", () => {
   const current = buildModelInput({
     funnel: {

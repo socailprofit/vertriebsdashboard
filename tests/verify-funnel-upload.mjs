@@ -1,0 +1,126 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {pathToFileURL} from 'node:url';
+const {PGlite}=await import(pathToFileURL(process.argv[2]).href);
+const db=new PGlite();
+const read=p=>fs.readFileSync(new URL(p,import.meta.url),'utf8');
+await db.exec(`create role anon;create role authenticated;create role service_role;
+create schema extensions;create function extensions.gen_random_uuid() returns uuid language sql as $$select gen_random_uuid()$$;
+create schema auth;create function auth.uid() returns uuid language sql as $$select '11111111-1111-1111-1111-111111111111'::uuid$$;
+create function has_dashboard_access() returns boolean language sql as $$select true$$;
+create function has_antony_access() returns boolean language sql as $$select true$$;
+create or replace function pg_catalog.now() returns timestamptz language sql stable as $$select '2026-09-10T12:00Z'::timestamptz$$;`);
+await db.exec(read('fixtures/kpi-schema.sql'));
+await db.exec('create table antony_performance_goals(id integer);');
+for(const m of ['20260907121749_normalize_transfer_opportunities','20260908071339_reconcile_antony_kpis','20260908071341_add_antony_process_metrics','20260908071707_fix_lead_snapshot_delete_guard','20260908082307_audit_complete_sales_journey','20260908085704_fix_booking_cohort_filters','20260908093505_optimize_cohort_report_plan','20260908124152_store_calendar_meetings','20260908124321_calendar_snapshot_safe_update','20260908124714_use_meeting_time_for_antony','20260908125538_retain_pre_meeting_cancellations','20260908131505_setter_meeting_attendance','20260908132556_calendar_reconciliation_execution'])await db.exec(read('../supabase/migrations/'+m+'.sql'));
+await db.exec(read('../supabase/migrations/20260908145135_lead_funnel_event_history.sql'));
+await db.exec(read('../supabase/migrations/20260908153602_stage_funnel_snapshot_inputs.sql'));
+await db.exec(read('../supabase/migrations/20260908154243_funnel_snapshot_json_envelope.sql'));
+await db.exec(read('../supabase/migrations/20260908155026_restore_complete_lead_attribution_guard.sql'));
+
+await db.exec(read('../supabase/migrations/20260908162829_stage_funnel_upload_chunks.sql'));
+await db.exec(read('../supabase/migrations/20260908163718_defer_funnel_chunk_cleanup.sql'));
+const {prepareCloseFunnelUpload,uploadCloseFunnelSnapshot}=await import('../supabase/functions/_shared/close-funnel-upload.ts');
+const M='user_PtDJ2ZbYSQx82Dht5CRc2QBLcDfRjvXKjQuOi1N5lzy';
+const row={lead_id:'lead',event_type:'setter_activity',occurred_at:'2026-08-10T08:00:00Z',meeting_id:null,previous_status:null,new_status:'published',setter_id:M,closer_id:null,source_event_id:'activity',source_kind:'custom_activity',source_updated_at:'2026-08-10T08:01:00Z',source_revision:'a'.repeat(64),payload:{date_created:'2026-08-10T08:00:00Z',status:'published',fixture:'Ü😀"\\\n'}};
+const snapshot=(at,events=[row])=>({p_start_date:'2026-07-01',p_end_date:'2026-09-10',p_snapshot_started_at:at,p_status_created_since:'2026-07-01T00:00Z',
+ p_raw:[],p_facts:[],p_opportunities:[],p_leads:[],p_bookings:[],p_meetings:[],p_calendar_leads:[],p_events:events,p_processes:[],p_meeting_relations:[],p_event_relations:[],p_funnel_leads:[]});
+let runNumber=0;
+const id=()=>`aaaaaaaa-aaaa-4aaa-8aaa-${String(++runNumber).padStart(12,'0')}`;
+const begin=p=>db.query('select begin_close_funnel_upload($1,$2,$3) j',[p.runId,p.snapshotStartedAt,JSON.stringify(p.manifest)]);
+const put=(p,c)=>db.query('select put_close_funnel_upload_chunk($1,$2,$3,$4) j',[p.runId,c.section,c.index,c.text]);
+const finalize=p=>db.query('select finalize_close_funnel_upload($1) j',[p.runId]);
+const upload=async p=>{await begin(p);for(const c of p.chunks)await put(p,c);};
+const count=async()=>Number((await db.query('select count(*) n from close_funnel_events')).rows[0].n);
+const p=await prepareCloseFunnelUpload(id(),snapshot('2026-09-10T11:40:00Z'));
+await begin(p);await begin(p);await put(p,p.chunks[0]);await put(p,p.chunks[0]);
+assert.equal(Number((await db.query('select count(*) n from close_funnel_upload_chunks')).rows[0].n),1);
+await assert.rejects(()=>finalize(p),/Incomplete or inconsistent/);assert.equal(await count(),0);
+await assert.rejects(()=>db.query('select put_close_funnel_upload_chunk($1,$2,$3,$4)',[p.runId,'p_events',0,'[]']),/checksum mismatch/);
+await assert.rejects(()=>db.query('select put_close_funnel_upload_chunk($1,$2,$3,$4)',[p.runId,'unknown',0,'[]']),/Unexpected funnel chunk/);
+await assert.rejects(()=>db.query('select put_close_funnel_upload_chunk($1,$2,$3,$4)',[p.runId,'p_events',-1,'[]']),/Unexpected funnel chunk/);
+await assert.rejects(()=>db.query('select put_close_funnel_upload_chunk($1,$2,$3,$4)',[p.runId,'p_events',0,'x'.repeat(262145)]),/chunk size/);
+const conflict=await prepareCloseFunnelUpload(p.runId,snapshot(p.snapshotStartedAt,[]));
+await assert.rejects(()=>begin(conflict),/Conflicting funnel upload identity/);
+for(const c of p.chunks)await put(p,c);
+assert.equal(await count(),0);
+const eventChunk=p.chunks.find(c=>c.section==='p_events');
+const stored=(await db.query("select sha256,payload_text from close_funnel_upload_chunks where run_id=$1 and section='p_events'",[p.runId])).rows[0];
+assert.equal(stored.sha256,eventChunk.spec.sha256);assert.equal(stored.payload_text,eventChunk.text);
+await db.query("update close_funnel_upload_chunks set payload_text='[]' where run_id=$1 and section='p_events'",[p.runId]);
+await assert.rejects(()=>finalize(p),/Incomplete or inconsistent/);assert.equal(await count(),0);
+await db.query("update close_funnel_upload_chunks set payload_text=$2 where run_id=$1 and section='p_events'",[p.runId,eventChunk.text]);
+const first=(await finalize(p)).rows[0].j;
+assert.equal(first.funnel_events,1);assert.equal(await count(),1);
+assert.deepEqual((await finalize(p)).rows[0].j,first);
+assert.deepEqual((await begin(p)).rows[0].j,{state:'committed',result:first});
+assert.equal(Number((await db.query('select count(*) n from close_funnel_upload_chunks where run_id=$1',[p.runId])).rows[0].n),p.chunks.length);
+assert.equal((await put(p,eventChunk)).rows[0].j.state,'committed');
+// A late maintenance failure cannot roll back publication or its cached result.
+await db.exec(`create function fail_chunk_cleanup_test() returns trigger language plpgsql as $$begin raise exception 'cleanup unavailable';end$$;
+create trigger fail_chunk_cleanup_test before delete on close_funnel_upload_chunks for each row execute function fail_chunk_cleanup_test();`);
+await assert.rejects(()=>db.query('select cleanup_close_funnel_upload_chunks(16)'),/cleanup unavailable/);
+assert.deepEqual((await finalize(p)).rows[0].j,first);assert.equal(await count(),1);
+assert.equal((await begin(p)).rows[0].j.state,'committed');
+await db.exec('drop trigger fail_chunk_cleanup_test on close_funnel_upload_chunks;drop function fail_chunk_cleanup_test();');
+assert.equal((await db.query('select cleanup_close_funnel_upload_chunks(3) n')).rows[0].n,3);
+assert.equal(Number((await db.query('select count(*) n from close_funnel_upload_chunks where run_id=$1',[p.runId])).rows[0].n),p.chunks.length-3);
+assert.deepEqual((await finalize(p)).rows[0].j,first);
+assert.equal((await db.query('select cleanup_close_funnel_upload_chunks(128) n')).rows[0].n,p.chunks.length-3);
+assert.deepEqual((await finalize(p)).rows[0].j,first);
+await assert.rejects(()=>put(p,eventChunk),/Committed funnel upload is immutable/);
+console.log('PASS byte-exact UTF-8 SHA-256, interrupted upload, immutable conflicts, corruption detection, atomic finalize, uncertain-response replay and source-content cleanup.');
+const stale=await prepareCloseFunnelUpload(id(),snapshot('2026-09-10T11:39:00Z',[]));await upload(stale);
+await assert.rejects(()=>finalize(stale),/Stale reconciliation snapshot/);assert.equal(await count(),1);
+assert.equal((await db.query('select state from close_funnel_uploads where run_id=$1',[stale.runId])).rows[0].state,'uploading');
+const bad=await prepareCloseFunnelUpload(id(),snapshot('2026-09-10T11:41:00Z',[{...row,lead_id:null}]));await upload(bad);
+const before=(await db.query("select snapshot_started_at from close_reconciliation_state where resource='funnel'")).rows[0].snapshot_started_at;
+await assert.rejects(()=>finalize(bad),/Invalid funnel source revisions/);
+assert.equal(await count(),1);assert.deepEqual((await db.query("select snapshot_started_at from close_reconciliation_state where resource='funnel'")).rows[0].snapshot_started_at,before);
+assert.equal((await db.query('select state from close_funnel_uploads where run_id=$1',[bad.runId])).rows[0].state,'uploading');
+const mismatch=await prepareCloseFunnelUpload(id(),snapshot('2026-09-10T11:43:00Z'));
+await db.query('select begin_close_funnel_upload($1,$2,$3)',[mismatch.runId,'2026-09-10T11:42:00Z',JSON.stringify(mismatch.manifest)]);
+for(const c of mismatch.chunks)await put(mismatch,c);
+await assert.rejects(()=>finalize(mismatch),/Funnel snapshot time mismatch/);
+const expired=await prepareCloseFunnelUpload(id(),snapshot('2026-09-10T11:20:00Z'));
+await assert.rejects(()=>begin(expired),/Invalid funnel upload snapshot time/);
+await db.query("update close_funnel_uploads set expires_at=now()-interval '1 minute' where run_id=$1",[stale.runId]);
+await assert.rejects(()=>finalize(stale),/Expired funnel upload/);
+assert.equal((await db.query('select cleanup_close_funnel_uploads(1) n')).rows[0].n,1);
+assert.equal(Number((await db.query('select count(*) n from close_funnel_upload_chunks where run_id=$1',[stale.runId])).rows[0].n),0);
+assert.equal((await finalize(p)).rows[0].j.funnel_events,1);
+console.log('PASS stale, expired, mismatched snapshot and invalid source guards preserve all published rows; bounded cleanup removes only expired private uploads.');
+for(const manifest of [{},[],{...p.manifest,extra:{rows:0,chunks:[]}}, {...p.manifest,p_events:{rows:1,chunks:[]}}, {...p.manifest,p_events:{rows:2,chunks:p.manifest.p_events.chunks}}]){
+ await assert.rejects(()=>db.query('select begin_close_funnel_upload($1,$2,$3)',[id(),p.snapshotStartedAt,JSON.stringify(manifest)]),/Invalid funnel/);
+}
+for(const role of ['anon','authenticated']){
+ await db.exec(`set role ${role}`);
+ await assert.rejects(()=>db.query('select * from public.close_funnel_uploads'),/permission denied/);
+ await assert.rejects(()=>db.query('select * from public.close_funnel_upload_chunks'),/permission denied/);
+ await assert.rejects(()=>finalize(p),/permission denied/);
+ await assert.rejects(()=>begin(p),/permission denied/);
+ await assert.rejects(()=>put(p,p.chunks[0]),/permission denied/);
+ await assert.rejects(()=>db.query('select cleanup_close_funnel_uploads()'),/permission denied/);
+ await assert.rejects(()=>db.query('select cleanup_close_funnel_upload_chunks()'),/permission denied/);
+ await db.exec('reset role');
+}
+await db.exec('set role service_role');
+await assert.rejects(()=>db.query('select * from public.close_funnel_uploads'),/permission denied/);
+assert.equal((await finalize(p)).rows[0].j.funnel_events,1);
+await db.exec('reset role');
+console.log('PASS strict manifest, real browser-role privilege denials, private tables even for service direct SQL, service-only finalization.');
+// Exercise the real uploader against narrow PostgREST-shaped request projection.
+const signatures={begin_close_funnel_upload:'p_run_id uuid,p_snapshot_started_at timestamptz,p_manifest jsonb',put_close_funnel_upload_chunk:'p_run_id uuid,p_section text,p_chunk_index integer,p_payload_text text',finalize_close_funnel_upload:'p_run_id uuid',cleanup_close_funnel_upload_chunks:'p_limit integer'};
+const received=[];
+const rpc=async(name,args)=>{
+ const body=JSON.stringify(args);received.push(Buffer.byteLength(body));
+ const keys=Object.keys(args);
+ const result=await db.query(`select pgrst_call.j from (select $1::json body) pgrst_payload
+ cross join lateral json_to_record(pgrst_payload.body) as pgrst_args(${signatures[name]})
+ cross join lateral (select public.${name}(${keys.map(k=>`${k}:=pgrst_args.${k}`).join(',')}) j) pgrst_call`,[body]);
+ return{data:result.rows[0].j,error:null};
+};
+const actual=await uploadCloseFunnelSnapshot({runId:id(),snapshot:snapshot('2026-09-10T11:45:00Z'),rpc});
+assert.equal(actual.data.funnel_events,1);assert(received.every(n=>n<=256*1024));
+console.log('PASS actual TypeScript uploader through JSON-to-record REST shape, full atomic reconciliation and bounded requests.');
+await db.close();

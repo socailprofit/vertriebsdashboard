@@ -1,16 +1,13 @@
 export const MAPPING_VERSION = "2026-09-07.antony-reconciliation";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
+const reportingTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: REPORTING_TIMEZONE,
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
+});
 
 export function metricTimeInReportingTimezone(occurredAt: string) {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: REPORTING_TIMEZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(occurredAt)).map((part) => [part.type, part.value]),
+    reportingTimeFormatter.formatToParts(new Date(occurredAt)).map((part) => [part.type, part.value]),
   );
   return {
     metricDate: `${parts.year}-${parts.month}-${parts.day}`,

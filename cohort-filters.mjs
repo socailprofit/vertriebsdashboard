@@ -6,7 +6,7 @@ export const PROCESS_ACTIVITY_KEYS = Object.freeze([
   'setter_no_shows','setter_cancellations','setter_rescheduled','closer_no_shows','closer_cancellations','closer_rescheduled',
   'closer_calls','cc1_sales','cc2_sales','cc2_agreed','closer_lost','closer_unrated','new_customers',
   'setter_from_period_bookings','setter_from_prior_bookings','setter_without_booking',
-  'cc2_calls','cc1_lost','cc2_lost','sales_after_prior_won'
+  'cc2_calls','cc1_lost','cc2_lost','cc_unassigned_calls','closer_lost_unassigned','sales_after_prior_won'
 ]);
 export function matchesAttribution(row, filters) {
   return (filters.source === 'all' || row.source === filters.source)
@@ -52,7 +52,7 @@ export function selectCohort(source, filters, scale = 'month') {
     funnel_by_source: aggregateCohortRows((source.cohort_history || source.funnel_by_source || []).filter(match)),
     booking_cohort: aggregateCohortRows((source.booking_cohort_history || source.booking_cohort || []).filter(match)),
     cohort_range: range,
-    cohort_complete: range.start >= source.coverage.retention_start,
+    cohort_complete: source.coverage?.history_complete === true || range.start >= source.coverage.retention_start,
   };
 }
 export function filteredActivity(source, filters) {

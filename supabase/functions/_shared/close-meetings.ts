@@ -9,6 +9,24 @@ const timestamp = (v: unknown): v is string => typeof v === "string"
   && /T.*(?:Z|[+-]\d{2}:?\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
 const nullableId = (v: unknown) => typeof v === "string" && v.length ? v : null;
 
+export const MEETING_PURPOSE_CODES = ["coaching", "onboarding", "video_production", "strategy_consultation", "consultation", "unclassified"] as const;
+export type MeetingPurposeCode = typeof MEETING_PURPOSE_CODES[number];
+// This categorizes the existing Setter exclusions only. In particular,
+// "consultation" grants no evidence for a Closer call or CC2 appointment.
+export function classifyMeetingPurpose(title: unknown): MeetingPurposeCode {
+  const text = typeof title === "string" ? title : "";
+  if (/coaching/i.test(text)) return "coaching";
+  if (/onboarding/i.test(text)) return "onboarding";
+  if (/videodreh/i.test(text)) return "video_production";
+  if (/strategieberatung/i.test(text)) return "strategy_consultation";
+  if (/^beratung\s*:/i.test(text)) return "consultation";
+  return "unclassified";
+}
+
+export function safeMeetingPurposeCode(value: unknown): MeetingPurposeCode {
+  return typeof value === "string" && (MEETING_PURPOSE_CODES as readonly string[]).includes(value) ? value as MeetingPurposeCode : "unclassified";
+}
+
 export function isObservedAt(eventAt: string, dataAsOf: string) {
   if (!timestamp(eventAt) || !timestamp(dataAsOf)) throw new Error("invalid_observation_timestamp");
   return Date.parse(eventAt) <= Date.parse(dataAsOf);
@@ -28,7 +46,7 @@ export type MeetingRow = {
   meeting_id: string; lead_id: string | null; contact_id: string | null; owner_id: string | null;
   starts_at: string; ends_at: string; date_created: string; date_updated: string;
   status: string | null; participant_ids: Array<{contact_id: string | null; user_id: string | null; status: string | null}>;
-  calendar_event_uids: string[]; excluded_purpose: boolean;
+  calendar_event_uids: string[]; excluded_purpose: boolean; purpose_code?: MeetingPurposeCode;
   booking_activity_id: string | null; booking_owner_id: string | null;
 };
 
@@ -61,6 +79,7 @@ export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], data
     if (!participantUsers.length) continue;
     const owner = typeof row.user_id === "string" && SALES_USERS.has(row.user_id) ? row.user_id
       : participantUsers.length === 1 ? participantUsers[0] : null;
+    const purposeCode = classifyMeetingPurpose(row.title);
     const meeting: MeetingRow = {
       meeting_id: row.id, lead_id: nullableId(row.lead_id), contact_id: nullableId(row.contact_id), owner_id: owner,
       starts_at: row.starts_at, ends_at: row.ends_at, date_created: row.date_created, date_updated: row.date_updated,
@@ -69,7 +88,7 @@ export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], data
       calendar_event_uids: Array.isArray(row.calendar_event_uids) ? row.calendar_event_uids.filter((x): x is string => typeof x === "string") : [],
       // These observed calendar categories are not Setter appointments. Titles
       // are inspected only for exclusion and are never persisted in the snapshot.
-      excluded_purpose: /coaching|onboarding|videodreh|strategieberatung|^beratung\s*:/i.test(String(row.title ?? "")),
+      excluded_purpose: purposeCode !== "unclassified", purpose_code: purposeCode,
       booking_activity_id: null, booking_owner_id: null,
     };
     const old = byId.get(meeting.meeting_id);
@@ -119,5 +138,6 @@ export function prepareMeetingSnapshot(records: Row[], bookings: Booking[], data
     future: meetings.filter(m => Date.parse(m.starts_at) > Date.parse(dataAsOf)).length,
     withoutMeeting, ambiguous, excludedPurpose: meetings.filter(m => m.excluded_purpose).length,
     withLead: meetings.filter(m => m.lead_id).length, withOwner: meetings.filter(m => m.owner_id).length,
-    withStatus: meetings.filter(m => m.status).length, withParticipants: meetings.filter(m => m.participant_ids.length).length } };
+    withStatus: meetings.filter(m => m.status).length, withParticipants: meetings.filter(m => m.participant_ids.length).length,
+    purposeCounts:Object.fromEntries(MEETING_PURPOSE_CODES.map(code=>[code,meetings.filter(m=>m.purpose_code===code).length])) } };
 }

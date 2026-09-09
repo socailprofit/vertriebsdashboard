@@ -45,6 +45,14 @@ test("only a documented booking links a sales meeting; service meetings stay out
  for(const title of ["Onboarding", "1:1 Coaching", "Videodreh", "Strategieberatung", "Beratung: Beispiel"])
   assert.equal(prepareMeetingSnapshot([meeting({title})],[booking],asOf).diagnostics.linked,0);
 });
+test("purpose codes distinguish exclusions without activating consultation appointments or retaining titles",()=>{
+ const titles=["1:1 Coaching private-name", "Onboarding private-name", "Videodreh private-name", "Strategieberatung private-name", "Beratung: private-name", "Setter private-name"];
+ const r=prepareMeetingSnapshot(titles.map((title,i)=>meeting({id:"purpose-"+i,title})),[],asOf);
+ assert.deepEqual(r.meetings.map(m=>m.purpose_code),["coaching","onboarding","video_production","strategy_consultation","consultation","unclassified"]);
+ assert.deepEqual(r.meetings.map(m=>m.excluded_purpose),[true,true,true,true,true,false]);
+ assert.equal(r.diagnostics.purposeCounts.consultation,1);assert.equal(r.diagnostics.purposeCounts.coaching,1);
+ assert.equal(r.diagnostics.linked,0);assert.equal(JSON.stringify(r).includes("private-name"),false);
+});
 test("one source booking maps to the next calendar appointment; later meetings are not invented bookings",()=>{
  const r=prepareMeetingSnapshot([meeting(),meeting({id:"followup",starts_at:"2026-11-01T09:00:00Z",ends_at:"2026-11-01T10:00:00Z"})],[booking],asOf);
  assert.equal(r.diagnostics.linked,1);assert.equal(r.meetings.find(m=>m.meeting_id==="meeting")?.booking_activity_id,"booking");

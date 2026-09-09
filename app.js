@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-08-calendar-basis";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-08-calendar-basis";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-08-calendar-basis";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-08-calendar-basis";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-antony-release";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-antony-release";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-antony-release";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-antony-release";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-08-calendar-basis";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-antony-release";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-08-calendar-basis";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-08-calendar-basis";
+import * as data from "./data.js?v=2026-09-09-antony-release";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-antony-release";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-08-calendar-basis";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-08-calendar-basis";
+} from "./call-time-score.mjs?v=2026-09-09-antony-release";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-antony-release";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -65,7 +65,7 @@ const targetFields = [
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  antony: ["Closer-Strecke", "Antony im Fokus", "Termine und Setter des Teams bis zum Neukunden kompakt nachverfolgt."],
+  antony: ["Vertriebssteuerung", "Antony im Fokus", "Leistung im Zeitraum und nächste Schritte vom Setter bis zum Neukunden."],
   chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
   betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
@@ -745,22 +745,23 @@ function renderAntonyPlannerResults(goal) {
     return;
   }
 
+  const achieved = plan.cohortActuals;
   const pipeline = [
-    ["Termine des gesamten Teams", plan.requiredAppointments, actual.appointments],
-    ["Closer-Termine", plan.requiredCloserAppointments, actual.closerAppointments],
-    ["Durchgeführte Closer Calls",plan.requiredCloserCalls,actual.closerCalls],
-    ["Entschiedene Closer Calls", plan.requiredDecidedCloserCalls, actual.decidedCloserCalls],
-    ["Verkäufe im Gespräch",plan.requiredSales,actual.sales],
-    ["Neukunden gesamt", plan.requiredCustomers, actual.newCustomers],
+    ["Vorgänge mit Ersttermin", plan.requiredAppointments, achieved.appointments],
+    ["Zum Closer qualifiziert", plan.requiredCloserAppointments, achieved.closerAppointments],
+    ["Vorgänge mit Closer Call",plan.requiredCloserCalls,achieved.closerCalls],
+    ["Entschiedene Closer Calls", plan.requiredDecidedCloserCalls, achieved.decidedCloserCalls],
+    ["Verkäufe im Gespräch",plan.requiredSales,achieved.sales],
+    ["Neukunden gesamt", plan.requiredCustomers, achieved.newCustomers],
   ];
   const pipelineMarkup = pipeline.map(([label, required, achieved]) => {
     const progress = required > 0 ? Math.min(100, (achieved / required) * 100) : 0;
-    const gap = Math.max(0, required - achieved);
+    const gap = achieved === null ? null : Math.max(0, required - achieved);
     return `
       <article class="antony-plan-step">
         <span>${label}</span>
         <strong>${number(required)}</strong>
-        <small>${number(achieved)} da · ${gap > 0 ? `noch ${number(gap)}` : "Zielmenge erreicht"}</small>
+        <small>${achieved === null ? "—" : number(achieved)} aus der Startgruppe · ${gap === null ? "Daten fehlen" : gap > 0 ? `noch ${number(gap)}` : "Zielmenge erreicht"}</small>
         <span class="antony-plan-track"><i style="width:${progress}%"></i></span>
       </article>`;
   }).join("");
@@ -776,14 +777,14 @@ function renderAntonyPlannerResults(goal) {
   const workdays = remainingPlannerWorkdays();
   const anchor = state.referenceDate === berlinToday() ? "Ab dem nächsten Arbeitstag" : `Nach dem ${germanDate(state.referenceDate)}`;
   const pace = workdays > 0
-    ? `${anchor} bleiben ${number(workdays)} Arbeitstage: Ø ${decimal(plan.gaps.appointments / workdays)} Termine des gesamten Teams und Ø ${decimal(plan.gaps.closerAppointments / workdays)} Closer-Termine pro Arbeitstag.`
-    : `Der gewählte Zeitraum enthält ab dem Stichtag keine weiteren Arbeitstage. Offen bleiben ${number(plan.gaps.appointments)} Termine und ${number(plan.gaps.customers)} Neukunden.`;
+    ? `${anchor} bleiben ${number(workdays)} Arbeitstage: Ø ${decimal(plan.gaps.appointments / workdays)} Vorgänge mit Ersttermin und Ø ${decimal(plan.gaps.closerAppointments / workdays)} zum Closer qualifizierte Vorgänge pro Arbeitstag.`
+    : `Der gewählte Zeitraum enthält ab dem Stichtag keine weiteren Arbeitstage. Offen bleiben ${number(plan.gaps.appointments)} Vorgänge mit Ersttermin und ${number(plan.gaps.customers)} Neukunden.`;
 
   container.innerHTML = `
     <div class="antony-plan-lead">
       <span>Monatsziel · ${plannerMonth}</span>
       <strong>${targetParts.join(" · ")}</strong>
-      <small>${number(plan.requiredCustomers)} Neukunden ergeben sich automatisch aus Wunschumsatz ÷ Kundenwert.</small>
+      <small>${number(plan.requiredCustomers)} Neukunden ergeben sich automatisch aus Wunschumsatz ÷ Kundenwert. Fortschritt und Raten beziehen sich auf dieselbe Startgruppe mit Ersttermin in diesem Monat.</small>
     </div>
     <div class="antony-plan-chain">${pipelineMarkup}</div>
     <div class="antony-plan-rates">${rates}</div>
@@ -859,7 +860,7 @@ function renderAntonyRateMode() {
   document.querySelector("#antony-custom-rates").hidden = !customMode;
   document.querySelector("#antony-rate-mode-copy").textContent = customMode
     ? "Fünf Annahmen: Qualifizierung, Durchführung, Entscheidung, Verkauf und Bestätigung."
-    : "Gleiche gebuchte Leads im Monat. Offene Fälle begrenzen die Aussagekraft.";
+    : "Dieselben Vorgänge mit Ersttermin im Monat. Offene Fälle begrenzen die Aussagekraft.";
 }
 
 // Antony ist eine eigene Arbeitsansicht. Die Mengen stammen vollständig aus
@@ -877,22 +878,28 @@ function renderAntony() {
   const profile = document.querySelector("#antony-profile-avatar");
   profile.innerHTML = renderDashboardAvatar("antony", "Antony Rigone");
   enableProfileImageFallbacks(profile);
-  const c = state.closing, p = state.antonyProcess, b = p?.period_bridge;
+  const c = state.closing, p = state.antonyProcess, b = p?.period_bridge, flow = p?.flow;
   const format = n => n === null || n === undefined ? "—" : number(n);
   const rows = c ? [
     ["Setter-Termine", c.appointments, "Nachweisbare Setter-Kalendertermine mit tatsächlichem Termindatum im gewählten Zeitraum. Das Erstell- oder Buchungsdatum zählt nicht. Ein verschobenes Meeting zählt nur an seinem aktuellen Datum."],
-    ["Setter Calls", c.setter_calls, b ? `Gespräche am tatsächlichen Gesprächsdatum, auch aus älteren Buchungen. ${format(b.setter_leads)} verschiedene Leads · ${format(b.setter_from_period_bookings)} Calls von Leads mit erstem Setter-Termin in diesem Zeitraum · ${format(b.setter_from_prior_bookings)} mit früherem Ersttermin · ${format(b.setter_without_booking)} ohne dokumentierten Ersttermin. Diese Gesprächszahl ist nicht der Zähler der Meeting-Showrate.` : "Durchgeführte Setter-Gespräche im ausgewählten Zeitraum."],
-    ["Closer terminiert", c.setter_successes, "Setter Calls mit dem Ergebnis „Closer terminiert“ im ausgewählten Zeitraum."],
+    ["Setter Calls", c.setter_calls, b ? `Gespräche am tatsächlichen Gesprächsdatum, auch aus älteren Buchungen. ${format(b.setter_leads)} verschiedene Leads · ${format(b.setter_from_period_bookings)} Calls aus Vorgängen mit Ersttermin in diesem Zeitraum · ${format(b.setter_from_prior_bookings)} aus älteren Vorgängen · ${format(b.setter_without_booking)} ohne dokumentierten Ersttermin. Diese Gesprächszahl ist nicht der Zähler der Meeting-Showrate.` : "Durchgeführte Setter-Gespräche im ausgewählten Zeitraum."],
+    [flow ? "Erstmals zum Closer" : "Qualifizierungen", flow ? flow.first_qualified : c.setter_successes, flow ? "Vorgänge mit ihrer ersten dokumentierten Closer-Qualifizierung im ausgewählten Zeitraum. Erneut eingetragene Qualifizierungen desselben Vorgangs zählen nicht zusätzlich. Der Vorgang kann aus einem früheren Monat stammen." : "Setter-Gesprächsergebnisse „Closer terminiert“ im ausgewählten Zeitraum. Mehrere dokumentierte Ergebnisse desselben Vorgangs können enthalten sein."],
     ["Closer Calls", c.closer_calls, b ? `${format(b.cc2_calls)} dokumentierte Folgegespräche nach CC2-Vereinbarung oder mit Ergebnis „Verkauft in CC2“.` : "Durchgeführte Closer-Gespräche von Antony, einschließlich CC2."],
     ["CC2 vereinbart", c.closer_second_calls, "Vereinbarungen im Zeitraum. Das Folgegespräch kann erst später stattfinden."],
-    ["Neukunden", c.new_customers, b ? `${format(b.customers_from_period_bookings)} aus Buchungen dieses Zeitraums · ${format(b.customers_from_prior_bookings)} aus früheren Buchungen · ${format(b.customers_without_booking)} ohne gespeicherte Buchung. Ein späteres Ja zählt einen bereits gewonnenen Kunden nicht erneut. Maßgeblich ist das Won-Datum in Close, kein aus Notizen vermutetes Unterschriftsdatum.` : "Erste gewonnene Neukunden-Opportunity je Lead, am Won-Datum in Close."],
+    ["Neukunden", c.new_customers, b ? `${format(b.customers_from_period_bookings)} aus Vorgängen mit Ersttermin im Zeitraum · ${format(b.customers_from_prior_bookings)} aus älteren Vorgängen · ${format(b.customers_without_booking)} ohne dokumentierten Ersttermin. Ein späteres Ja zählt einen bereits gewonnenen Kunden nicht erneut. Maßgeblich ist das Won-Datum in Close, kein aus Notizen vermutetes Unterschriftsdatum.` : "Erste gewonnene Neukunden-Opportunity je Lead, am Won-Datum in Close."],
   ] : [];
   container.innerHTML = rows.length ? rows.map(([label,n,detail]) => {
     const payload={title:label,time:periodCaption(),rows:[{label:"Im Zeitraum",value:format(n)}],note:detail};
     if(label === "Setter Calls" && p?.setter_by_day) payload.rows.push(...p.setter_by_day.map(row=>({label:`${germanDate(row.date)} · ${{michael:"Michael",felix:"Felix",antony:"Antony"}[row.owner] || "Weitere"}`,value:`${format(row.calls)} ${row.calls === 1 ? "Call" : "Calls"}`}))) ;
     return `<button type="button" class="antony-activity" data-chart-point="${escapeHtml(JSON.stringify(payload))}"><span>${escapeHtml(label)}</span><strong>${format(n)}</strong><span class="activity-detail-icon" aria-hidden="true">↗</span></button>`;
   }).join("") : `<p class="antony-empty">Kennzahlen für diesen Zeitraum nicht verfügbar.</p>`;
-  document.querySelector("#antony-note").textContent = `Kalendertermine und durchgeführte Gespräche ${periodCaption()} · auch aus älteren Buchungen. Für Quoten zählt jeweils die passende Grundgesamtheit. Zahlen anklicken für Details.`;
+  document.querySelector("#antony-note").textContent = flow
+    ? `${format(flow.new_processes)} Vorgänge mit Ersttermin im Zeitraum · ${format(flow.carried_in)} ältere Vorgänge im Setter bearbeitet${flow.repeat_setter_calls ? ` · ${format(flow.repeat_setter_calls)} Setter-Folgegespräche` : ""}${flow.unlinked_setter_calls ? ` · ${format(flow.unlinked_setter_calls)} Setter ${Number(flow.unlinked_setter_calls)===1?"Call":"Calls"} ohne sichere Zuordnung` : ""}`
+    : `Arbeit im Zeitraum ${periodCaption()} · einschließlich älterer Vorgänge. Zahl anklicken für Herkunft und Zeitbezug.`;
+  const dataTime = p?.setter_attendance?.data_as_of || state.antonyPipeline?.data_as_of;
+  document.querySelector("#antony-data-time").textContent = dataTime && Number.isFinite(Date.parse(dataTime))
+    ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))} · Berlin`
+    : "Aktivitäten im gewählten Zeitraum";
   renderAntonyProcess();
   renderAntonyPerformance(); renderAntonyPipeline(); renderAntonyPotential(); renderAntonyPlanner(); renderKpiAssistant();
 }
@@ -907,34 +914,26 @@ const antonyPerformanceSeries = Object.freeze([
 ]);
 
 function renderAntonyPerformance() {
-  const summary = document.querySelector("#antony-performance-summary");
   const chart = document.querySelector("#antony-performance-chart");
   const note = document.querySelector("#antony-performance-note");
   const period = document.querySelector("#antony-performance-period");
+  const timeline=state.antonyProcess?.timeline || [];
+  const hasFirstQualifications=timeline.some(point=>Object.hasOwn(point,"first_qualified")) || state.antonyProcess?.flow?.first_qualified === 0;
   const rows = (Array.isArray(state.antonyPerformance) ? state.antonyPerformance : []).map(row=>{
-    const matching=(state.antonyProcess?.timeline || []).filter(point=>state.period === "day" ? point.date===row.bucket_date && point.hour_bucket<=row.metric_hour : point.date<=row.bucket_date);
-    return {...row,...Object.fromEntries(["setter_calls","cc2_agreed","closer_sales"].map(key=>[key+"_cumulative",matching.reduce((n,point)=>n+Number(point[key]??0),0)]))};
+    const matching=timeline.filter(point=>state.period === "day" ? point.date===row.bucket_date && point.hour_bucket<=row.metric_hour : point.date<=row.bucket_date);
+    return {...row,...Object.fromEntries(["setter_calls","cc2_agreed","closer_sales"].map(key=>[key+"_cumulative",matching.reduce((n,point)=>n+Number(point[key]??0),0)])),
+      ...(hasFirstQualifications?{closer_appointments_cumulative:matching.reduce((n,point)=>n+Number(point.first_qualified??0),0)}:{})};
   });
-  const closing = state.closing ?? {};
-  const summaryValues = [
-    ["Termine", closing.appointments ?? null, "Michael + Felix + Antony"],
-    ["Closer terminiert", closing.setter_successes ?? null, "aus Setter Calls"],
-    ["Closer durchgeführt", closing.closer_calls ?? null, "Antony"],
-    ["Neukunden", closing.new_customers ?? null, "Won-Datum"],
-  ];
-
   period.textContent = periodCaption();
-  summary.innerHTML = summaryValues.map(([label, value, detail]) => `
-    <article><span>${label}</span><strong>${number(value)}</strong><small>${detail}</small></article>`).join("");
 
   if (rows.length < 2) {
     chart.innerHTML = `<p class="antony-analysis-empty">Für diesen Zeitraum liegen noch nicht genug Zeitpunkte für einen Verlauf vor.</p>`;
-    note.textContent = "Die Summen darüber bleiben vollständig; der Graph erscheint ab zwei Zeitpunkten.";
+    note.textContent = "Die Kennzahlen oben bleiben verfügbar. Der Verlauf erscheint ab zwei Zeitpunkten.";
     return;
   }
 
   const visibleSeries = antonyPerformanceSeries.filter((series) =>
-    state.period !== "day" || series.key !== "new_customers_cumulative");
+    state.period !== "day" || series.key !== "new_customers_cumulative").map(series=>series.key === "closer_appointments_cumulative" ? {...series,label:hasFirstQualifications ? "Erstmals zum Closer" : "Qualifizierungen (alle Ergebnisse)"} : series);
   const width = 960;
   const height = 300;
   const pad = { left: 42, right: 20, top: 20, bottom: 28 };
@@ -987,7 +986,7 @@ function renderAntonyPerformance() {
 
   note.textContent = state.period === "day"
     ? `Jeder Punkt zeigt die bis zu diesem Stundenabschnitt aufsummierte Anzahl; eine waagerechte Linie bedeutet keinen Zuwachs. Zeitraum ${rows[0].bucket_label} bis ${rows.at(-1).bucket_label} Uhr (Berlin), einschließlich Gesprächen vor 08 oder nach 17 Uhr. Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält.`
-    : "Aufsummierte Aktivitäten aller Quellen bis zum Datum. Punkt anklicken für die Werte; frühere Terminbuchungen sind enthalten.";
+    : "Aktivitäten aller Quellen am Ereignisdatum, aufsummiert. Punkt anklicken für Datum und Werte.";
 }
 
 function renderAntonyProcess() {
@@ -1000,28 +999,26 @@ function renderAntonyProcess() {
     container.innerHTML = `<p class="antony-analysis-empty">Für diesen Zeitraum liegt kein vollständiger Datenbestand vor. Verfügbar ab ${escapeHtml(germanDate(source.coverage.retention_start))}.</p>`;return;
   }
   const choices = [source,state.antonyProcessQuarter].flatMap(item=>[...(item?.cohort_history || []),...(item?.activity_by_origin || []),...(item?.quality_by_source || [])]);
-  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
+  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",linkedin:"LinkedIn",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
   const sources = [...new Set(choices.map(row=>row.source))].sort();
   const suppliers = [...new Set(choices.map(row=>row.owner))].sort(), filters = state.antonyProcessFilters;
   if (filters.source !== "all" && !sources.includes(filters.source)) filters.source="all";
   if (filters.owner !== "all" && !suppliers.includes(filters.owner)) filters.owner="all";
   const scale = state.period === "month" ? "month" : "week";
-  const groups = [...new Set((source.cohort_history || []).map(row=>bookingBucket(row.booked_date,scale)))].filter(date=>date && date>=source.coverage.retention_start).sort().reverse();
+  const groups = [...new Set((source.cohort_history || []).map(row=>bookingBucket(row.booked_date,scale)))].filter(date=>date && (source.coverage?.history_complete === true || date>=source.coverage.retention_start)).sort().reverse();
   if(filters.cohort !== "period" && !groups.includes(filters.cohort)) filters.cohort="period";
   const selected=selectCohort(source,filters,scale);
   const options = (items,key,labels={}) => items.map(v=>`<option value="${escapeHtml(v)}"${filters[key]===v?" selected":""}>${escapeHtml(labels[v] || v)}</option>`).join("");
-  const toolbar = `<div class="process-toolbar"><p class="process-scope">Filter für Pipeline und Gesprächsergebnisse</p>
+  const toolbar = `<div class="process-toolbar"><p class="process-scope">Quelle und Terminlieferant</p>
     <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Terminlieferant<select data-process-filter="owner"><option value="all">Alle Terminlieferanten</option>${options(suppliers,"owner",owners)}</select></label></div></div>`;
   if(futurePeriod) {
     container.innerHTML=toolbar+renderSetterAttendance(source);
     return;
   }
-  container.innerHTML = toolbar+`<div class="cohort-heading"><div><h4>Fortschritt derselben gebuchten Leads</h4><p>Erster Setter-Termin ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt bis ${escapeHtml(germanDate(source.period.end))}</p></div>
-    <label class="cohort-select">Buchungsgruppe<select data-process-filter="cohort"><option value="period"${filters.cohort==="period"?" selected":""}>Erste Setter-Termine im gewählten Zeitraum</option>${options(groups,"cohort",Object.fromEntries(groups.map(v=>[v,bookingGroupLabel(v,scale)])))}</select></label></div>
+  container.innerHTML = `<div class="process-controls">${toolbar}<label class="cohort-select">Ersttermin-Gruppe<select data-process-filter="cohort"><option value="period"${filters.cohort==="period"?" selected":""}>Ersttermine im gewählten Zeitraum</option>${options(groups,"cohort",Object.fromEntries(groups.map(v=>[v,bookingGroupLabel(v,scale)])))}</select></label></div><p class="process-cohort-caption">Ersttermine ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt dieser Vorgänge bis ${escapeHtml(germanDate(source.period.end))}</p>
     ${selected.cohort_complete?renderProcessPipeline(selected):`<p class="process-data-gap">Für diese Buchungsgruppe ist der gespeicherte Verlauf unvollständig. Deshalb werden keine Übergangsquoten berechnet.</p>`}
-    ${renderLeadQualityTables(selected)}
     ${renderSetterAttendance(source)}
-    ${renderPeriodOutcomes(source)}`;
+    <details class="antony-secondary"><summary><span>Gesprächsergebnisse und Leadqualität</span><span>Ergebnisse im Zeitraum</span></summary>${renderPeriodOutcomes(source)}${renderLeadQualityTables(selected)}</details>`;
   const quarter=state.antonyProcessQuarter ? selectCohort(state.antonyProcessQuarter,{...filters,cohort:"period"},"month") : null;
   if(state.period==="month" && quarter?.funnel_by_source && quarter.coverage?.complete_period !== false)container.insertAdjacentHTML("beforeend",`<details class="chart-values"><summary>Drei-Monats-Rückblick · erste Setter-Termine ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</summary>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}${renderSetterAttendance(quarter)}${renderPeriodOutcomes(quarter)}</details>`);
 }
@@ -1037,13 +1034,8 @@ function renderSetterAttendance(source) {
   if(!Array.isArray(metric?.by_source)) return "";
   const t=totalCounts(metric.by_source.filter(matchesProcessFilter),["scheduled","elapsed","future","attended","no_show","cancelled","rescheduled","unknown"]);
   const item=(label,n)=>`<div><dt>${label}</dt><dd>${number(n)}</dd></div>`;
-  return `<section class="period-outcomes" aria-label="Setter-Showrate"><div class="antony-analysis-heading"><h3>Setter-Showrate</h3><span>Kalendertermine ${escapeHtml(germanDate(metric.period_start))} – ${escapeHtml(germanDate(metric.period_end))}</span></div>
-    <div class="process-branches"><section><h4>Teilnahme an fälligen Terminen</h4><dl>
-      <div><dt>Nachweislich durchgeführt</dt><dd>${processRate(t.attended,t.elapsed,"fällige Termine")}</dd></div>
-      ${item("Geplante Termine im Zeitraum",t.scheduled)}${item("Davon noch zukünftig · ohne Bewertung",t.future)}
-    </dl></section><section><h4>Verlauf der fälligen Termine</h4><dl>
-      ${item("Durchgeführt",t.attended)}${item("Nicht erschienen",t.no_show)}${item("Abgesagt",t.cancelled)}${t.rescheduled?item("Verschoben · neues Datum noch offen",t.rescheduled):""}${item("Ergebnis noch nicht dokumentiert",t.unknown)}
-    </dl></section></div><p class="process-footnote">${number(t.attended)} durchgeführt / ${number(t.elapsed)} fällige Kalendertermine. Zukunftstermine bleiben außerhalb der Quote. Setter Calls zählen am Gesprächsdatum, auch aus älteren Buchungen; die Showrate berücksichtigt nur passende Kalendertermine. Fehlende Nachweise sind keine No-Shows.</p></section>`;
+  return `<section class="setter-attendance" aria-label="Setter-Showrate"><div class="attendance-overview"><div><h4>Setter-Showrate</h4>${processRate(t.attended,t.elapsed,"fällige Kalendertermine")}</div><p><b>${number(t.scheduled)}</b> geplant im Zeitraum${t.future ? `<span>${number(t.future)} noch zukünftig · ohne Bewertung</span>` : ""}</p></div>
+    <details class="antony-secondary"><summary><span>Teilnahme und Terminausfälle</span><span>${escapeHtml(germanDate(metric.period_start))} – ${escapeHtml(germanDate(metric.period_end))}</span></summary><dl class="attendance-outcomes">${item("Durchgeführt",t.attended)}${item("Nicht erschienen",t.no_show)}${item("Abgesagt",t.cancelled)}${t.rescheduled?item("Verschoben · neues Datum noch offen",t.rescheduled):""}${item("Ergebnis noch nicht dokumentiert",t.unknown)}</dl><p class="process-footnote">Nur fällige, zugeordnete Kalendertermine zählen in die Quote. Fehlende Nachweise sind keine No-Shows. Die Anzahl der Setter Calls enthält auch weitere Gespräche außerhalb dieser Termine.</p></details></section>`;
 }
 
 function renderPeriodOutcomes(source) {
@@ -1053,12 +1045,12 @@ function renderPeriodOutcomes(source) {
   const setterBase=a.setter_calls,decided=Number(a.cc1_sales)+Number(a.cc2_sales)+Number(a.closer_lost);
   const row=(label,n,d,basis)=>`<div><dt>${escapeHtml(label)}</dt><dd>${processRate(n,d,basis)}</dd></div>`;
   return `<section class="period-outcomes"><div class="antony-analysis-heading"><h3>Ergebnisse der Gespräche</h3><span>${escapeHtml(germanDate(source.period.start))} – ${escapeHtml(germanDate(source.period.end))} · gewählte Quelle und Terminlieferant</span></div>
-    <div class="process-branches"><section><h4>Setter · ${number(setterBase)} Calls</h4><dl>
-      ${row("Zum Closer qualifiziert",a.setter_qualified,setterBase,"Setter Calls")}${row("Follow-up nötig",a.setter_followups,setterBase,"Setter Calls")}${row("Disqualifiziert",a.setter_disqualified,setterBase,"Setter Calls")}${a.setter_unrated?row("Ergebnis unklar",a.setter_unrated,setterBase,"Setter Calls"):""}</dl></section>
+    <div class="process-branches"><section><h4>Setter · ${number(setterBase)} Gespräche im Zeitraum</h4><dl>
+      ${row("Zum Closer qualifiziert",a.setter_qualified,setterBase,"Setter Calls")}${row("Ergebnis: Follow-up",a.setter_followups,setterBase,"Setter Calls")}${row("Disqualifiziert",a.setter_disqualified,setterBase,"Setter Calls")}${a.setter_unrated?row("Ergebnis unklar",a.setter_unrated,setterBase,"Setter Calls"):""}</dl></section>
     <section><h4>Closer · ${number(a.closer_calls)} Calls</h4><dl>
       ${row("Entschieden",decided,a.closer_calls,"Closer Calls")}${row("Abschlussquote",Number(a.cc1_sales)+Number(a.cc2_sales),decided,"Entscheidungen")}${row("CC2 vereinbart",a.cc2_agreed,a.closer_calls,"Closer Calls")}${a.closer_unrated?row("Ergebnis unklar",a.closer_unrated,a.closer_calls,"Closer Calls"):""}</dl></section></div>
     <details class="chart-values"><summary>CC1, CC2, Herkunft und ausgefallene Termine</summary><div class="chart-table-scroll"><table><thead><tr><th scope="col">Kennzahl</th><th scope="col">Anzahl</th></tr></thead><tbody>
-      ${[["CC2 / Folgegespräche durchgeführt",b.cc2_calls],["Direkt im CC1 verkauft",a.cc1_sales],["Im CC2 verkauft",a.cc2_sales],["Nicht verkauft nach CC2-Vereinbarung",b.cc2_lost],["Nicht verkauft ohne dokumentierte CC2-Vereinbarung",b.cc1_lost],["Setter: nicht erschienen",a.setter_no_shows],["Setter: abgesagt",a.setter_cancellations],["Setter: verschoben",a.setter_rescheduled],["Closer: nicht erschienen",a.closer_no_shows],["Closer: abgesagt",a.closer_cancellations],["Closer: verschoben",a.closer_rescheduled],["Setter Calls von Leads mit Ersttermin im Zeitraum",b.setter_from_period_bookings],["Setter Calls von Leads mit früherem Ersttermin",b.setter_from_prior_bookings],["Setter Calls ohne dokumentierten Ersttermin",b.setter_without_booking],["Spätere Verkaufsbestätigung nach bereits erfasstem Won",b.sales_after_prior_won]].map(([label,n])=>`<tr><th scope="row">${escapeHtml(label)}</th><td>${n==null?"—":number(n)}</td></tr>`).join("")}</tbody></table></div>
+      ${[["CC2 / Folgegespräche durchgeführt",b.cc2_calls],["Direkt im CC1 verkauft",a.cc1_sales],["Im CC2 verkauft",a.cc2_sales],["Nicht verkauft nach CC2-Vereinbarung",b.cc2_lost],["Nicht verkauft im CC1",b.cc1_lost],["Closer-Stufe nicht sicher zugeordnet",b.cc_unassigned_calls],["Nicht verkauft · Stufe ungeklärt",b.closer_lost_unassigned],["Setter: nicht erschienen",a.setter_no_shows],["Setter: abgesagt",a.setter_cancellations],["Setter: verschoben",a.setter_rescheduled],["Closer: nicht erschienen",a.closer_no_shows],["Closer: abgesagt",a.closer_cancellations],["Closer: verschoben",a.closer_rescheduled],["Setter Calls aus Vorgängen mit Ersttermin im Zeitraum",b.setter_from_period_bookings],["Setter Calls aus älteren Vorgängen",b.setter_from_prior_bookings],["Setter Calls ohne dokumentierten Ersttermin",b.setter_without_booking],["Spätere Verkaufsbestätigung nach bereits erfasstem Won",b.sales_after_prior_won]].map(([label,n])=>`<tr><th scope="row">${escapeHtml(label)}</th><td>${n==null?"—":number(n)}</td></tr>`).join("")}</tbody></table></div>
     <p class="chart-legend">CC2-Durchführung: ein späterer Closer Call nach einer CC2-Vereinbarung oder das ausdrückliche Ergebnis „Verkauft in CC2“. Mehrere Gespräche zählen einzeln. Unvollständige Historie beweist keine CC1-Zuordnung. Setter-No-Shows werden nur mit eindeutig zugeordnetem, fälligem Kalendertermin ausgewertet.</p></details></section>`;
 }
 
@@ -1071,23 +1063,23 @@ function renderProcessPipeline(source) {
   const t=totalCounts(rows,JOURNEY_KEYS), format=n=>n===null?"—":number(n);
   const branches=totalCounts(source.booking_cohort?.filter(matchesProcessFilter),["not_in_setter","pending","future","no_show","cancelled","rescheduled","setter_arrived","qualified","followup","disqualified","unrated"]);
   const stages=[
-    ["booked_leads","Erster Setter-Termin",null,"Startbasis","Jeder gebuchte Lead zählt einmal. Maßgeblich ist das Kalenderdatum des ersten zugeordneten Setter-Termins. Eine eindeutige Verschiebung ändert dieses Datum. Offene und zukünftige Termine bleiben in der Startbasis."],
-    ["setter_arrived","Setter durchgeführt","booked_leads","gebuchte Leads","Mindestens ein Setter Call ab dem ersten Setter-Termin. Diese Fortschrittsquote ist keine bereinigte Showrate, da offene Termine enthalten sind."],
-    ["closer_qualified","Closer terminiert","setter_arrived","Setter-Leads","Nach dem Setter ist mindestens einmal „Closer terminiert“ dokumentiert. Der aktuelle Setter-Status steht unter der Pipeline."],
-    ["closer_arrived","Closer durchgeführt","closer_qualified","Closer-Termine","Mindestens ein Closer Call von Antony nach der dokumentierten Qualifizierung. Fehlende Vorstufen werden separat ausgewiesen."],
-    ["cc2_agreed","CC2 vereinbart","closer_arrived","Closer-Leads","Optional: Wird direkt im ersten Closer Call gekauft, wird dieser Schritt übersprungen. Die weiteren Quoten berücksichtigen CC1 und CC2 gemeinsam."],
-    ["observed_customers","Neukunde","booked_leads","gebuchte Leads","Der Verkauf wird einmal als Neukunde gezählt, sobald die Neukunden-Opportunity in Close gewonnen ist. Ein Abschluss im ersten Closer Call überspringt CC2. Diese Gesamtquote zeigt Neukunden aus allen gebuchten Leads; ein separates Verkaufsergebnis im Gespräch ist keine Voraussetzung. Fehlende Zwischenschritte bleiben gekennzeichnet."],
+    ["booked_leads","Erster Setter-Termin",null,"Startbasis","Jeder dokumentierte Vorgang zählt einmal. Die Gruppe richtet sich nach dem ersten zugeordneten Setter-Kalendertermin. Ersatztermine erzeugen keinen weiteren Vorgang. Eine eindeutige Verschiebung des noch nicht durchgeführten Ersttermins ändert dessen Kalenderzuordnung."],
+    ["setter_arrived","Setter durchgeführt","booked_leads","Vorgänge mit Ersttermin","Mindestens ein Setter Call ab dem ersten Setter-Termin. Diese Fortschrittsquote ist keine bereinigte Showrate, da offene Termine enthalten sind."],
+    ["closer_qualified","Closer qualifiziert","setter_arrived","Setter-Vorgänge","Nach dem Setter ist mindestens einmal „Closer terminiert“ dokumentiert. Der aktuelle Setter-Status steht unter der Pipeline."],
+    ["closer_arrived","Closer durchgeführt","closer_qualified","qualifizierte Vorgänge","Mindestens ein Closer Call von Antony nach der dokumentierten Qualifizierung. Fehlende Vorstufen werden separat ausgewiesen."],
+    ["cc2_agreed","CC2 vereinbart","closer_arrived","Closer-Vorgänge","Optional: Wird direkt im ersten Closer Call gekauft, wird dieser Schritt übersprungen. Die weiteren Quoten berücksichtigen CC1 und CC2 gemeinsam."],
+    ["observed_customers","Neukunde","booked_leads","Vorgänge mit Ersttermin","Der Verkauf wird einmal als Neukunde gezählt, sobald die Neukunden-Opportunity in Close gewonnen ist. Ein Abschluss im ersten Closer Call überspringt CC2. Diese Gesamtquote zeigt Neukunden aus allen Vorgängen der gewählten Ersttermin-Gruppe; ein separates Verkaufsergebnis im Gespräch ist keine Voraussetzung. Fehlende Zwischenschritte bleiben gekennzeichnet."],
   ];
   const stage=(key,title,base,basis,detail,index,extra="")=>{
     const rate=base?transition(t[key],t[base]).rate:null;
     return `<details class="process-stage ${extra}"><summary aria-label="${escapeHtml(title)}: ${format(t[key])}. Details anzeigen."><span class="process-node" aria-hidden="true">${index}</span><span class="process-stage-title">${title}${key==="cc2_agreed"?`<small class="process-optional-label">optional</small>`:""}</span><strong data-process-count="${key}">${format(t[key])}</strong>${base?`<progress max="100" value="${rate??0}" aria-label="Anteil ${escapeHtml(basis)}"></progress>${processRate(t[key],t[base],basis)}`:`<span class="process-start">Startbasis</span>`}<span class="process-detail-toggle">Details <span aria-hidden="true">⌄</span></span></summary><div class="process-stage-detail">${escapeHtml(detail)}${key==="cc2_agreed"?`<dl class="cc2-inline-details"><dt>Durchgeführt / vereinbart</dt><dd>${processRate(t.cc2_held,t.cc2_agreed)}</dd><dt>Entschieden / durchgeführt</dt><dd>${processRate(t.cc2_decided,t.cc2_held)}</dd><dt>Verkauft / entschieden</dt><dd>${processRate(t.cc2_sold,t.cc2_decided)}</dd></dl><p>${format(t.cc2_waiting)} warten · ${format(t.cc2_open)} nach CC2 offen · ${format(t.cc2_lost)} verloren</p>${[["cc2_cancelled","abgesagt"],["cc2_no_show","nicht erschienen"],["cc2_rescheduled","verschoben"]].filter(([k])=>t[k]>0).map(([k,label])=>`<p>${format(t[k])} ${label}</p>`).join("")}`:""}</div></details>`;
   };
   const branch=(title,key,base)=>`<div><dt>${title}</dt><dd>${processRate(branches[key],branches[base],"")}</dd></div>`;
-  return `<div class="process-flow" aria-label="Pipeline der gebuchten Leads"><div class="process-rail">${stages.map((v,i)=>stage(...v,i+1,v[0]==="observed_customers"?"process-stage-won":v[0]==="cc2_agreed"?"process-stage-optional":"")).join("")}</div>
-    <div class="process-branches"><section><h4>Vor dem Setter · ${format(branches.not_in_setter)} Leads</h4><dl>${branches.future?branch("Zukünftig geplant · ohne Bewertung","future","not_in_setter"):""}${branch("Noch kein Setter / Status","pending","not_in_setter")}${branch("Nicht erschienen","no_show","not_in_setter")}${branch("Abgesagt","cancelled","not_in_setter")}${branch("Verschoben","rescheduled","not_in_setter")}</dl></section>
-    <section><h4>Letztes Setter-Ergebnis · ${format(branches.setter_arrived)} Leads</h4><dl>${branch("Zum Closer qualifiziert","qualified","setter_arrived")}${branch("Follow-up nötig","followup","setter_arrived")}${branch("Disqualifiziert","disqualified","setter_arrived")}${branches.unrated?branch("Ergebnis unklar","unrated","setter_arrived"):""}</dl></section></div>
+  return `<div class="process-flow" aria-label="Pipeline derselben Vorgänge"><div class="process-rail">${stages.map((v,i)=>stage(...v,i+1,v[0]==="observed_customers"?"process-stage-won":v[0]==="cc2_agreed"?"process-stage-optional":"")).join("")}</div>
+    <details class="antony-secondary process-history"><summary><span>Ergebnisse dieser Ersttermin-Gruppe</span><span>Historischer Fortschritt</span></summary><div class="process-branches"><section><h4>Noch ohne Setter · ${format(branches.not_in_setter)} Vorgänge</h4><dl>${branches.future?branch("Zukünftig geplant · ohne Bewertung","future","not_in_setter"):""}${branch("Noch kein Setter / Status","pending","not_in_setter")}${branch("Nicht erschienen","no_show","not_in_setter")}${branch("Abgesagt","cancelled","not_in_setter")}${branch("Verschoben","rescheduled","not_in_setter")}</dl></section>
+    <section><h4>Letztes Setter-Ergebnis · ${format(branches.setter_arrived)} Vorgänge</h4><dl>${branch("Zum Closer qualifiziert","qualified","setter_arrived")}${branch("Ergebnis: Follow-up","followup","setter_arrived")}${branch("Disqualifiziert","disqualified","setter_arrived")}${branches.unrated?branch("Ergebnis unklar","unrated","setter_arrived"):""}</dl></section></div><p class="process-footnote">Gesprächsergebnisse dieser Gruppe. Bereits vereinbarte Folgetermine und aktueller Handlungsbedarf stehen unter „Offen und bereits weitergeplant“.</p></details>
     ${t.unlinked_closer||t.unlinked_customer||t.cc2_missing_agreement?`<details class="process-data-gap"><summary>Dokumentationslücken: ${format(t.unlinked_closer)} Closer · ${format(t.unlinked_customer)} Neukunden · ${format(t.cc2_missing_agreement)} CC2</summary><p>Diese Ergebnisse sind bestätigt, aber ihre vorherigen Schritte fehlen im gespeicherten Verlauf. Sie bleiben in den Zeitraumzahlen enthalten und werden nicht zu erfundenen Übergängen. Neukunden dieser Buchungsgruppe insgesamt: ${format(t.observed_customers)}.</p></details>`:""}
-    <p class="process-footnote">CC2 ist optional. Die Neukundenquote bezieht sich auf alle gebuchten Leads und berücksichtigt Abschlüsse aus CC1 und CC2. — = keine Grundgesamtheit. ${t.booked_leads>0&&t.booked_leads<5?"Kleine Basis: noch keine belastbare Leistungsbewertung.":""}</p></div>`;
+    <p class="process-footnote">CC2 ist optional. Neukunden / Ersttermine umfasst Abschlüsse aus CC1 und CC2. ${t.booked_leads>0&&t.booked_leads<5?"Kleine Stichprobe.":""}</p></div>`;
 }
 
 document.querySelector("#antony-process-content").addEventListener("change",event=>{
@@ -1101,64 +1093,79 @@ document.querySelector("#antony-process-content").addEventListener("change",even
 function renderLeadQualityTables(source) {
   const value = n => n === null || n === undefined ? "—" : number(n);
   const share = (n,d) => n === null || n === undefined || !d ? "—" : `${new Intl.NumberFormat("de-DE", {maximumFractionDigits:2}).format(n / d * 100)} %`;
-  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
+  const owners = {michael:"Michael",felix:"Felix",antony:"Antony",linkedin:"LinkedIn",other:"Weitere Terminlieferanten",unassigned:"Nicht zugeordnet"};
   const identity = row => `${escapeHtml(row.source)} · ${escapeHtml(owners[row.owner] || "Nicht zugeordnet")}`;
   const rows = (Array.isArray(source.booking_cohort) ? source.booking_cohort : []).filter(matchesProcessFilter);
   const quality = (Array.isArray(source.quality_by_source) ? source.quality_by_source : []).filter(matchesProcessFilter);
   const table = (caption,heads,body) => `<div class="chart-table-scroll"><table><caption>${caption}</caption><thead><tr>${heads.map(h=>`<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   const cells = (row,keys) => keys.map(key=>`<td>${value(row[key])}</td>`).join("");
-  const bookingTable = rows.length ? table("Eindeutige Leads der gewählten Erstbuchungsgruppe; Ergebnisse bis zum Stichtag.",
-    ["Quelle · Terminlieferant","Gebucht","Im Setter","Anteil im Setter","Zum Closer qualifiziert","Disqualifiziert","Setter-Follow-up","Setter-Ergebnis fehlt"],
+  const bookingTable = rows.length ? table("Vorgänge der gewählten Ersttermin-Gruppe; Ergebnisse bis zum Stichtag.",
+    ["Quelle · Terminlieferant","Vorgänge","Im Setter","Anteil im Setter","Zum Closer qualifiziert","Disqualifiziert","Setter-Follow-up","Setter-Ergebnis fehlt"],
     rows.map(row=>`<tr><th scope="row">${identity(row)}</th>${cells(row,["booked_leads","setter_arrived"])}<td>${processRate(row.setter_arrived,row.booked_leads)}</td>${cells(row,["qualified","disqualified","followup","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine Terminbuchungen im gewählten Zeitraum erfasst.</p>`;
-  const remainderTable = rows.length ? table("Noch nicht im Setter: letzter erfasster Terminstatus. Spätere Prozessstufen: je Lead einmal gezählt.",
+  const remainderTable = rows.length ? table("Noch nicht im Setter: letzter erfasster Terminstatus. Spätere Prozessstufen: je Vorgang einmal gezählt.",
     ["Quelle · Terminlieferant","Noch kein Setter/Status","Nicht erschienen","Abgesagt","Verschoben","Im Closer","Verkauft laut Gespräch","Neukunde laut Won"],
     rows.map(row=>`<tr><th scope="row">${identity(row)}</th>${cells(row,["pending","no_show","cancelled","rescheduled","closer_arrived","sold_leads","new_customers"])}</tr>`).join("")) : "";
-  const qualityTable = quality.length ? table("Alle im Zeitraum bearbeiteten Setter-Leads – auch mit einer früheren Terminbuchung. Letztes Setter-Ergebnis je Lead.",
+  const qualityTable = quality.length ? table("Im Zeitraum bearbeitete Setter-Vorgänge, einschließlich älterer Vorgänge. Letztes Setter-Ergebnis je Vorgang.",
     ["Quelle · Terminlieferant","Zuordnung","Im Setter","Zum Closer","Qualifiziert / im Setter","Follow-up","Disqualifiziert","Ergebnis fehlt"],
-    quality.map(row=>`<tr><th scope="row">${identity(row)}</th><td>${row.attribution === "booking_activity" ? "Terminbuchung" : row.attribution === "current_opener" ? "Aktueller Opener (Ersatz)" : "Unbekannt"}</td>${cells(row,["assessed_leads","qualified"])}<td>${processRate(row.qualified,row.assessed_leads)}</td>${cells(row,["followup","disqualified","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine durchgeführten Setter Calls in diesem Zeitraum erfasst.</p>`;
-  return `<details class="chart-values"><summary>Vergleich nach Quelle und Terminlieferant · gebuchte Leads</summary>${bookingTable}
-    <p class="chart-legend">Der tatsächliche Bucher erhält die Zuordnung. Das Kalenderdatum des ersten Setter-Termins legt die Gruppe fest; der ursprüngliche Bucher bleibt Terminlieferant. „Anteil im Setter“ zeigt den Fortschritt bis zum Stichtag; zukünftige oder noch offene Termine sind enthalten. Das ist keine bereinigte Teilnahmequote.</p>
-    ${remainderTable}<p class="chart-legend">Nicht erschienen, abgesagt und verschoben zählen hier nur für Leads, die anschließend noch nicht im Setter waren. Diese Ergebnisse sind keine Disqualifikation. Verkaufsgespräch und gewonnene Opportunity sind eigenständige Nachweise; einer kann fehlen.</p></details>
-    <details class="chart-values"><summary>Qualifizierung aller Setter-Leads im Zeitraum</summary>${qualityTable}
+    quality.map(row=>`<tr><th scope="row">${identity(row)}</th><td>${row.attribution === "sales_process" ? "Dokumentierter Vorgang" : row.attribution === "booking_activity" ? "Terminbuchung" : row.attribution === "current_opener" ? "Aktueller Opener (Ersatz)" : "Unbekannt"}</td>${cells(row,["assessed_leads","qualified"])}<td>${processRate(row.qualified,row.assessed_leads)}</td>${cells(row,["followup","disqualified","unrated"])}</tr>`).join("")) : `<p class="section-note">Keine durchgeführten Setter Calls in diesem Zeitraum erfasst.</p>`;
+  return `<details class="chart-values"><summary>Vergleich nach Quelle und Terminlieferant · Vorgänge</summary>${bookingTable}
+    <p class="chart-legend">Das Kalenderdatum des ersten Setter-Termins legt die Gruppe fest. Der Lieferant wird aus der dokumentierten Buchung und ausdrücklich festgelegten Kanalregeln zugeordnet. „Anteil im Setter“ zeigt den Fortschritt bis zum Stichtag; zukünftige oder noch offene Termine sind enthalten. Das ist keine bereinigte Teilnahmequote.</p>
+    ${remainderTable}<p class="chart-legend">Nicht erschienen, abgesagt und verschoben zählen hier nur für Vorgänge, die anschließend noch nicht im Setter waren. Diese Ergebnisse sind keine Disqualifikation. Verkaufsgespräch und gewonnene Opportunity sind eigenständige Nachweise; einer kann fehlen.</p></details>
+    <details class="chart-values"><summary>Qualifizierung der Setter-Vorgänge im Zeitraum</summary>${qualityTable}
     <p class="chart-legend">Leadquellen stammen aus dem aktuellen Close-Feld. Fehlt die ursprüngliche Buchung auch in Close, bleibt der Terminlieferant unbekannt. Er wird nicht aus dem aktuellen Opener-Feld geraten. Kleine Fallzahlen eignen sich noch nicht für eine belastbare Rangliste.</p></details>`;
 }
 
 function renderAntonyPipeline() {
-  const grid = document.querySelector("#antony-pipeline-grid");
-  const note = document.querySelector("#antony-pipeline-note");
-  const period = document.querySelector("#antony-pipeline-period");
+  const grid = document.querySelector("#antony-pipeline-grid"), note = document.querySelector("#antony-pipeline-note"), period = document.querySelector("#antony-pipeline-period");
   const pipeline = state.antonyPipeline;
-
   if (!pipeline?.counts) {
-    period.textContent = "Rollierende 3 Monate";
-    grid.innerHTML = `<p class="antony-analysis-empty">Die aggregierte offene Pipeline ist noch nicht verfügbar.</p>`;
-    note.textContent = "Bestehende KPI- und Close-Mappings laufen davon unabhängig weiter.";
+    period.textContent = "Aktueller Bestand";
+    grid.innerHTML = `<p class="antony-analysis-empty">Der aktuelle Prozessstand ist noch nicht verfügbar.</p>`;
+    note.textContent = "";
     return;
   }
-
-  const counts = pipeline.counts;
-  const cards = [
-    ["Offen gesamt", counts.total_open, "verschiedene Leads", "total"],
-    ["Setter künftig geplant", counts.setter_planned, "ohne Leistungsbewertung", "normal"],
-    ["Setter ausstehend", counts.setter_pending, "", "normal"],
-    ["Setter-Follow-up", counts.setter_followup, "", "attention"],
-    ["Setter verschoben", counts.rescheduled_setter, "", "normal"],
-    ["Setter: No-Show", counts.setter_no_show, "erneut kontaktieren", "attention"],
-    ["Closer terminiert", counts.closer_scheduled, "", "normal"],
-    ["Closer verschoben", counts.rescheduled_closer, "", "normal"],
-    ["Closer: No-Show", counts.closer_no_show, "erneut kontaktieren", "attention"],
-    ["CC2 / Entscheidung offen", counts.pending_decision_cc2, "", "attention"],
-    ["Verkauft · Won fehlt", counts.sold_pending_won, "Close-Abschluss prüfen", "attention"],
-    ["Ergebnis unklar", counts.unrated, "Dokumentation prüfen", "attention"],
-  ].filter(([,n],i)=>i===0 || n>0);
-  period.textContent = `${germanDate(pipeline.window_start)} – ${germanDate(pipeline.as_of)} · Gesamtbestand, alle Quellen`;
-  grid.innerHTML = cards.map(([label, value, detail, tone]) => `
-    <article class="antony-pipeline-card" data-tone="${tone}">
-      <span>${label}</span><strong>${number(value)}</strong><small>${detail}</small>
-    </article>`).join("");
-  note.textContent = pipeline.oldest_open_date
-    ? `${number(counts.from_previous_months)} aus Vormonaten · ${number(counts.older_than_14_days)} seit mehr als 14 Tagen in dieser Stufe. Diese Hinweise überschneiden sich mit den offenen Leads.`
-    : "Aktuell wurde im verfügbaren Drei-Monats-Fenster kein logisch offener Funnel-Stand erkannt.";
+  const counts=pipeline.counts, persistent=pipeline.persistent === true;
+  const rows = [
+    ["Setter ausstehend",counts.setter_pending,"Ergebnis oder nächsten Termin klären"],
+    ["Setter-Follow-up",counts.setter_followup,"Nächsten Kontakt vereinbaren"],
+    ["Setter verschoben",counts.rescheduled_setter,"Ersatzdatum noch offen"],
+    ["Setter abgesagt",counts.setter_cancelled,"Weiteres Vorgehen klären"],
+    ["Setter: nicht erschienen",counts.setter_no_show,"Erneut kontaktieren"],
+    ["Closer qualifiziert",counts.closer_scheduled,"Nächsten Termin klären"],
+    ["Closer-Follow-up",counts.closer_followup,"Nächsten Kontakt vereinbaren"],
+    ["Closer abgesagt",counts.closer_cancelled,"Weiteres Vorgehen klären"],
+    ["Closer verschoben",counts.rescheduled_closer,"Ersatzdatum noch offen"],
+    ["Closer: nicht erschienen",counts.closer_no_show,"Erneut kontaktieren"],
+    ["CC2 / Entscheidung offen",counts.pending_decision_cc2,"Nächsten Schritt klären"],
+    ["Verkauft · Won fehlt",counts.sold_pending_won,"Abschluss in Close prüfen"],
+    ["Ergebnis unklar",counts.unrated,"Dokumentation prüfen"],
+    ["Terminzuordnung prüfen",counts.planning_needs_review,"Kalender und Prozessstufe passen noch nicht zusammen"],
+  ].filter(([,n])=>Number(n)>0);
+  const future=(Array.isArray(pipeline.next_by_month)?pipeline.next_by_month:[]).filter(row=>Number(row.count)>0);
+  const monthRows=new Map();
+  for(const row of future) {
+    if(!/^\d{4}-\d{2}-01$/.test(row.month)) continue;
+    const month=monthRows.get(row.month)||{setter:0,closer:0,cc2:0,unassigned:0};
+    if(["setter","closer","cc2","unassigned"].includes(row.stage))month[row.stage]+=Number(row.count);
+    monthRows.set(row.month,month);
+  }
+  const plannedTotal=["setter_planned","closer_planned","cc2_planned","planning_needs_review"].reduce((n,key)=>n+Number(counts[key]||0),0);
+  const renderOpen = rows.map(([label,n,detail])=>`<div><dt>${escapeHtml(label)}<span>${escapeHtml(detail)}</span></dt><dd>${number(n)}</dd></div>`).join("");
+  const renderMonths=[...monthRows].sort(([a],[b])=>a.localeCompare(b)).map(([month,t])=>`<div><dt>${escapeHtml(monthLabel(month))}<span>${[["setter","Setter"],["closer","Closer"],["cc2","CC2"],["unassigned","Zuordnung offen"]].filter(([key])=>t[key]>0).map(([key,label])=>`${number(t[key])} ${label}`).join(" · ")}</span></dt><dd>${number(t.setter+t.closer+t.cc2+t.unassigned)}</dd></div>`).join("");
+  period.textContent = `${germanDate(pipeline.as_of)} · ${persistent ? "aktueller Gesamtbestand, unabhängig vom Zeitraumfilter" : "verfügbarer Verlauf"}`;
+  const taskCoverage = pipeline.coverage?.tasks_complete === true;
+  const actions = (Array.isArray(pipeline.current_actions) ? pipeline.current_actions : []).filter(row=>/^lead_[A-Za-z0-9]+$/.test(row.lead_id));
+  const actionRows = actions.map(row=>{
+    const when = row.due_precision === "timestamp" && Number.isFinite(Date.parse(row.due_at))
+      ? new Intl.DateTimeFormat("de-DE", {timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(row.due_at))+" Uhr"
+      : row.due_date ? germanDate(row.due_date) : "Datum offen";
+    const stage = row.meeting_confirmed ? ({setter:"Setter",closer:"Closer",cc2:"CC2"}[row.stage] || "Folgetermin") : "Follow-up-Aufgabe";
+    const origin = row.first_meeting_at ? ` · erster Setter-Termin ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",month:"long",year:"numeric"}).format(new Date(row.first_meeting_at))}` : " · Ersttermin nicht dokumentiert";
+    return `<div><dt><a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(stage)} · ${escapeHtml(when)} ↗</a><span>${row.due_now ? "Aufgabe fällig" : "Geplant"}${escapeHtml(origin)}</span></dt></div>`;
+  }).join("");
+  grid.innerHTML = `<div class="open-inventory-total"><strong>${number(plannedTotal)}</strong><span>belegte Folgetermine</span><p>${taskCoverage ? `<b>${number(counts.task_due_now||0)}</b> fällige Follow-up-Aufgaben` : "Aufgabenstand noch nicht vollständig verfügbar"}</p></div><div class="open-work-columns"><section><h4>Bereits im Kalender</h4>${renderMonths ? `<dl class="open-work-list">${renderMonths}</dl>` : `<p class="open-work-empty">Kein zukünftiger Termin eindeutig zugeordnet.</p>`}<p class="process-footnote">Geplante Termine zählen erst bei belegter Durchführung als Leistung.</p></section><section><h4>Dokumentierte Folgeaufgaben</h4>${actionRows ? `<dl class="open-work-list">${actionRows}</dl>` : `<p class="open-work-empty">${taskCoverage ? "Keine zugeordnete Folgeaufgabe dokumentiert." : "Aufgabenstand wird geprüft."}</p>`}</section></div><details class="chart-values"><summary>Weitere offene Verläufe · ${number(counts.total_open)} insgesamt</summary><p class="process-footnote">Letzte dokumentierte Ergebnisse einschließlich Altbestand. Ohne aktuellen Termin oder Folgeaufgabe ist daraus keine heutige To-do-Liste ableitbar.</p>${rows.length ? `<dl class="open-work-list">${renderOpen}</dl>` : `<p class="open-work-empty">Keine weiteren offenen Ergebnisse.</p>`}</details>`;
+  const coverage=pipeline.coverage?.unlinked_processes;
+  note.textContent = `${number(counts.from_previous_months)} aus früheren Monaten · ${number(counts.older_than_14_days)} seit mehr als 14 Tagen in ihrer aktuellen Stufe${Number(coverage)>0 ? ` · ${number(coverage)} Vorgänge mit unvollständiger Zuordnung` : ""}.`;
 }
 
 function renderWeeklyReview() {
@@ -2226,14 +2233,23 @@ function samplePreview() {
     closer_qualified:row.qualified,closer_arrived:Math.min(row.closer_arrived,row.qualified),decided_leads:row.sold_leads,
     sold_leads:row.sold_leads,new_customers:row.new_customers,observed_customers:row.new_customers,source:row.source,owner:row.owner,
   }));
+  // Synthetic preview data exercise the same persistent-flow contract as live reports.
+  state.antonyProcess.coverage={retention_start:"2026-07-01",complete_period:true,history_complete:true};
+  state.antonyProcess.cohort_history=state.antonyProcess.funnel_by_source.map(row=>({...row,booked_date:"2026-09-03"}));
+  state.antonyProcess.booking_cohort_history=state.antonyProcess.booking_cohort.map(row=>({...row,booked_date:"2026-09-03"}));
+  state.antonyProcess.activity_by_origin=[{...state.antonyProcess.activity,source:"LinkedIn",owner:"michael",booked_date:"2026-08-01"}];
+  state.antonyProcess.flow={new_processes:10,carried_in:24,first_qualified:32,repeat_setter_calls:18,unlinked_setter_calls:1,cohort_basis:"first_scheduled_meeting"};
+  state.antonyProcess.setter_attendance={period_start:"2026-09-01",period_end:"2026-09-07",data_as_of:"2026-09-07T16:00:00Z",by_source:[{source:"LinkedIn",owner:"michael",scheduled:6,elapsed:6,future:0,attended:3,no_show:1,cancelled:0,rescheduled:1,unknown:1},{source:"Cold Calling",owner:"felix",scheduled:4,elapsed:4,future:0,attended:2,no_show:0,cancelled:1,rescheduled:0,unknown:1}]};
   state.antonyPlannerProcess=state.antonyProcess;
   state.antonyProcessQuarter = {...state.antonyProcess,period:{start:"2026-07-01",end:"2026-09-07"}};
   state.antonyPipeline = {
-    as_of: "2026-09-04",
+    persistent:true, data_as_of:"2026-09-07T16:00:00Z", next_by_month:[{month:"2026-09-01",stage:"setter",count:3},{month:"2026-10-01",stage:"setter",count:2}],
+    as_of: "2026-09-07",
     window_start: "2026-07-01",
     retention_months: 3,
     counts: {
-      total_open: 14,
+      total_open: 19,
+      setter_planned: 5,
       setter_pending: 3,
       closer_scheduled: 5,
       rescheduled_closer: 2,
@@ -2259,7 +2275,12 @@ function samplePreview() {
         closer_calls_cumulative: Math.round((37 * (index + 1)) / previewPerformanceLength),
         new_customers_cumulative: Math.round((8 * (index + 1)) / previewPerformanceLength),
       }));
-  state.antonyPerformance = previewPerformancePoints;
+  const previewDivisor=previewPerformancePoints.length;
+  state.antonyPerformance = previewPerformancePoints.map((point,index)=>({...point,bucket_date:state.period === "day" ? "2026-09-07" : `2026-09-${String(index+1).padStart(2,"0")}`,metric_hour:state.period === "day" ? index+8 : null}));
+  state.antonyProcess.timeline=state.antonyPerformance.map((point,index)=>({date:point.bucket_date,hour_bucket:point.metric_hour??12,
+    setter_calls:Math.round(68*(index+1)/previewDivisor)-Math.round(68*index/previewDivisor),
+    cc2_agreed:Math.round(9*(index+1)/previewDivisor)-Math.round(9*index/previewDivisor),
+    first_qualified:Math.round(32*(index+1)/previewDivisor)-Math.round(32*index/previewDivisor)}));
   state.series = [];
   for (let day = 1; day <= 14; day += 1) {
     const datum = `2026-09-${String(day).padStart(2, "0")}`;
