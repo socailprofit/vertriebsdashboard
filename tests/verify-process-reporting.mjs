@@ -575,6 +575,21 @@ async function main(){
     const [partial]=await quality([...calendar,{...base,stage:'unassigned',outcome:'unknown'}]);assert.equal(partial.closer_rate,null);assert.equal(partial.closer_unclassified,1);
    });
   }
+  {
+  await db.exec(read('../supabase/migrations/20260909112456_preserve_cc2_performance_evidence.sql'));
+  await scenario('a documented CC2 call remains performed after a later cancellation',async()=>{
+   await funnel('audit-cc2','2026-09-01T08:00Z');await event('audit-cc2','setter_qualified','2026-09-01T08:20Z');
+   await event('audit-cc2','cc2_agreed','2026-09-02T08:00Z');await event('audit-cc2','closer_completed','2026-09-03T08:00Z');await event('audit-cc2','closer_cancelled','2026-09-04T08:00Z');
+   const r=await report();const row=r.month_pipeline_rows[0];
+   assert.ok(row.stages.cc2.includes('attended'),'the previous documented CC2 must remain filterable as conducted');
+  });
+  await scenario('explicit CC2 sale without agreement is not a CC1 performance',async()=>{
+   await funnel('audit-cc2-sale','2026-09-01T08:00Z');await event('audit-cc2-sale','setter_qualified','2026-09-01T08:20Z');await event('audit-cc2-sale','cc2_sold','2026-09-04T08:00Z');
+   const r=await report();const row=r.month_pipeline_rows[0];
+   assert.ok(!row.stages.closer1?.includes('attended'),'a CC2-only sale must not prove a CC1 call');
+   assert.ok(row.stages.cc2?.includes('sold'),'documented CC2 sale should remain visible with missing agreement flagged');
+  });
+  }
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }

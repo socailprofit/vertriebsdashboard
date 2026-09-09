@@ -20,8 +20,8 @@ Close ist die Quelle. Supabase berechnet Zuordnung, Belege, Grundgesamtheiten un
 ## Pipeline und Details
 
 - Fünf sichtbare Stufen: Setter-Termin, Setter durchgeführt, Closer 1, CC2 optional, Neukunde. Closer 1 vereinigt qualifizierte und unabhängig belegte Closer-Vorgänge; die Detailfilter trennen Terminierung, Durchführung und Ergebnis.
-- Supabase liefert die Stufenzugehörigkeit und Statusfilter in `month_pipeline_rows[].stages`. Das Frontend darf aus fehlenden Feldern keinen Status ergänzen.
-- CC1-Ergebnisse enden bei der ersten belegten CC2-Vereinbarung; spätere Ergebnisse gehören zu CC2. Eine CC2-Vereinbarung allein ist keine CC2-Durchführung.
+- Supabase liefert die Stufenzugehörigkeit und Statuswerte in `month_pipeline_rows[].stages`. Das Frontend darf aus fehlenden Feldern keinen Status ergänzen. Die Pipeline zeigt diese Werte in kompakten Minifenstern ohne Namen oder Leadlinks.
+- CC1-Ergebnisse enden bei der ersten belegten CC2-Vereinbarung; spätere Ergebnisse gehören zu CC2. Eine CC2-Vereinbarung allein ist keine CC2-Durchführung. Eine belegte CC2-Durchführung bleibt auch bei einer späteren Absage sichtbar; aktueller Status und historische Durchführung werden unabhängig ermittelt. Ein expliziter Verkauf in CC2 bleibt ohne vorherige Vereinbarung als CC2 sichtbar, mit markierter fehlender Vereinbarung; er beweist keinen CC1-Call.
 - Abgesagt, verschoben, nicht erschienen, abgelehnt und verkauft benötigen explizite Belege. Fehlende oder widersprüchliche Ergebnisse bleiben offen. Eine Qualifikation ohne belegtes Gespräch bleibt noch anstehend; ein fehlender konkreter Kalendertermin wird benannt.
 - „Durchgeführt“ bezeichnet belegte Durchführung und kann sich mit einem späteren Ergebnisfilter überschneiden. Die Statuszahlen sind deshalb nicht pauschal zu addieren.
 - Die kleine Setter-Showrate zeigt erschienene / fällige Setter-Termine einschließlich offener fälliger Ergebnisse im Nenner. Zukunft und Ersatz-Doppelzählungen sind ausgeschlossen. Keine Grundgesamtheit ergibt einen Strich, nicht 0 %.

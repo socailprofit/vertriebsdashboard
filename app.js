@@ -1,23 +1,23 @@
-import {stageDetails, stageRows} from './pipeline-details.mjs?v=2026-09-09-month-cohort-final';
-import {calendarDetails} from "./calendar-view.mjs?v=2026-09-09-month-cohort-final";
-import {activityCards, processDetails, quota, filterTrackingSource, LEAD_SOURCE_OPTIONS, originQualityPie} from "./antony-view.mjs?v=2026-09-09-month-cohort-final";
-import {TRACKING_MEMBERS, memberResults} from "./tracking-view.mjs?v=2026-09-09-month-cohort-final";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-month-cohort-final";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-month-cohort-final";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-month-cohort-final";
+import {stageSummary, stageRows} from './pipeline-details.mjs?v=2026-09-09-cc2-evidence-fix';
+import {calendarDetails} from "./calendar-view.mjs?v=2026-09-09-cc2-evidence-fix";
+import {activityCards, processDetails, quota, filterTrackingSource, LEAD_SOURCE_OPTIONS, originQualityPie} from "./antony-view.mjs?v=2026-09-09-cc2-evidence-fix";
+import {TRACKING_MEMBERS, memberResults} from "./tracking-view.mjs?v=2026-09-09-cc2-evidence-fix";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-cc2-evidence-fix";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-cc2-evidence-fix";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-month-cohort-final";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-evidence-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-month-cohort-final";
-import { calculateAntonyPlan, calculateAntonyMonthForecast } from "./antony-planner.mjs?v=2026-09-09-month-cohort-final";
+import * as data from "./data.js?v=2026-09-09-cc2-evidence-fix";
+import { calculateAntonyPlan, calculateAntonyMonthForecast } from "./antony-planner.mjs?v=2026-09-09-cc2-evidence-fix";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-month-cohort-final";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-month-cohort-final";
+} from "./call-time-score.mjs?v=2026-09-09-cc2-evidence-fix";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -992,12 +992,13 @@ function renderProcessPipeline(source) {
     ['first','Setter-Termin',t.booked_leads,null,null,'Startbasis'],
     ['setter','Setter durchgeführt',t.setter_arrived,t.setter_arrived,t.booked_leads,'Vorgängen'],
     ['closer1','Closer 1',closerCount,t.closer_qualified,t.setter_arrived,'Setter-Vorgängen qualifiziert'],
-    ['cc2','CC2',t.cc2_agreed,t.cc2_agreed,t.closer_arrived,'Closer-Vorgängen'],
+    ['cc2','CC2',source.month_pipeline_rows?stageRows(details,'cc2').length:t.cc2_agreed,t.cc2_agreed,t.closer_arrived,'Closer-Vorgängen · vereinbart'],
     ['won','Neukunde',t.observed_customers,t.observed_customers,t.booked_leads,'Vorgängen'],
   ];
   const rail=stages.map(([key,title,n,num,den,basis],i)=>{
     const r=transition(num,den).rate;
-    return `<details class="process-stage ${key==='cc2'?'process-stage-optional':''} ${key==='won'?'process-stage-won':''}"><summary><span class="process-node" aria-hidden="true">${i+1}</span><span class="process-stage-title">${title}${key==='cc2'?'<small class="process-optional-label">optional · vereinbart</small>':''}</span><strong data-process-count="${key}">${n==null?'—':number(n)}</strong>${den===null?'<span class="process-start">Vorgänge · Ersttermin fällig</span>':`<progress max="100" value="${r??0}" aria-label="${escapeHtml(quota(num,den,basis))}"></progress>${processRate(num,den,basis)}`}<span class="process-detail-toggle">Details ⌄</span></summary><div class="process-stage-detail">${source.month_pipeline_rows?stageDetails(details,key):'<p>Statusdetails werden geladen.</p>'}</div></details>`;
+    const popup={title,time:monthLabel(state.antonyPlannerPeriodRange.start),rows:stageSummary(source.month_pipeline_rows,key),note:'Dieselbe Ersttermin-Monatsgruppe. Bisherige Durchführung und aktueller Status können sich überschneiden.'};
+    return `<article class="process-stage ${key==='cc2'?'process-stage-optional':''} ${key==='won'?'process-stage-won':''}"><div class="process-stage-head"><span class="process-node" aria-hidden="true">${i+1}</span><span class="process-stage-title">${title}${key==='cc2'?'<small class="process-optional-label">optional</small>':''}</span><strong data-process-count="${key}">${n==null?'—':number(n)}</strong>${den===null?'<span class="process-start">Vorgänge · Ersttermin fällig</span>':`<progress max="100" value="${r??0}" aria-label="${escapeHtml(quota(num,den,basis))}"></progress>${processRate(num,den,basis)}`}<button type="button" class="process-detail-toggle" data-chart-point="${escapeHtml(JSON.stringify(popup))}" aria-label="Details zu ${title}">Details ↗</button></div></article>`;
   }).join('');
   const gaps=t.unlinked_closer||t.unlinked_customer||t.cc2_missing_agreement;
   const asof=source.cohort_data_as_of||source.setter_attendance?.data_as_of;
@@ -2256,10 +2257,3 @@ function boot() {
 }
 
 boot();
-
-// Status filters stay inside the opened pipeline stage and never alter global KPIs.
-document.querySelector('#antony-origin-pipelines').addEventListener('change',event=>{
- if(!event.target.matches('[data-stage-filter]'))return;
- const selected=event.target.value;
- for(const row of event.target.closest('.process-stage-detail').querySelectorAll('[data-stage-status]'))row.hidden=selected!=='all'&&!row.dataset.stageStatus.split(' ').includes(selected);
-});
