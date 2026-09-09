@@ -11,11 +11,18 @@ test('CC2 pending and no-show statuses cannot turn into conducted calls in the f
 });
 test('compact stage summary contains only status counts and never names or links',()=>{
  const summary=stageSummary([{lead_id:'lead_secret',display_name:'private-name',stages:{first:['planned']}},{stages:{first:['attended']}},{stages:{first:['cancelled']}}],'first');
- assert.deepEqual(summary,[{label:'Vorgänge in dieser Stufe',value:'3'},{label:'Durchgeführt (bisher)',value:'1'},{label:'Noch anstehend',value:'1'},{label:'Aktuell abgesagt',value:'1'}]);
+ assert.deepEqual(summary,[{label:'Ersttermine im gewählten Monat',value:'3'},{label:'Durchgeführt (bisher)',value:'1'},{label:'Noch anstehend',value:'1'},{label:'Aktuell abgesagt',value:'1'}]);
  assert.doesNotMatch(JSON.stringify(summary),/lead_secret|private-name|https|<a/);
 });
 test('CC2 summary retains previous performance and flags a missing agreement',()=>{
  const summary=stageSummary([{stages:{cc2:['cancelled','attended']}},{stages:{cc2:['sold','attended','missing_agreement']}}],'cc2');
  assert.equal(summary.find(r=>r.label==='Durchgeführt (bisher)').value,'2');
  assert.equal(summary.find(r=>r.label==='CC2-Vereinbarung nicht belegt').value,'1');
+});
+
+test('setter summary identifies the full monthly cohort and follow-up as a subset',()=>{
+ const result=stageSummary([{stages:{setter:['followup','attended']}},{stages:{setter:['planned']}}],'setter');
+ assert.equal(result[0].label,'Ersttermine im gewählten Monat');
+ assert.equal(result[0].value,'2');
+ assert.equal(result.find(r=>r.label==='Davon Follow-up offen').value,'1');
 });

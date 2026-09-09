@@ -1,4 +1,4 @@
-import {stageSummary, stageRows} from './pipeline-details.mjs?v=2026-09-09-cc2-evidence-fix';
+import {stageSummary, stageRows} from './pipeline-details.mjs?v=2026-09-09-month-detail-labels';
 import {calendarDetails} from "./calendar-view.mjs?v=2026-09-09-cc2-evidence-fix";
 import {activityCards, processDetails, quota, filterTrackingSource, LEAD_SOURCE_OPTIONS, originQualityPie} from "./antony-view.mjs?v=2026-09-09-source-groups";
 import {TRACKING_MEMBERS, memberResults} from "./tracking-view.mjs?v=2026-09-09-cc2-evidence-fix";
@@ -999,7 +999,7 @@ function renderProcessPipeline(source) {
   ];
   const rail=stages.map(([key,title,n,num,den,basis],i)=>{
     const r=transition(num,den).rate;
-    const popup={title,time:monthLabel(state.antonyPlannerPeriodRange.start),rows:stageSummary(source.month_pipeline_rows,key),note:'Dieselbe Ersttermin-Monatsgruppe. Bisherige Durchführung und aktueller Status können sich überschneiden.'};
+    const popup={title:key==='setter'?'Setter-Status im Monat':title,time:monthLabel(state.antonyPlannerPeriodRange.start),rows:stageSummary(source.month_pipeline_rows,key),note:['first','setter'].includes(key)?'Nur Vorgänge mit erstem Setter-Termin in diesem Monat, einschließlich noch anstehender Ersttermine. Follow-up ist ein Ergebnis der durchgeführten Gespräche und zählt nicht zusätzlich.':'Dieselbe Ersttermin-Monatsgruppe. Bisherige Durchführung und aktueller Status können sich überschneiden.'};
     return `<article class="process-stage ${key==='cc2'?'process-stage-optional':''} ${key==='won'?'process-stage-won':''}"><div class="process-stage-head"><span class="process-node" aria-hidden="true">${i+1}</span><span class="process-stage-title">${title}${key==='cc2'?'<small class="process-optional-label">optional</small>':''}</span><strong data-process-count="${key}">${n==null?'—':number(n)}</strong>${den===null?'<span class="process-start">Vorgänge · Ersttermin fällig</span>':`<progress max="100" value="${r??0}" aria-label="${escapeHtml(quota(num,den,basis))}"></progress>${processRate(num,den,basis)}`}<button type="button" class="process-detail-toggle" data-chart-point="${escapeHtml(JSON.stringify(popup))}" aria-label="Details zu ${title}">Details ↗</button></div></article>`;
   }).join('');
   const gaps=t.unlinked_closer||t.unlinked_customer||t.cc2_missing_agreement;
