@@ -617,6 +617,60 @@ async function main(){
     assert.equal(r.length,2);assert.equal(r.find(x=>x.process_id==='new-sep').booking_scope,'new');assert.equal(r.find(x=>x.process_id==='older-sep').booking_scope,'carryover');
    });
   }
+  {
+   await db.exec(read('../supabase/migrations/20260909122847_align_origin_quality_with_new_booking_pipeline.sql'));
+   await scenario('origin table and quality denominators share exactly the new pipeline population',async()=>{
+    await funnel('new','2026-09-03T08:00Z','DMC',{opened_at:'2026-09-01T08:00Z'});
+    await funnel('future','2026-09-20T08:00Z','DMC',{opened_at:'2026-09-02T08:00Z'});
+    await funnel('old','2026-09-04T08:00Z','DMC',{opened_at:'2026-08-02T08:00Z'});
+    await event('new','setter_follow_up','2026-09-03T09:00Z');
+    await event('old','setter_follow_up','2026-09-04T09:00Z');
+    await meeting('new','2026-09-03T08:00Z');await meeting('old','2026-09-04T08:00Z');await meeting('future','2026-09-20T08:00Z');
+    const x=(await db.query("select get_new_booking_tracking_internal('month','2026-09-09') j")).rows[0].j;
+    assert.deepEqual(x.lead_quality_rows.map(r=>r.process_id).sort(),['future','new']);
+    assert.equal(x.lead_quality_rows.filter(r=>r.setter_at).length,1);
+    assert.equal(x.quality_by_origin.reduce((s,r)=>s+r.processes,0),2);
+    assert.equal(x.period.end,'2026-09-30');
+    assert.ok(x.calendar_rows.length>0);assert.ok(x.calendar_rows.every(r=>['new','future'].includes(r.lead_id)));
+    assert.ok(x.quality_by_origin.every(r=>r.setter_due<=2));
+    const report=(await db.query("select get_antony_process_metrics_internal('month','2026-09-09') j")).rows[0].j;
+    assert.deepEqual(report.tracking_new,x);
+   });
+  }
+  {
+   await scenario('moving an unperformed September first appointment to October updates all dependent populations and forecast',async()=>{
+    await funnel('move-all','2026-09-18T08:00Z','DMC',{opened_at:'2026-09-02T08:00Z'});await meeting('move-all','2026-09-18T08:00Z');
+    let sep=await report('month','2026-09-09');
+    assert.equal(sep.tracking_new.lead_quality_rows.length,1);assert.equal(sep.month_planning.first_meetings,1);
+    await db.exec(`update close_sales_processes set payload=jsonb_set(payload,'{first_meeting_at}','"2026-10-15T08:00:00Z"') where process_id='move-all';update close_meetings set starts_at='2026-10-15T08:00Z',ends_at='2026-10-15T08:30Z' where lead_id='move-all';`);
+    sep=await report('month','2026-09-09');const oct=await report('month','2026-10-31');
+    assert.equal(sep.month_pipeline_rows.length,0);assert.equal(sep.tracking_new.lead_quality_rows.length,0);assert.equal(sep.tracking_new.calendar_rows.length,0);assert.equal(sep.tracking_new.quality_by_origin.length,0);assert.equal(sep.month_planning.first_meetings,0);
+    assert.equal(oct.month_pipeline_rows.length,1);assert.equal(oct.month_pipeline_rows[0].booking_scope,'carryover');assert.equal(oct.month_planning.first_meetings,1);assert.equal(oct.tracking_new.lead_quality_rows.length,0);
+    assert.ok(!oct.month_pipeline_rows[0].stages.setter.includes('attended'));
+   });
+   await scenario('Berlin midnight assigns October correctly and October bookings form a new independent population',async()=>{
+    const savedClock=(await db.query("select pg_get_functiondef('get_sales_data_as_of_internal()'::regprocedure) sql")).rows[0].sql;
+    // Simulate the committed data clock in October; never alter production time.
+    await db.exec("create or replace function get_sales_data_as_of_internal() returns timestamptz language sql stable as $$select '2026-10-01T00:00Z'::timestamptz$$");
+    await funnel('berlin-oct','2026-09-30T22:30Z','DMC',{opened_at:'2026-09-30T22:05Z'});
+    await funnel('sep-book-oct','2026-10-02T08:00Z','LinkedIn',{opened_at:'2026-09-30T21:59Z'});
+    const sep=await report('month','2026-09-30'),oct=await report('month','2026-10-31');
+    assert.equal(sep.month_pipeline_rows.length,0);assert.equal(oct.month_pipeline_rows.length,2);
+    assert.deepEqual(oct.tracking_new.lead_quality_rows.map(r=>r.process_id),['berlin-oct']);
+    assert.equal(oct.tracking_new.quality_by_origin.reduce((n,r)=>n+r.processes,0),1);
+    assert.equal(oct.tracking_new.quality_by_origin.reduce((n,r)=>n+r.setter_due,0),0);
+    await db.exec(savedClock);
+   });
+   await scenario('a completed September process with an October follow-up remains September while the calendar moves forward',async()=>{
+    await funnel('done-sep','2026-09-03T08:00Z','DMC',{opened_at:'2026-09-01T08:00Z'});await event('done-sep','setter_follow_up','2026-09-03T09:00Z');await meeting('done-sep','2026-10-10T08:00Z');
+    const sep=await report('month','2026-09-09'),oct=await report('month','2026-10-31');
+    assert.equal(sep.tracking_new.lead_quality_rows.length,1);assert.ok(sep.month_pipeline_rows[0].stages.setter.includes('attended'));
+    assert.equal(oct.month_pipeline_rows.length,0);assert.equal(oct.tracking_new.lead_quality_rows.length,0);assert.equal(oct.month_planning.first_meetings,0);assert.equal(oct.calendar_rows.length,1);
+   });
+   await scenario('new origin helper remains inaccessible to direct public and authenticated calls',async()=>{
+    for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'get_new_booking_tracking_internal(text,date)','execute') ok",[role])).rows[0].ok,false);
+   });
+  }
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }

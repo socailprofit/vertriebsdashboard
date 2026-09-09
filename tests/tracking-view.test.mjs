@@ -12,3 +12,9 @@ test('all current members and LinkedIn remain visible even without leads; months
  assert.deepEqual(result.map(r=>r.owner),['michael','felix','antony','linkedin']);
  assert.equal(result[0].leads,0);assert.equal(result[3].laterSetter,0);assert.equal(result[3].laterCloser,1);
 });
+
+test('origin totals retain processes with missing or other openers',()=>{
+ const result=memberResults([{owner:'michael'},{owner:'outside_current_team'},{owner:null}]);
+ assert.equal(result.reduce((n,r)=>n+r.leads,0),3);
+ assert.equal(result.find(r=>r.owner==='unassigned').leads,1);
+});

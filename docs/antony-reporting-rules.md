@@ -42,3 +42,11 @@ Antony zählt fällige Setter-Kalendertermine am gültigen Termindatum. Die Mona
 ## Sichtbare Buchungsgruppen
 
 Supabase liefert booking_at aus dem dokumentierten Prozessbeginn opened_at und booking_scope (new, carryover, unknown), nach Europe/Berlin. Nur Vorgänge mit Ersttermin im gewählten Terminmonat gelangen in die Monats-Pipeline. Standardmäßig erscheinen davon nur im selben Monat neu vereinbarte Vorgänge; früher vereinbarte Vorgänge stehen separat eingeklappt. Fehlende oder widersprüchliche Buchungsmonate bleiben separat ungeklärt. Jede Gruppe verwendet eigene Statuszahlen und Quotengrundgesamtheiten. Die erste Stufe zählt alle Ersttermine der Gruppe im Monat einschließlich Zukunft; Durchführungsquoten beziehen sich auf bereits fällige Ersttermine. Die Monatsprognose berücksichtigt weiterhin beide Buchungsgruppen im Terminmonat und ist entsprechend beschriftet.
+
+## Abhängige Herkunfts-KPIs
+
+Die Herkunftstabelle verwendet ausschließlich `tracking_new` aus Supabase. Dessen Vorgangsmenge stammt aus derselben `month_pipeline_rows`-Gruppe `new` wie die sichtbare Haupt-Pipeline. Monat zeigt den gesamten Terminmonat einschließlich anstehender Ersttermine; Tag und Woche grenzen diese Gruppe zusätzlich nach Ersttermin ein. Kalenderzuordnung erfolgt über Lead-ID UND Ersttermin, damit andere Prozesse desselben Leads nicht einfließen. Quoten werden erst nach dieser Abgrenzung berechnet. Quellenfilter gelten gemeinsam für Vorgänge, Kalender und alle Qualitätsgrundlagen. Unbekannte bzw. andere Opener bleiben in der Gesamtsumme sichtbar.
+
+Bei Verschiebung eines unbegonnenen Ersttermins September → Oktober verschwindet der Vorgang aus September-Pipeline, Herkunft, Qualitätsgrundlagen und Ersttermin-Prognose. Oktober führt ihn separat als früher vereinbart; eine neue Oktober-Buchung zählt zur neuen Oktober-Gruppe. Ein Oktober-Follow-up verschiebt keinen bereits im September begonnenen Prozess. Die persönliche Terminvereinbarungsleistung bleibt am ursprünglichen Buchungstag.
+
+Regressionen prüfen diese Abhängigkeiten gemeinsam, einschließlich Europe/Berlin um Mitternacht und Zugriffsschutz des internen Helfers.

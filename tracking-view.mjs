@@ -7,8 +7,10 @@ export function originTotals(rows, key) {
   return Object.entries(totals).sort(([a],[b])=>a.localeCompare(b));
 }
 export function memberResults(rows) {
- return Object.entries(TRACKING_MEMBERS).map(([owner,label])=>{
-  const leads=rows.filter(r=>r.owner===owner);
+ const members={...TRACKING_MEMBERS};
+ for(const row of rows) {const owner=row.owner||'unassigned';if(!members[owner])members[owner]=owner==='outside_current_team'?'Anderer Opener':'Nicht zugeordnet';}
+ return Object.entries(members).map(([owner,label])=>{
+  const leads=rows.filter(r=>(r.owner||'unassigned')===owner);
   return {owner,label,leads:leads.length,setter:leads.filter(r=>r.setter_at).length,closer:leads.filter(r=>r.closer_at).length,
    qualified:leads.filter(r=>r.setter_result==='setter_qualified').length,followup:leads.filter(r=>r.setter_result==='setter_follow_up').length,
    disqualified:leads.filter(r=>r.setter_result==='setter_disqualified').length,customers:leads.filter(r=>r.won_at).length,
