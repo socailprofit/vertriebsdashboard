@@ -1,3 +1,5 @@
+> Abgelöst am 09.09.2026: Für das Antony-Dashboard gelten ausschließlich die [historischen Statusregeln](historical-status-report.md). Die folgenden Regeln dokumentieren den früheren Stand.
+
 # Antony: verbindliche Reportingregeln
 
 Close ist die Quelle. Supabase berechnet Zuordnung, Belege, Grundgesamtheiten und Stufenstatus. Das Frontend filtert und visualisiert den autorisierten Report. Keine historischen Nachimporte und keine handgepflegten Ergebniszuordnungen.

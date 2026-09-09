@@ -140,6 +140,10 @@ export async function loadAntonyOpenPipeline(referenceDate) {
   );
 }
 
+export async function loadAntonyStatusReport(period, referenceDate) {
+  return run("Statusverlauf laden", requireClient().rpc("get_antony_status_report", {p_period:period,p_reference_date:referenceDate}));
+}
+
 export async function loadAntonyReport(period, referenceDate) {
   return run("Vertriebsdaten laden", requireClient().rpc("get_antony_report", {p_period:period,p_reference_date:referenceDate}));
 }

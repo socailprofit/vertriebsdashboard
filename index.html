@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-09-best-call-times" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-09-status-history" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -102,133 +102,29 @@
 
         <section class="panel antony-section" id="antony-section" data-widget="antony" aria-labelledby="antony-title" hidden>
           <div class="section-heading">
-            <div class="section-person-heading">
-              <span id="antony-profile-avatar"></span>
-              <div>
-                <p class="eyebrow">Antony · Vertriebsübersicht</p>
-                <h2 id="antony-title">Termine, Fortschritt, Neukunden</h2>
-              </div>
-            </div>
-            <p class="section-note" id="antony-data-time">Aktivitäten im gewählten Zeitraum</p>
+            <div class="section-person-heading"><span id="antony-profile-avatar"></span><div>
+              <p class="eyebrow">Antony · Vertriebsübersicht</p><h2 id="antony-title">Setting bis Verkauft</h2>
+            </div></div>
+            <p class="section-note" id="antony-data-time"></p>
           </div>
           <div class="antony-donuts" id="antony-donuts"></div>
-          <p class="chart-legend" id="antony-note"></p>
-
-          <section class="antony-performance" aria-labelledby="antony-origin-title">
-            <div class="antony-analysis-heading"><h3 id="antony-origin-title">Fortschritt der Monatsgruppe</h3></div>
-            <div id="antony-origin-pipelines"></div>
+          <p class="chart-legend status-history-basis">Leads mit belegtem Statuswechsel im Zeitraum · je Status einmal gezählt. Ein Statuswechsel ist kein Nachweis für einen durchgeführten Call.</p>
+          <section class="antony-performance" aria-labelledby="antony-status-title">
+            <div class="antony-analysis-heading"><h3 id="antony-status-title">Status im Detail</h3></div>
+            <div id="antony-status-table"></div>
           </section>
-
-          <section class="antony-performance" aria-labelledby="antony-process-title">
-            <div class="antony-analysis-heading"><div><p class="eyebrow">Herkunft und Ergebnis</p><h3 id="antony-process-title">Herkunft und Ergebnisse</h3></div></div>
-            <div id="antony-process-content"></div>
+          <section class="antony-performance" aria-labelledby="antony-transitions-title">
+            <div class="antony-analysis-heading"><h3 id="antony-transitions-title">Übergänge und Absprünge pro Schritt</h3></div>
+            <div id="antony-status-transitions"></div>
           </section>
-
-          <section class="antony-performance" aria-labelledby="upcoming-meetings-title">
-            <div class="antony-analysis-heading"><h3 id="upcoming-meetings-title">Nächste Termine</h3></div>
-            <div id="upcoming-meetings"></div>
-          </section>
-
           <section class="antony-performance" aria-labelledby="antony-performance-title">
-            <div class="antony-analysis-heading">
-              <div>
-                <p class="eyebrow">Gesamtverlauf</p>
-                <h3 id="antony-performance-title">Gespräche und Abschlüsse im Zeitverlauf</h3>
-              </div>
-              <p class="section-note" id="antony-performance-period"></p>
-            </div>
+            <div class="antony-analysis-heading"><div><p class="eyebrow">Gesamtverlauf</p><h3 id="antony-performance-title">Erreichte Status im Zeitverlauf</h3></div><p class="section-note" id="antony-performance-period"></p></div>
             <div class="antony-performance-chart" id="antony-performance-chart"></div>
-            <p class="chart-legend" id="antony-performance-note"></p>
           </section>
-
-          <details class="antony-planner" id="antony-planner">
-            <summary>
-              <span><span class="eyebrow">Monatsplanung</span><strong>Monatsprognose und Zielrechner</strong></span>
-              <small>Ziel wählen · belegte Raten oder eigene Simulation</small>
-            </summary>
-            <form class="antony-plan-form" id="antony-plan-form">
-              <label class="antony-customer-value">Ø Kundenwert
-                <span class="money-input"><input id="antony-ist-customer-value" type="number" min="1" step="100" placeholder="Kundenwert eingeben" inputmode="decimal" /><span>€</span></span>
-                <small id="antony-ist-value-status" aria-live="polite"></small>
-              </label>
-              <div id="antony-month-projection" class="antony-month-projection" aria-live="polite"></div>
-              <label class="antony-range antony-range--goal">
-                <span><span>Wunschumsatz</span><output id="antony-target-revenue-output"></output></span>
-                <input name="target_revenue_eur" type="range" min="0" max="200000" step="1000" value="40000" />
-                <small id="antony-derived-customer-target"></small>
-              </label>
-
-              <div class="antony-rate-mode">
-                <div>
-                  <strong>Berechnungsbasis</strong>
-                  <small id="antony-rate-mode-copy">Monatsplanung mit den aktuellen Ist-Raten des gewählten Monats.</small>
-                </div>
-                <div class="antony-rate-switch" role="group" aria-label="Berechnungsbasis auswählen">
-                  <button type="button" data-antony-rate-mode="current" aria-pressed="true">Belegte Monatsraten</button>
-                  <button type="button" data-antony-rate-mode="custom" aria-pressed="false">Eigene Raten · Simulation</button>
-                </div>
-              </div>
-
-              <div class="antony-custom-rates" id="antony-custom-rates" hidden>
-                <div class="antony-range-grid">
-                  <label class="antony-range">
-                    <span><span>Termin → Closer</span><output id="antony-appointment-rate-output"></output></span>
-                    <input name="appointment_to_closer_rate_override" type="number" min="0" max="100" step="0.1" placeholder="Eigene Rate" inputmode="decimal" />
-                    <small id="current-appointment-to-closer-rate"></small>
-                  </label>
-                  <label class="antony-range">
-                    <span><span>Closer durchgeführt / terminiert</span><output id="antony-show-rate-output"></output></span>
-                    <input name="show_rate_override" type="number" min="0" max="100" step="0.1" placeholder="Eigene Rate" inputmode="decimal" />
-                    <small id="current-show-rate"></small>
-                  </label>
-                  <label class="antony-range">
-                    <span><span>Closingrate</span><output id="antony-closing-rate-output"></output></span>
-                    <input name="closing_rate_override" type="number" min="0" max="100" step="0.1" placeholder="Eigene Rate" inputmode="decimal" />
-                    <small id="current-closing-rate"></small>
-                  </label>
-                  <label class="antony-range"><span><span>Entschieden / durchgeführt</span><output id="antony-decision-rate-output"></output></span><input name="decision_rate_override" type="number" min="0" max="100" step="0.1" placeholder="Eigene Rate" inputmode="decimal" /><small id="current-decision-rate"></small></label>
-                  <label class="antony-range"><span><span>Neukunde / Verkauf</span><output id="antony-confirmation-rate-output"></output></span><input name="confirmation_rate_override" type="number" min="0" max="100" step="0.1" placeholder="Eigene Rate" inputmode="decimal" /><small id="current-confirmation-rate"></small></label>
-                </div>
-              </div>
-
-              <div class="antony-plan-results" id="antony-plan-results" aria-live="polite"></div>
-              <div class="antony-plan-actions">
-                <button class="primary-button" id="antony-plan-save" type="submit">Zielplan speichern</button>
-                <p class="form-status" id="antony-plan-status" aria-live="polite"></p>
-              </div>
-            </form>
+          <details class="antony-performance status-evidence-panel" id="status-evidence-panel">
+            <summary>Belegte Statuswechsel · Datum und Lead</summary>
+            <div id="antony-status-evidence"></div>
           </details>
-
-            <div class="kpi-assistant">
-              <div class="kpi-assistant-heading">
-                <div>
-                  <p class="eyebrow">KPI-Frage</p>
-                  <h4>Social-Profit-Assistent</h4>
-                </div>
-                <p class="section-note" hidden>Zum aktuell gewählten Zeitraum</p>
-              </div>
-              <form id="kpi-assistant-form" class="kpi-assistant-form">
-                <label for="kpi-assistant-question">Was möchtest du aus den Kennzahlen ableiten?</label>
-                <div class="kpi-assistant-input-row">
-                  <textarea id="kpi-assistant-question" name="question" rows="2" minlength="3" maxlength="500" required placeholder="z. B. Welchen Funnel-Engpass sollten wir als Nächstes priorisieren?"></textarea>
-                  <button class="primary-button" id="kpi-assistant-submit" type="submit">Fragen</button>
-                </div>
-                <small>Nur aggregierte Kennzahlen werden verarbeitet. Keine Namen, Kundendaten oder Close-Notizen eingeben.</small>
-              </form>
-              <div id="kpi-assistant-answer" class="kpi-assistant-answer" aria-live="polite" hidden></div>
-            </div>
-
-          <section class="weekly-review" id="weekly-review" aria-labelledby="weekly-review-title" hidden>
-            <div class="weekly-review-heading">
-              <div>
-                <p class="eyebrow">Montags 08:00 Sommer / 09:00 Winter · nur für die Geschäftsführung</p>
-                <h3 id="weekly-review-title">KI-Wochenzusammenfassung · gesamtes Team</h3>
-              </div>
-              <p class="section-note" id="weekly-review-period"></p>
-            </div>
-            <div id="weekly-review-content" class="weekly-review-content" aria-live="polite"></div>
-          </section>
-
         </section>
 
         <div class="panel-row" id="dashboard-analysis-row">
@@ -340,6 +236,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-09-best-call-times"></script>
+    <script type="module" src="./app.js?v=2026-09-09-status-history"></script>
   </body>
 </html>

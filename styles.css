@@ -1607,3 +1607,36 @@ main { grid-template-columns: minmax(0, 1fr); }
 
 #antony-section button.process-detail-toggle { padding:0; border:0; background:none; color:var(--antony); font:inherit; font-size:.75rem; text-align:left; cursor:pointer; }
 #antony-section button.process-detail-toggle:focus-visible { outline:2px solid var(--antony); outline-offset:4px; }
+
+/* Historical Antony report: retain the existing panel, typography and colours. */
+#antony-section .status-history-basis { display:block; margin-top:18px; }
+#antony-section .status-count-caption { color:var(--muted); font-size:.72rem; }
+.status-history-table th,.status-history-table td { padding:12px 14px; text-align:right; border-bottom:1px solid var(--line); font-size:.82rem; font-variant-numeric:tabular-nums; }
+.status-history-table th:first-child,.status-history-table td:first-child { text-align:left; }
+.status-history-table thead th { color:var(--muted); font-size:.7rem; font-weight:550; white-space:nowrap; }
+.status-history-table tbody th { font-weight:500; text-align:left; min-width:200px; }
+.status-history-table a { color:var(--text); }
+.status-count { border:0; color:var(--text); background:transparent; font:inherit; font-weight:650; padding:6px; cursor:pointer; }
+.status-count span { color:var(--muted); margin-left:6px; }
+.status-count:hover { color:var(--antony); }
+.status-transition-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:18px; }
+.status-transition { border:1px solid var(--line); border-radius:10px; padding:16px 18px; align-self:start; }
+.status-transition summary { cursor:pointer; font-weight:600; font-size:.86rem; }
+.status-transition summary b { display:block; color:var(--muted); font-size:.72rem; font-weight:400; margin-top:5px; }
+.status-transition > p,.status-overlap { color:var(--muted); font-size:.76rem; line-height:1.55; }
+.status-exit { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+.status-exit-value { display:grid; grid-template-columns:minmax(0,1fr) auto; width:100%; gap:5px 12px; padding:0; border:0; background:transparent; color:var(--text); text-align:left; font:inherit; font-size:.8rem; cursor:pointer; }
+.status-exit-value b { font-size:1.04rem; font-variant-numeric:tabular-nums; }
+.status-exit-value small { grid-column:1 / -1; color:var(--muted); font-size:.73rem; }
+.status-exit-value progress { grid-column:1 / -1; width:100%; height:4px; appearance:none; border:0; margin-top:5px; }
+.status-exit-value progress::-webkit-progress-bar { background:var(--bg); border-radius:3px; }
+.status-exit-value progress::-webkit-progress-value { background:var(--antony); border-radius:3px; }
+.status-exit-value progress::-moz-progress-bar { background:var(--antony); }
+.status-exit > .process-detail-toggle { margin-top:7px; }
+.status-evidence-panel { scroll-margin-top:100px; }
+.status-evidence-panel > summary { cursor:pointer; font-weight:600; }
+.status-evidence-heading { font-size:.85rem; color:var(--muted); }
+.status-evidence-panel td { text-align:left; min-width:120px; }
+@media(max-width:800px){ .status-transition-grid { grid-template-columns:1fr; } .status-history-table th,.status-history-table td { padding:10px; } }
+#antony-status-transitions > .chart-legend,#antony-status-table > .chart-legend { display:block; font-size:.76rem; line-height:1.5; color:var(--muted); }
+.status-history-table tbody th { color:var(--text); text-transform:none; letter-spacing:normal; }
