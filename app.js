@@ -1021,7 +1021,7 @@ async function updateTrackingSelection(event) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(next.date))return;
   const source=trackingSelection?trackingSource:state.antonyProcess;
   trackingSelection=next;
-  if(next.period===previous.period&&next.date===previous.date){trackingSource=source;renderAntonyProcess();return;}
+  if(source&&next.period===previous.period&&next.date===previous.date){trackingSource=source;renderAntonyProcess();return;}
   const request=++trackingRequest;trackingSource=null;renderAntonyProcess();
   try {const result=await data.loadAntonyProcessMetrics(next.period,next.date);if(request!==trackingRequest)return;trackingSource=result;renderAntonyProcess();}
   catch {if(request===trackingRequest)document.querySelector("#tracking-status").textContent="Laden fehlgeschlagen. Zeitraum erneut wählen.";}
