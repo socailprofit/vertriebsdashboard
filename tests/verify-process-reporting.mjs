@@ -489,6 +489,19 @@ async function main(){
    const future=p.calendar_rows.find(r=>r.starts_at.startsWith('2026-09-15'));assert.equal(future.outcome,'planned');assert.equal(future.showrate_due,false);
    assert(p.calendar_rows.find(r=>r.lead_id==='old').first_meeting_at.startsWith('2026-06-19'));
   });
+  await scenario('Closer calendar requires unique same-process evidence and rejects overlapping slots',async()=>{
+   await funnel('closer-proof','2026-08-04T08:00Z');
+   await meeting('closer-proof','2026-09-04T08:00Z');
+   await db.exec("update close_meetings set excluded_purpose=true");
+   await event('closer-proof','closer_completed','2026-09-04T08:20Z');
+   const audit=(await report()).calendar_rows;
+   assert.equal(audit.length,1);assert.equal(audit[0].stage,'closer');
+   assert.equal(audit[0].outcome,'attended');assert.equal(audit[0].showrate_due,false);
+   assert(audit[0].first_meeting_at.startsWith('2026-08-04'));
+   await meeting('closer-proof','2026-09-04T08:10Z');
+   await db.exec("update close_meetings set excluded_purpose=true");
+   assert.equal((await report()).calendar_rows.length,0);
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
