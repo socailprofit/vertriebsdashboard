@@ -1450,3 +1450,9 @@ main { grid-template-columns: minmax(0, 1fr); }
 .tracking-table-panel caption, .tracking-note { text-align: left; color: #b9c9de; font-size: .8rem; line-height: 1.6; padding: 8px 0; }
 .tracking-table-panel tbody tr:hover { background: rgba(255,255,255,.035); }
 @media(max-width:720px) { .tracking-table-panel { padding: 16px; } }
+
+.kpi-explanation { margin:20px 0; border-top:1px solid var(--line); padding-top:16px; }
+.kpi-explanation summary { cursor:pointer; font-weight:600; }
+.kpi-explanation p,.kpi-explanation dd { line-height:1.65; font-size:.85rem; }
+.kpi-explanation dt { margin-top:16px; font-weight:600; }
+.kpi-explanation dd { margin:6px 0 0; }

@@ -1,20 +1,20 @@
-import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-linkedin-exception";
-import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-linkedin-exception";
-import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-linkedin-exception";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-linkedin-exception";
+import { matchesAttribution, bookingBucket, bookingRange, selectCohort, filteredActivity } from "./cohort-filters.mjs?v=2026-09-09-single-lead-table";
+import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-single-lead-table";
+import { transition, totalCounts, JOURNEY_KEYS } from "./pipeline-metrics.mjs?v=2026-09-09-single-lead-table";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-single-lead-table";
 installChartPopover();
-import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-linkedin-exception";
+import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-single-lead-table";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-linkedin-exception";
-import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-linkedin-exception";
+import * as data from "./data.js?v=2026-09-09-single-lead-table";
+import { calculateAntonyMonthForecast, calculateAntonyPlan } from "./antony-planner.mjs?v=2026-09-09-single-lead-table";
 import {
   aggregateCallTimeRows,
   calculateCallTimeQuality,
   callTimeMetric,
-} from "./call-time-score.mjs?v=2026-09-09-linkedin-exception";
-import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-linkedin-exception";
+} from "./call-time-score.mjs?v=2026-09-09-single-lead-table";
+import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-single-lead-table";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
 // (zum Beispiel "./assets/profiles/michael.webp") eingetragen werden. Bei null
@@ -881,7 +881,7 @@ function renderAntony() {
     ["Setter-Termine", c.appointments, "Nachweisbare Setter-Kalendertermine mit tatsächlichem Termindatum im gewählten Zeitraum. Das Erstell- oder Buchungsdatum zählt nicht. Ein verschobenes Meeting zählt nur an seinem aktuellen Datum."],
     ["Setter Calls", c.setter_calls, b ? `Gespräche am tatsächlichen Gesprächsdatum, auch aus älteren Buchungen. ${format(b.setter_leads)} verschiedene Leads · ${format(b.setter_from_period_bookings)} Calls aus Vorgängen mit Ersttermin in diesem Zeitraum · ${format(b.setter_from_prior_bookings)} aus älteren Vorgängen · ${format(b.setter_without_booking)} ohne dokumentierten Ersttermin. Diese Gesprächszahl ist nicht der Zähler der Meeting-Showrate.` : "Durchgeführte Setter-Gespräche im ausgewählten Zeitraum."],
     [flow ? "Erstmals zum Closer" : "Qualifizierungen", flow ? flow.first_qualified : c.setter_successes, flow ? "Vorgänge mit ihrer ersten dokumentierten Closer-Qualifizierung im ausgewählten Zeitraum. Erneut eingetragene Qualifizierungen desselben Vorgangs zählen nicht zusätzlich. Der Vorgang kann aus einem früheren Monat stammen." : "Setter-Gesprächsergebnisse „Closer terminiert“ im ausgewählten Zeitraum. Mehrere dokumentierte Ergebnisse desselben Vorgangs können enthalten sein."],
-    ["Closer Calls", c.closer_calls, b ? `${format(b.cc2_calls)} dokumentierte Folgegespräche nach CC2-Vereinbarung oder mit Ergebnis „Verkauft in CC2“.` : "Durchgeführte Closer-Gespräche von Antony, einschließlich CC2."],
+    ["Closer Calls", c.closer_calls, b ? `Tatsächlich durchgeführte Closer-Gespräche im Zeitraum, auch aus älteren Vorgängen. Davon ${format(b.cc2_calls)} dokumentierte Folgegespräche nach CC2-Vereinbarung oder mit Ergebnis „Verkauft in CC2“.` : "Durchgeführte Closer-Gespräche von Antony, einschließlich CC2."],
     ["CC2 vereinbart", c.closer_second_calls, "Vereinbarungen im Zeitraum. Das Folgegespräch kann erst später stattfinden."],
     ["Neukunden", c.new_customers, b ? `${format(b.customers_from_period_bookings)} aus Vorgängen mit Ersttermin im Zeitraum · ${format(b.customers_from_prior_bookings)} aus älteren Vorgängen · ${format(b.customers_without_booking)} ohne dokumentierten Ersttermin. Ein späteres Ja zählt einen bereits gewonnenen Kunden nicht erneut. Maßgeblich ist das Won-Datum in Close, kein aus Notizen vermutetes Unterschriftsdatum.` : "Erste gewonnene Neukunden-Opportunity je Lead, am Won-Datum in Close."],
   ] : [];
@@ -893,6 +893,8 @@ function renderAntony() {
   document.querySelector("#antony-note").textContent = flow
     ? `${format(flow.new_processes)} Vorgänge mit Ersttermin im Zeitraum · ${format(flow.carried_in)} ältere Vorgänge im Setter bearbeitet${flow.repeat_setter_calls ? ` · ${format(flow.repeat_setter_calls)} Setter-Folgegespräche` : ""}${flow.unlinked_setter_calls ? ` · ${format(flow.unlinked_setter_calls)} Setter ${Number(flow.unlinked_setter_calls)===1?"Call":"Calls"} ohne sichere Zuordnung` : ""}`
     : `Arbeit im Zeitraum ${periodCaption()} · einschließlich älterer Vorgänge. Zahl anklicken für Herkunft und Zeitbezug.`;
+  const purposes={"Setter-Termine":"Zeigt das Kalenderaufkommen, nicht die Zahl durchgeführter Gespräche.","Setter Calls":"Zeigt die tatsächlich geleistete Setter-Arbeit, einschließlich älterer Leads.","Erstmals zum Closer":"Zeigt, wie viele Vorgänge erstmals die Qualifizierung erreicht haben.","Closer Calls":"Zeigt die tatsächlich geleistete Abschlussarbeit.","CC2 vereinbart":"Zeigt vereinbarte nächste Schritte; kein Nachweis einer Durchführung.","Neukunden":"Zeigt neu gewonnene Kunden, ohne spätere Bestätigungen oder Upsells erneut zu zählen."};
+  document.querySelector("#antony-kpi-explanation").innerHTML=`<p>Oben: Aktivitäten im gewählten Zeitraum bis zum letzten Datenstand. Unten: Qualität derselben Ersttermin-Gruppe. Gespräche mit älteren Leads erhöhen die Monatsaktivität, aber nicht die Qualität einer neuen Gruppe.</p><dl>${rows.map(([label,n,detail])=>`<dt>${escapeHtml(label)} · ${format(n)}</dt><dd>${escapeHtml(detail)} ${escapeHtml(purposes[label]||"")}</dd>`).join("")}</dl>`;
   const dataTime = p?.setter_attendance?.data_as_of || state.antonyPipeline?.data_as_of;
   document.querySelector("#antony-data-time").textContent = dataTime && Number.isFinite(Date.parse(dataTime))
     ? `Datenstand ${new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"}).format(new Date(dataTime))}`
@@ -979,7 +981,7 @@ function renderAntonyPerformance() {
     </svg>
     <div class="antony-performance-axis">${labels.map(({ label, index }) =>
       `<span style="left:${(index / (rows.length - 1)) * 100}%">${escapeHtml(label)}</span>`).join("")}</div>
-    ${chartValuesTable(rows.map((row) => row.bucket_label), visibleSeries.map((series) => ({ label: series.label, values: rows.map((row) => row[series.key]) })), "Anzahl, aufsummiert")}`;
+    `;
 
   note.textContent = state.period === "day"
     ? `Jeder Punkt zeigt die bis zu diesem Stundenabschnitt aufsummierte Anzahl; eine waagerechte Linie bedeutet keinen Zuwachs. Zeitraum ${rows[0].bucket_label} bis ${rows.at(-1).bucket_label} Uhr (Berlin), einschließlich Gesprächen vor 08 oder nach 17 Uhr. Neukunden werden am Tag nur als Summe gezeigt, weil das Won-Datum keine belastbare Uhrzeit enthält.`
@@ -987,37 +989,13 @@ function renderAntonyPerformance() {
 }
 
 function renderAntonyProcess() {
-  const container = document.querySelector("#antony-process-content"), source = state.antonyProcess;
-  if (!source?.activity || !source?.lead_quality || !Array.isArray(source.funnel_by_source)) {
-    container.innerHTML = `<p class="antony-analysis-empty">Prozessdaten noch nicht verfügbar. Bitte erneut laden.</p>`;return;
-  }
-  const futurePeriod=source.period.end>berlinToday() && source.period.start>=source.coverage?.retention_start;
-  if (source.coverage?.complete_period === false && !futurePeriod) {
-    container.innerHTML = `<p class="antony-analysis-empty">Für diesen Zeitraum liegt kein vollständiger Datenbestand vor. Verfügbar ab ${escapeHtml(germanDate(source.coverage.retention_start))}.</p>`;return;
-  }
-  const choices = [source,state.antonyProcessQuarter].flatMap(item=>[...(item?.cohort_history || []),...(item?.activity_by_origin || []),...(item?.quality_by_source || [])]);
-  const owners = source.owner_labels || {unassigned:"Opener fehlt"};
-  const sources = [...new Set(choices.map(row=>row.source))].sort();
-  const suppliers = [...new Set(choices.map(row=>row.owner))].sort(), filters = state.antonyProcessFilters;
-  if (filters.source !== "all" && !sources.includes(filters.source)) filters.source="all";
-  if (filters.owner !== "all" && !suppliers.includes(filters.owner)) filters.owner="all";
-  const scale = state.period === "month" ? "month" : "week";
-  const groups = [...new Set((source.cohort_history || []).map(row=>bookingBucket(row.booked_date,scale)))].filter(date=>date && (source.coverage?.history_complete === true || date>=source.coverage.retention_start)).sort().reverse();
-  if(filters.cohort !== "period" && !groups.includes(filters.cohort)) filters.cohort="period";
-  const selected=selectCohort(source,filters,scale);
-  const options = (items,key,labels={}) => items.map(v=>`<option value="${escapeHtml(v)}"${filters[key]===v?" selected":""}>${escapeHtml(labels[v] || v)}</option>`).join("");
-  const toolbar = `<div class="process-toolbar"><p class="process-scope">Quelle und Opener</p>
-    <div class="process-filters"><label>Leadquelle<select data-process-filter="source"><option value="all">Alle Quellen</option>${options(sources,"source")}</select></label><label>Opener<select data-process-filter="owner"><option value="all">Alle Opener</option>${options(suppliers,"owner",owners)}</select></label></div></div>`;
-  if(futurePeriod) {
-    container.innerHTML=toolbar+renderSetterAttendance(source);
-    return;
-  }
-  container.innerHTML = `<div class="process-controls">${toolbar}<label class="cohort-select">Ersttermin-Gruppe<select data-process-filter="cohort"><option value="period"${filters.cohort==="period"?" selected":""}>Ersttermine im gewählten Zeitraum</option>${options(groups,"cohort",Object.fromEntries(groups.map(v=>[v,bookingGroupLabel(v,scale)])))}</select></label></div><p class="process-cohort-caption">Ersttermine ${escapeHtml(germanDate(selected.cohort_range.start))} – ${escapeHtml(germanDate(selected.cohort_range.end))} · Fortschritt dieser Vorgänge bis ${escapeHtml(germanDate(source.period.end))}</p>
-    ${selected.cohort_complete?renderProcessPipeline(selected):`<p class="process-data-gap">Für diese Buchungsgruppe ist der gespeicherte Verlauf unvollständig. Deshalb werden keine Übergangsquoten berechnet.</p>`}
-    ${renderSetterAttendance(source)}
-    <section class="tracking-group"><h3>Gesprächsergebnisse und Leadqualität</h3>${renderPeriodOutcomes(source)}${renderLeadQualityTables(selected)}</section>`;
-  const quarter=state.antonyProcessQuarter ? selectCohort(state.antonyProcessQuarter,{...filters,cohort:"period"},"month") : null;
-  if(state.period==="month" && quarter?.funnel_by_source && quarter.coverage?.complete_period !== false)container.insertAdjacentHTML("beforeend",`<section class="tracking-group"><h3>Drei-Monats-Rückblick · erste Setter-Termine ${escapeHtml(germanDate(quarter.period.start))} – ${escapeHtml(germanDate(quarter.period.end))}</h3>${renderProcessPipeline(quarter)}${renderLeadQualityTables(quarter)}${renderSetterAttendance(quarter)}${renderPeriodOutcomes(quarter)}</section>`);
+  const container=document.querySelector("#antony-process-content"),source=state.antonyProcess;
+  if(!Array.isArray(source?.lead_quality_rows)){container.innerHTML="<p>Lead-Auswertung noch nicht verfügbar.</p>";return;}
+  const owners=source.owner_labels||{};
+  const result=row=>({setter_qualified:"Zum Closer qualifiziert",setter_disqualified:"Disqualifiziert",setter_follow_up:"Setter-Follow-up",setter_completed:"Gespräch ohne Bewertung",unclear:"Widersprüchlich"}[row.setter_result]||({no_show:"Nicht erschienen",cancelled:"Abgesagt",rescheduled:"Verschoben"}[row.state])||"Noch nicht bewertet");
+  const date=value=>value&&Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(value)):"—";
+  const rows=source.lead_quality_rows;
+  container.innerHTML=`<p class="tracking-note">Ersttermine ${escapeHtml(germanDate(source.period.start))} – ${escapeHtml(germanDate(source.period.end))}. Eine Zeile je dokumentiertem Vorgang; Ersatztermine bleiben derselbe Vorgang. Ergebnisse einschließlich Folgemonaten bis zum letzten Datenstand. Qualität = dokumentiertes Setter-Ergebnis, kein KI-Score.</p><div class="chart-table-scroll"><table id="lead-quality-table"><thead><tr>${["Opener / Kanal","Quelle","Lead in Close","Ersttermin","Lead-Qualität","Setter am","Closer am","Neukunde am"].map(t=>`<th scope="col">${t}</th>`).join("")}</tr></thead><tbody>${rows.length?rows.map(row=>`<tr><td>${escapeHtml(owners[row.owner]||row.owner||"Opener fehlt")}</td><td>${escapeHtml(row.source||"Nicht zugeordnet")}</td><td>${/^lead_[A-Za-z0-9]+$/.test(row.lead_id)?`<a href="https://app.close.com/lead/${encodeURIComponent(row.lead_id)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(row.lead_id.slice(-10))} ↗</a>`:"Nicht zugeordnet"}</td><td>${date(row.first_meeting_at)}</td><td>${escapeHtml(result(row))}</td><td>${date(row.setter_at)}</td><td>${date(row.closer_at)}</td><td>${date(row.won_at)}</td></tr>`).join(""):'<tr><td colspan="8">Keine fälligen Ersttermine in diesem Zeitraum.</td></tr>'}</tbody></table></div>`;
 }
 
 function bookingGroupLabel(date,scale) {

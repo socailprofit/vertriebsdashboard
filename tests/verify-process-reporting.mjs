@@ -402,6 +402,21 @@ async function main(){
    await db.query("update close_funnel_leads set opener_close_user_id=null where lead_id='LinkedIn Cold Calls'");
    assert.equal((await rows()).find(x=>x.source==='LinkedIn Cold Calls').owner,'unassigned');
   });
+  await db.exec(read('../supabase/migrations/20260909082845_add_period_lead_quality_rows.sql'));
+  await scenario('one lead table keeps acquisition month separate and includes actual later outcomes',async()=>{
+   await funnel('august','2026-08-20T08:00Z');await funnel('september','2026-09-02T08:00Z');
+   await funnel('future','2026-09-10T13:00Z');
+   await activity('august','august','setter_qualified','2026-09-02T09:00Z');
+   await activity('august','august','closer_completed','2026-10-02T09:00Z');
+   await activity('september','september','setter_follow_up','2026-09-03T09:00Z');
+   const month=await report();assert.deepEqual(month.lead_quality_rows.map(r=>r.lead_id),['september']);
+   assert.equal(month.lead_quality_rows[0].setter_result,'setter_follow_up');
+   const august=await report('month','2026-08-31');assert.equal(august.lead_quality_rows.length,1);
+   assert.equal(august.lead_quality_rows[0].lead_id,'august');assert.ok(august.lead_quality_rows[0].setter_at);
+   assert.equal(august.lead_quality_rows[0].closer_at,null,'future Closer cannot be an outcome');
+   assert.equal((await report('day','2026-09-02')).lead_quality_rows.length,1);
+   assert.equal((await report('week','2026-09-10')).lead_quality_rows.length,0);
+  });
   if(failures) throw new Error(`${failures} process reporting scenarios failed`);
  } finally {await db.close();}
 }
