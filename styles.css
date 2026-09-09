@@ -1408,3 +1408,29 @@ main { grid-template-columns: minmax(0, 1fr); }
 
 .contact-type-table { margin-top:20px; font-size:.75rem; }
 .contact-type-table th:first-child { text-align:left; white-space:normal; min-width:160px; }
+
+/* Close-Up now contains three lists, not the former narrow summary sidebar. */
+#antony-pipeline-grid { display: block; }
+#antony-pipeline-grid > .open-work-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  width: 100%;
+}
+#antony-pipeline-grid .open-work-list dt { min-width: 0; line-height: 1.55; }
+#antony-pipeline-grid .open-work-list dd { flex-shrink: 0; padding-left: 8px; }
+#antony-pipeline-grid .open-work-list a {
+  color: #b9ceff;
+  text-decoration: none;
+  overflow-wrap: break-word;
+}
+#antony-pipeline-grid .open-work-list a:hover { color: #fff; text-decoration: underline; }
+#antony-pipeline-grid a:focus-visible,
+#antony-pipeline-grid summary:focus-visible { outline: 2px solid #b9ceff; outline-offset: 4px; }
+#antony-pipeline-grid .chart-values { margin-top: 20px; }
+@media (max-width: 1100px) {
+  #antony-pipeline-grid > .open-work-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  #antony-pipeline-grid > .open-work-columns > section:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  #antony-pipeline-grid > .open-work-columns { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+}
