@@ -1794,7 +1794,9 @@ async function initializeSession(generation) {
   const own = state.people.find((person) => person.id === state.profile.salesPersonId);
   if (own && state.view === "team") {
     state.view = own.slug;
-    render();
+    if (state.view === "antony") await refresh();
+    else render();
+    if (generation !== sessionGeneration) return;
   }
 
   state.unsubscribe?.();
