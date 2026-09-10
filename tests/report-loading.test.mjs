@@ -27,7 +27,7 @@ test('logout invalidates requests that are still in flight',async()=>{
 });
 test('a leadership account opens Team without depending on Antony or AI report requests',async()=>{
  const t=setup(true); const p=t.context.load(); t.pending[0].resolve([]);
- assert.equal(await p,true); assert.equal(t.state.antonyStatusReport,null);
+ assert.equal(await p,true); assert.equal(t.state.antonyLeadReport,null);
 });
 test('a view change prevents an older snapshot from replacing the newly selected view',async()=>{
  const t=setup(); const p=t.context.load(); t.state.view='antony';t.pending[0].resolve([]);
@@ -36,8 +36,8 @@ test('a view change prevents an older snapshot from replacing the newly selected
 
 test('Antony loads only its protected historical report and does not depend on planner or opening metrics',async()=>{
  const t=setup(true,'antony');
- t.context.data.loadAntonyStatusReport=async()=>({period:{start:'2026-09-01',end:'2026-09-08'},data_as_of:'2026-09-08T12:00Z',statuses:[],events:[]});
+ t.context.data.loadAntonyLeadReport=async()=>({period:{start:'2026-09-01',end:'2026-09-08'},data_as_of:'2026-09-08T12:00Z',statuses:[],events:[]});
  assert.equal(await t.context.load(),true);
  assert.equal(t.pending.length,0);
- assert.equal(t.state.antonyStatusReport.events.length,0);
+ assert.equal(t.state.antonyLeadReport.events.length,0);
 });

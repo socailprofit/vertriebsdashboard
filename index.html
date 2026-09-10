@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Interner Sales-Wettbewerb für Social Profit" />
     <title>Social Profit · Sales Pulse</title>
-    <link rel="stylesheet" href="./styles.css?v=2026-09-09-status-rates" />
+    <link rel="stylesheet" href="./styles.css?v=2026-09-10-lead-selections" />
   </head>
   <body>
     <section class="login-screen" id="login-screen">
@@ -80,6 +80,7 @@
               <button data-period="day" type="button">Tag</button>
               <button data-period="week" type="button">Woche</button>
               <button data-period="month" type="button">Monat</button>
+              <button data-period="trend" type="button" hidden>3 Monate</button>
             </div>
             <label class="date-field">
               <span>Stichtag</span>
@@ -103,36 +104,12 @@
         <section class="panel antony-section" id="antony-section" data-widget="antony" aria-labelledby="antony-title" hidden>
           <div class="section-heading">
             <div class="section-person-heading"><span id="antony-profile-avatar"></span><div>
-              <p class="eyebrow">Antony · Vertriebsübersicht</p><h2 id="antony-title">Setting bis Verkauft</h2>
+              <p class="eyebrow">Antony · Vertriebsübersicht</p><h2 id="antony-title">Setting bis Neukunde</h2>
             </div></div>
             <p class="section-note" id="antony-data-time"></p>
           </div>
-          <div class="antony-donuts" id="antony-donuts"></div>
-          <p class="chart-legend status-history-basis">Statusbewegungen im gewählten Zeitraum · kein aktueller Bestand und keine Gesprächszahl. Ein Lead kann schon vor dem Zeitraum in den Schritt gekommen sein.</p>
-          <section class="antony-performance" aria-labelledby="antony-rates-title">
-            <div class="antony-analysis-heading"><h3 id="antony-rates-title">Weitergabequoten</h3></div>
-            <div id="antony-handoff-rates"></div>
-          </section>
-          <section class="antony-performance" aria-labelledby="antony-attendance-title">
-            <div class="antony-analysis-heading"><h3 id="antony-attendance-title">Show-Rates · dokumentierte Teilnahme</h3></div>
-            <div id="antony-attendance-rates"></div>
-          </section>
-          <section class="antony-performance" aria-labelledby="antony-transitions-title">
-            <div class="antony-analysis-heading"><h3 id="antony-transitions-title">Übergänge und Absprünge pro Schritt</h3></div>
-            <div id="antony-status-transitions"></div>
-          </section>
-          <section class="antony-performance" aria-labelledby="antony-performance-title">
-            <div class="antony-analysis-heading"><div><p class="eyebrow">Gesamtverlauf</p><h3 id="antony-performance-title">Erreichte Status im Zeitverlauf</h3></div><p class="section-note" id="antony-performance-period"></p></div>
-            <div class="antony-performance-chart" id="antony-performance-chart"></div>
-          </section>
-          <details class="antony-performance status-evidence-panel">
-            <summary>Status im Detail · Eingänge und Ausgänge</summary>
-            <div id="antony-status-table"></div>
-          </details>
-          <details class="antony-performance status-evidence-panel" id="status-evidence-panel">
-            <summary>Belegte Ereignisse · Datum und Lead</summary>
-            <div id="antony-status-evidence"></div>
-          </details>
+          <div id="antony-lead-report"></div>
+          <dialog id="lead-evidence-dialog" class="lead-evidence-dialog" aria-labelledby="lead-evidence-title"></dialog>
         </section>
 
         <div class="panel-row" id="dashboard-analysis-row">
@@ -244,6 +221,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./app.js?v=2026-09-09-status-rates"></script>
+    <script type="module" src="./app.js?v=2026-09-10-lead-selections"></script>
   </body>
 </html>

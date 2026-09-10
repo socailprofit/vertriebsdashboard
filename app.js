@@ -1,5 +1,4 @@
-import { renderAttendanceRates, renderAttendanceEvidence } from "./attendance-rates.mjs?v=2026-09-09-status-rates";
-import { renderStatusCards, renderHandoffRates, renderStatusTable, renderStatusTransitions, renderStatusChart, renderStatusEvidence, statusPreview } from "./status-history-view.mjs?v=2026-09-09-status-rates";
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-lead-selections";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-best-call-times";
 installChartPopover();
@@ -7,7 +6,7 @@ import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-ev
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-09-status-rates";
+import * as data from "./data.js?v=2026-09-10-lead-selections";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -57,10 +56,10 @@ const targetFields = [
   ["appointment_rate_target", "Terminquote (%)"],
 ];
 
-const periodLabels = { day: "Tag", week: "Woche", month: "Monat" };
+const periodLabels = { day: "Tag", week: "Woche", month: "Monat", trend: "3 Monate" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  antony: ["Vertriebssteuerung", "Antony im Fokus", "Belegte Statuswechsel von Setting bis Verkauft im gewählten Zeitraum."],
+  antony: ["Vertriebssteuerung", "Antony im Fokus", "Relevante Leads von Setting bis Neukunde, aufgeteilt nach aktuellem Close-Status."],
   chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
   betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
@@ -78,7 +77,9 @@ const state = {
   hours: [],
   trends: [],
   targets: [],
-  antonyStatusReport: null,
+  antonyLeadReport: null,
+  leadSelection: "setting",
+  leadDimension: "lead_source",
   periodRange: { start: null, end: null },
   profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null },
   syncRun: null,
@@ -263,11 +264,11 @@ async function loadAll(revision = refreshRevision) {
   const unchanged=()=>revision===refreshRevision && period===state.period && referenceDate===state.referenceDate && view===state.view;
   if (canViewAntony() && view === "antony") {
     const [people,report,syncRun] = await Promise.all([
-      data.loadPeople(),data.loadAntonyStatusReport(period,referenceDate),
+      data.loadPeople(),data.loadAntonyLeadReport(period,referenceDate),
       state.profile.role === "operator" ? data.loadLatestSyncRun() : null,
     ]);
     if (!unchanged()) return false;
-    Object.assign(state,{people,antonyStatusReport:report,periodRange:report.period,syncRun,lastCalculated:report.data_as_of});
+    Object.assign(state,{people,antonyLeadReport:report,periodRange:report.period,syncRun,lastCalculated:report.data_as_of});
     return true;
   }
   const goalsRange=goalPeriodRange(period,referenceDate);
@@ -292,7 +293,7 @@ async function loadAll(revision = refreshRevision) {
   }
   const times=series.map(row=>row.calculated_at).filter(Boolean).sort();
   Object.assign(state,{people,metrics,hours:hourRows,trends,trendHours,series,targets,periodRange,syncRun,transferBreakdown,
-    antonyStatusReport:null,lastCalculated:times.at(-1)??null});
+    antonyLeadReport:null,lastCalculated:times.at(-1)??null});
   return true;
 }
 
@@ -434,6 +435,7 @@ function renderHeader() {
   });
   document.querySelectorAll("[data-period]").forEach((button) => {
     button.classList.toggle("active", button.dataset.period === state.period);
+    if(button.dataset.period === "trend") button.hidden=state.view !== "antony";
   });
 
   const person = state.people.find((entry) => entry.slug === state.view);
@@ -557,21 +559,15 @@ function renderCore() {
 }
 
 function renderAntony() {
-  const report=state.antonyStatusReport;
+  const leadDialog=document.querySelector("#lead-evidence-dialog");
+  leadDialog.close();leadDialog.innerHTML="";
+  const report=state.antonyLeadReport;
   const profile=document.querySelector("#antony-profile-avatar");
   profile.innerHTML=renderDashboardAvatar("antony","Antony Rigone");
   enableProfileImageFallbacks(profile);
-  document.querySelector("#antony-donuts").innerHTML=renderStatusCards(report);
-  document.querySelector("#antony-handoff-rates").innerHTML=renderHandoffRates(report);
-  document.querySelector("#antony-attendance-rates").innerHTML=renderAttendanceRates(report);
-  document.querySelector("#antony-status-table").innerHTML=renderStatusTable(report);
-  document.querySelector("#antony-status-transitions").innerHTML=renderStatusTransitions(report);
-  document.querySelector("#antony-performance-chart").innerHTML=renderStatusChart(report);
-  document.querySelector("#antony-status-evidence").innerHTML=renderStatusEvidence(report);
-  document.querySelector("#status-evidence-panel").open=false;
-  const at=report?.cutoff;
-  document.querySelector("#antony-data-time").textContent=at?`Ausgewertet bis ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"}).format(new Date(at))} Uhr`:"Statusdaten werden geladen …";
-  document.querySelector("#antony-performance-period").textContent=report?`${germanDate(report.period.start)} – ${germanDate(report.period.end)}`:"";
+  document.querySelector("#antony-lead-report").innerHTML=renderSelectionReport(report,state.leadSelection,state.leadDimension);
+  const at=report?.data_as_of;
+  document.querySelector("#antony-data-time").textContent=at?`Aktueller Status · Stand ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"}).format(new Date(at))} Uhr`:"Leaddaten werden geladen …";
 }
 
 // Zielerreichung getrennt von den Kernwerten: Nicht jede Kennzahl hat ein Ziel,
@@ -955,6 +951,8 @@ function updateUrl() {
 }
 
 function render() {
+  const leadDialog=document.querySelector("#lead-evidence-dialog");
+  leadDialog.close();leadDialog.innerHTML="";
   if (state.view === "antony" && !canViewAntony()) {
     const own = state.people.find((person) => person.id === state.profile.salesPersonId);
     state.view = own?.slug ?? "team";
@@ -1003,7 +1001,8 @@ async function refresh() {
   } catch(error) {
     if(revision!==refreshRevision)return;
     shell.dataset.stale="true";document.querySelector("#retry-load").hidden=false;
-    state.antonyStatusReport=null;
+    state.antonyLeadReport=null;
+    const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
     document.querySelector("#antony-section").hidden=true;
     document.querySelector("#widget-kernwerte").hidden=true;
     showError("Daten konnten nicht vollständig geladen werden. Es werden keine gemischten oder alten Zahlen angezeigt.");
@@ -1023,6 +1022,8 @@ function reportStartupFailure(error) {
 }
 
 function showApp(visible) {
+  if(!visible){const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
+    document.querySelector("#antony-lead-report").innerHTML="";}
   document.querySelector(".app-shell").hidden = !visible;
   document.querySelector("#login-screen").hidden = visible;
   document.querySelector("#password-setup-screen").hidden = true;
@@ -1083,11 +1084,11 @@ function endSession() {
   sessionGeneration++;
   state.sessionUserId = null;
   refreshRevision++;
-  state.antonyStatusReport=null;state.transferBreakdown=null;
+  state.antonyLeadReport=null;state.transferBreakdown=null;
   state.unsubscribe?.();
   state.unsubscribe = null;
   state.profile = { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null };
-  state.antonyStatusReport=null;
+  state.antonyLeadReport=null;
   state.forcePasswordSetup = false;
   state.passwordChangeInProgress = false;
   showApp(false);
@@ -1099,7 +1100,7 @@ function readInitialState() {
   const period = params.get("period");
   const date = params.get("date");
   if (view) state.view = view;
-  if (period && periodLabels[period]) state.period = period;
+  if (period && periodLabels[period] && (period!=="trend" || view==="antony")) state.period = period;
   if (date && params.get("historisch") === "1" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
     state.referenceDate = state.view === "antony" ? [date,berlinToday()].sort()[0] : date;
     state.datePinned = true;
@@ -1109,33 +1110,21 @@ function readInitialState() {
 document.querySelector("#retry-load").addEventListener("click",()=>refresh());
 
 document.addEventListener("click", (event) => {
-  const attendanceDetail=event.target.closest("[data-attendance-stage]");
-  if(attendanceDetail && canViewAntony() && state.view==="antony") {
-    const panel=document.querySelector("#status-evidence-panel");
-    document.querySelector("#antony-status-evidence").innerHTML=renderAttendanceEvidence(state.antonyStatusReport,attendanceDetail.dataset.attendanceStage);
-    panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"start"});return;
+  if(canViewAntony() && state.view==="antony") {
+    const source=event.target.closest("[data-lead-source]");
+    if(source){state.leadSelection=source.dataset.leadSource;renderAntony();return;}
+    const detail=event.target.closest("[data-lead-evidence]");
+    if(detail){const dialog=document.querySelector("#lead-evidence-dialog");
+      dialog.innerHTML=renderLeadEvidence(state.antonyLeadReport,state.leadSelection,state.leadDimension,detail.dataset.leadEvidence,detail.dataset.leadValue);
+      dialog.showModal();return;}
   }
-  const statusStep=event.target.closest("[data-status-step]");
-  if(statusStep && canViewAntony() && state.view==="antony") {
-    const key=statusStep.dataset.statusStep;
-    const panel=[...document.querySelectorAll("[data-status-step-panel]")].find(p=>p.dataset.statusStepPanel===key);
-    if(panel){panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"center"});}
-    else {const evidence=document.querySelector("#status-evidence-panel");document.querySelector("#antony-status-evidence").innerHTML=renderStatusEvidence(state.antonyStatusReport,key);evidence.open=true;evidence.scrollIntoView({behavior:"smooth",block:"start"});}
-    return;
-  }
-  const statusDetail=event.target.closest("[data-status-detail]");
-  if(statusDetail && canViewAntony() && state.view==="antony") {
-    const panel=document.querySelector("#status-evidence-panel");
-    document.querySelector("#antony-status-evidence").innerHTML=renderStatusEvidence(state.antonyStatusReport,statusDetail.dataset.statusDetail,statusDetail.dataset.statusDirection||"entered",statusDetail.dataset.statusDestination||null);
-    panel.open=true;
-    panel.scrollIntoView({behavior:"smooth",block:"start"});
-    return;
-  }
+  if(event.target.closest("[data-close-lead-dialog]")){document.querySelector("#lead-evidence-dialog").close();return;}
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
     if (viewButton.dataset.view === "antony" && !canViewAntony()) return;
     const previousView = state.view;
     state.view = viewButton.dataset.view;
+    if(state.view!=="antony" && state.period==="trend") state.period="month";
     if(state.view === "antony" && state.referenceDate > berlinToday()){state.referenceDate=berlinToday();document.querySelector("#reference-date").value=state.referenceDate;}
     render();
     if (previousView !== state.view && (previousView === "antony" || state.view === "antony")) refresh();
@@ -1320,7 +1309,7 @@ function samplePreview() {
       appointment_rate: 35.2 - index * 13.1 - monthIndex,
     })));
   state.profile = { displayName: "Vorschau", role: "operator", salesPersonId: null, email: null };
-  state.antonyStatusReport=statusPreview(state.referenceDate,state.period);
+  state.antonyLeadReport=selectionPreview(state.referenceDate,state.period);
   state.series = [];
   for (let day = 1; day <= 14; day += 1) {
     const datum = `2026-09-${String(day).padStart(2, "0")}`;
@@ -1415,3 +1404,9 @@ function boot() {
 }
 
 boot();
+
+document.addEventListener("change",event=>{
+ if(event.target.id==="lead-dimension" && canViewAntony() && state.view==="antony"){
+  state.leadDimension=event.target.value;renderAntony();document.querySelector("#lead-dimension").focus();
+ }
+});

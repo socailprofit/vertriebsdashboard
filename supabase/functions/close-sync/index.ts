@@ -1,3 +1,4 @@
+import { LEAD_DIMENSION_FIELDS, isSelectedStatusEvent, leadDimensions } from "../_shared/close-lead-dimensions.ts";
 import { fetchStableClosePages, ClosePaginationError } from "../_shared/close-list-pages.ts";
 import { CLOSE_TASK_FIELDS } from "../_shared/close-tasks.ts";
 import { isProcessReportingFact, normalizeCustomRecord, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
@@ -12,7 +13,6 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.1
 import {
   CLOSE_USERS,
   ACTIVITY_TYPES,
-  LEAD_SOURCES,
   CUSTOM_FIELDS,
   MAPPING_VERSION,
   REPORTING_TIMEZONE,
@@ -52,7 +52,7 @@ type JsonRecord = Record<string, unknown>;
 type SyncMode = "dry-run" | "write";
 type SyncTrigger = "manual" | "supabase-cron";
 type FunnelLeadRow = { lead_id: string; display_name?: string | null; lead_source: string | null; opener_close_user_id: string | null;
-  setter_id: string | null; closer_id: string | null; status_id: string | null; source_updated_at: string | null };
+  setter_id: string | null; closer_id: string | null; status_id: string | null; source_updated_at: string | null; report_dimensions?: Record<string, unknown> | null };
 type StoredMeetingLink = MeetingLink & { starts_at: string };
 type MeetingTimeRevision = { meeting_id: string; source_updated_at: string; old_starts_at: string; new_starts_at: string };
 
@@ -523,7 +523,7 @@ Deno.serve(async (request) => {
         readPersistentRows<StoredMeetingLink>(supabase, "close_meetings", "meeting_id,lead_id,booking_activity_id,booking_owner_id,starts_at", "meeting_id", "removed_at"),
         readPersistentRows<{payload: FunnelProcess}>(supabase, "close_sales_processes", "payload", "process_id", "retired_at"),
         readPersistentRows<{payload: MeetingProcessRelation}>(supabase, "close_process_meetings", "payload", "meeting_id", "removed_at"),
-        readPersistentRows<FunnelLeadRow>(supabase, "close_funnel_leads", "lead_id,display_name,lead_source,opener_close_user_id,setter_id,closer_id,status_id,source_updated_at", "lead_id"),
+        readPersistentRows<FunnelLeadRow>(supabase, "close_funnel_leads", "lead_id,display_name,lead_source,opener_close_user_id,setter_id,closer_id,status_id,source_updated_at,report_dimensions", "lead_id"),
         readPersistentRows<MeetingTimeRevision>(supabase, "close_meeting_time_history", "meeting_id,source_updated_at,old_starts_at,new_starts_at", "revision_id"),
         readHistoricalBookingSourceIds(supabase),
       ]);
@@ -563,7 +563,13 @@ Deno.serve(async (request) => {
       const fact = mapWonOpportunity(opportunity, { openerUserId: null, setterUserId: null, closerUserId: null });
       return fact && fact.wonDate >= retentionStart && fact.wonDate <= reconciliationEnd;
     }).map(opportunity => opportunity.lead_id);
-    const activeLeadIds = new Set([...retainedWonLeadIds,
+    // Refresh every selected lead on every scheduled run, including status-only
+    // leads and older selections retained after the rolling event fetch window.
+    const selectedLeadIds = new Set([
+      ...statusResult.value.filter(isSelectedStatusEvent).map(row => String(row.lead_id)),
+      ...storedFunnelLeads.filter(row => row.report_dimensions?.selection_tracked === true).map(row => row.lead_id),
+    ]);
+    const activeLeadIds = new Set([...selectedLeadIds, ...retainedWonLeadIds,
       ...taskResult.value.map(row => String(row.lead_id)),
       ...[...calendarLeadIds].filter((id): id is string => id !== null),
       ...customFacts.filter(fact => isProcessReportingFact(fact)).map(fact => fact.leadId).filter((id): id is string => id !== null),
@@ -584,9 +590,14 @@ Deno.serve(async (request) => {
     const leadReportingRows: Array<{lead_id:string;opener_close_user_id:string|null;lead_source:string|null}> = [];
     const leadAttributions = new Map<string, ReturnType<typeof leadAttribution>>();
     await markPhase("refreshing_lead_metadata", { requestedLeads: leadIds.length });
-    const refreshedLeads = await fetchCloseLeadMetadata(leadIds,
-      ["id", "display_name", "status_id", "date_updated", `custom.${CUSTOM_FIELDS.leadOpener}`, `custom.${CUSTOM_FIELDS.leadSetter}`, `custom.${CUSTOM_FIELDS.leadCloser}`, `custom.${CUSTOM_FIELDS.leadSource}`],
-      body => closeRequest<CloseSearchPage>(closeApiKey, "/data/search/", {}, closeReads, body));
+    const [refreshedLeads, reportUsers] = await Promise.all([
+      fetchCloseLeadMetadata(leadIds,
+        ["id", "display_name", "status_id", "status_label", "date_updated", ...Object.values(LEAD_DIMENSION_FIELDS).map(id => `custom.${id}`)],
+        body => closeRequest<CloseSearchPage>(closeApiKey, "/data/search/", {}, closeReads, body)),
+      newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/user/", { _fields: "id,first_name,last_name" }, closeReads),
+    ]);
+    const reportUserNames = new Map(reportUsers.map(user => [String(user.id), [user.first_name, user.last_name]
+      .filter(part => typeof part === "string" && part.trim()).join(" ").trim()]));
     await markPhase("lead_metadata_refreshed", { refreshedLeads: refreshedLeads.length });
     for (const lead of refreshedLeads) {
         const leadId = lead.id as string;
@@ -597,7 +608,8 @@ Deno.serve(async (request) => {
         funnelLeadById.set(leadId, { lead_id: leadId, display_name: typeof lead.display_name === "string" ? lead.display_name.trim() || null : null, opener_close_user_id: attribution.openerUserId,
           setter_id: attribution.setterUserId, closer_id: attribution.closerUserId,
           status_id: lead.status_id as string, source_updated_at: lead.date_updated as string,
-          lead_source: typeof source === "string" && LEAD_SOURCES.has(source) ? source : null });
+          lead_source: typeof source === "string" ? source.trim() || null : null,
+          report_dimensions: leadDimensions(lead, reportUserNames, selectedLeadIds.has(leadId)) });
     }
     const funnelLeads = [...funnelLeadById.values()].sort((a, b) => a.lead_id.localeCompare(b.lead_id));
     if (funnelLeads.length !== allFunnelLeadIds.size) throw new Error("incomplete_funnel_lead_metadata");
