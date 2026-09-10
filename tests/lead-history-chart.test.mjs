@@ -14,3 +14,15 @@ test('filtering a lead removes it from every historical KPI as well',()=>assert(
 test('graph uses discrete steps, units, exact timestamp popups and a source-cohort No Show rate',()=>{
  const html=renderHistoryChart(report,group);assert.match(html,/Anzahl Leads/);assert.match(html,/data-chart-point/);assert.match(html,/No-Show-Quote/);assert.match(html,/1 \/ 1 · 100 %/);assert.match(html,/H[0-9.]+V/);
 });
+
+test('monthly comparison resets cohorts and never carries previous months into September',async()=>{
+ const {buildMonthlyComparison}=await import('../lead-history-chart.mjs');
+ const g={...group,status_id:'setting',status_side:'old',time_zone:'UTC',selection_start:'2026-07-01T00:00Z',selection_end:'2026-09-10T07:00Z',leads:[{lead_id:'lead_A',first_recorded_at:'2026-07-10T10:00Z'},{lead_id:'lead_B',first_recorded_at:'2026-09-02T10:00Z'}]};
+ const r={period:{type:'trend',start:'2026-07-01'},history:[{lead_id:'lead_A',source_event_id:'a',recorded_at:'2026-07-10T10:00Z',previous_status:'setting',status_id:noShow},{lead_id:'lead_A',source_event_id:'b',recorded_at:'2026-08-10T10:00Z',previous_status:noShow,status_id:'followup'},{lead_id:'lead_B',source_event_id:'c',recorded_at:'2026-09-02T10:00Z',previous_status:'setting',status_id:'followup'}]};
+ const m=buildMonthlyComparison(r,g);assert.deepEqual(m.map(x=>x.total),[1,0,1]);assert.deepEqual(m.map(x=>x.no_show),[1,0,0]);assert.equal(m[2].partial,true);assert.match(renderHistoryChart(r,g),/Anzahl Leads je Monat/);
+});
+test('new customer remains an actual event after a later status change; other sold status does not count',()=>{
+ const r={...report,history:[{lead_id:'lead_A',source_event_id:'a',recorded_at:'2026-09-01T10:00Z',status_id:'stat_cD0BJbQkdi32yVVjypYBOeXYyRnHBZKrSuJYhyzWory'},{lead_id:'lead_A',source_event_id:'b',recorded_at:'2026-09-02T10:00Z',status_id:'other-sold-status'}]};
+ assert.equal(buildHistorySeries(r,group).at(-1).sold,1);
+ assert.equal(buildHistorySeries({...r,history:r.history.slice(1)},group).at(-1).sold,0);
+});

@@ -1683,3 +1683,11 @@ main { grid-template-columns: minmax(0, 1fr); }
 .selection-history{margin-top:30px;border-top:1px solid #304158}.lead-history-legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#c9d8eb;margin-bottom:16px}.lead-history-legend label{display:flex;align-items:center;gap:7px;cursor:pointer}.lead-history-legend input{accent-color:var(--series-color)}.lead-history-scroll{overflow:auto}.lead-history-svg{width:100%;min-width:560px;display:block}.lead-history-svg text{fill:#aebfd6;font-size:12px}.lead-history-hit{cursor:pointer}.lead-history-hit:focus{outline:none;fill:#ffffff0b;stroke:#a8c5ff;stroke-width:1px}
 
 .opening-month-people{display:grid;gap:22px;margin-bottom:30px}.opening-month-person{background:#0c1728;border:1px solid #2d4059;border-radius:12px;padding:18px}.opening-month-person h4{font-size:20px;margin:0 0 14px}.opening-month-person .selection-table{table-layout:fixed}.opening-month-person .selection-table th:first-child{width:23%;min-width:140px}.opening-month-person .selection-table td{font-size:17px;font-variant-numeric:tabular-nums}.opening-month-value{border:0;background:transparent;color:#eff5ff;cursor:pointer;font:inherit;padding:0}.opening-month-delta{color:#b5c9e6;font-size:13px!important}.opening-month-person .selection-table thead th{vertical-align:top}.opening-month-person .selection-table small{font-size:11px}.trend-hours-heading{padding-top:20px;border-top:1px solid #2d4059}@media(max-width:700px){.opening-month-person .selection-table{min-width:600px}.opening-month-person{padding:12px}}
+
+/* Shared dark dashboard controls and readable evidence columns. */
+.lead-filters select,.selection-heading select{background:#0c1728;color:#eaf1fc;border:1px solid #3b506c;border-radius:8px;padding:10px 12px;font:inherit;color-scheme:dark}
+.lead-evidence-dialog [data-close-lead-dialog]{background:#243a55;color:#eff5ff;border:1px solid #50719c;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer}
+.lead-evidence-dialog .selection-table{table-layout:fixed;min-width:1180px}
+.lead-evidence-dialog .selection-table th,.lead-evidence-dialog .selection-table td{white-space:normal;overflow-wrap:anywhere;text-transform:none;letter-spacing:normal}
+.lead-evidence-dialog .selection-table th:first-child{width:23%}
+.lead-evidence-dialog .selection-table th:last-child{width:15%}

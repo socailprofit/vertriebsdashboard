@@ -1,16 +1,16 @@
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-lead-quality';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-lead-quality';
-import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-lead-quality';
-import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-lead-quality';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-lead-quality";
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-month-comparison';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-month-comparison';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-month-comparison';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-month-comparison";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-lead-quality";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-month-comparison";
 installChartPopover();
 import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-evidence-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-lead-quality";
+import * as data from "./data.js?v=2026-09-10-month-comparison";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -568,11 +568,11 @@ function renderAntony() {
   const leadDialog=document.querySelector("#lead-evidence-dialog");
   leadDialog.close();leadDialog.innerHTML="";
   const report=filterLeadReport(state.antonyLeadReport,state.leadFilters);
-  document.querySelector("#lead-filter-controls").innerHTML=renderLeadFilters(state.antonyLeadReport,state.leadFilters);
   const profile=document.querySelector("#antony-profile-avatar");
   profile.innerHTML=renderDashboardAvatar("antony","Antony Rigone");
   enableProfileImageFallbacks(profile);
   document.querySelector("#antony-lead-report").innerHTML=renderSelectionReport(report,state.leadSelection,state.leadDimension,state.leadChartSeries);
+  document.querySelector("#lead-filter-controls").innerHTML=renderLeadFilters(state.antonyLeadReport,state.leadFilters);
   const at=report?.data_as_of;
   document.querySelector("#antony-data-time").textContent=at?`Aktueller Status · Stand ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"}).format(new Date(at))} Uhr`:"Leaddaten werden geladen …";
 }
@@ -1009,7 +1009,7 @@ function reportStartupFailure(error) {
 function showApp(visible) {
   if(!visible){const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
     document.querySelector("#antony-lead-report").innerHTML="";
-    document.querySelector("#lead-filter-controls").innerHTML="";
+    document.querySelector("#lead-filter-controls")?.replaceChildren();
     document.dispatchEvent(new Event("dashboard-private-reset"));}
   document.querySelector(".app-shell").hidden = !visible;
   document.querySelector("#login-screen").hidden = visible;
