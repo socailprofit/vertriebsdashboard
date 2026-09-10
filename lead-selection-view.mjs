@@ -1,7 +1,8 @@
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison-3';
-import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-3';
-export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-3';
-import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-month-comparison-3';
+import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-10-verified-journey';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-verified-journey';
+import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-verified-journey';
+export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-verified-journey';
+import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-verified-journey';
 export const dimensions = Object.freeze({lead_source:'Herkunft / Leadquelle',industry:'Branche',owner:'Lead-Owner',opener:'Opener',setter:'Setter',closer:'Closer',industry_wz:'Branche (WZ)',employees:'Mitarbeiterzahl'});
 const pct = (n,d) => d ? `${new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(n/d*100)} %` : '—';
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(value))+' Uhr' : '—';
@@ -21,6 +22,7 @@ export function dimensionBuckets(leads,key) {
 function sourceRule(group){return group.status_side==='new'?'Wechsel zu „Verkauft – Neukunde“':'Statuswechsel aus „'+group.label+'“';}
 function sourceLink(group){return /^https:\/\/app\.close\.com\/leads\/share\/share_[A-Za-z0-9]+\/$/.test(group.share_url||'')?`<a href="${esc(group.share_url)}" target="_blank" rel="noopener noreferrer">Close-Filtervorlage ↗</a>`:'';}
 export function renderSelectionReport(report,key='setting',dimension='lead_source',chartSeries) {
+ if(report?.facts)return renderJourneyReport(report,key,dimension,chartSeries);
  if(!report?.groups)return '<p>Leadauswertung wird geladen …</p>';
  const group=report.groups.find(g=>g.key===key)||report.groups[0];if(!group)return '<p>Keine Auswertungsquelle eingerichtet.</p>';
  if(!Object.hasOwn(dimensions,dimension))dimension='lead_source';
@@ -38,6 +40,7 @@ export function renderSelectionReport(report,key='setting',dimension='lead_sourc
  <details class="selection-method"><summary>Auswahl und Berechnung</summary><p>${esc(sourceRule(group))} · Erstellungszeit des Statuswechsels („Date created“). ${esc(date(group.selection_start))} bis ${esc(date(group.selection_end))} (Ende exklusiv, begrenzt durch den Datenstand). Filter-Zeitzone: ${esc(group.time_zone)}.</p><p>Statusanteil = eindeutige Leads im aktuellen Status ÷ relevante Leads ohne No Shows. No-Show-Quote = No Shows ÷ gesamte Auswahl. Maßgeblich ist der aktuelle Close-Status; „ohne No Show“ ist kein zusätzlicher Nachweis einer Gesprächsaktivität. Follow-ups bleiben eigene Status. Es wird keine Abschlussquote zwischen unabhängigen Auswahlen gebildet.</p><p>${sourceLink(group)} · Referenzfilter mit festem Zeitraum; die Dashboard-Zeitraumauswahl wird separat angewendet.</p></details>`;
 }
 export function renderLeadEvidence(report,key,dimension,type,value) {
+ if(report?.facts)return renderJourneyEvidence(report,key,dimension,type,value);
  const group=report?.groups?.find(g=>g.key===key)||report?.groups?.[0];if(!group)return '';
  const population=selectionPopulation(group);let all=population.relevant,leads=all,label='Relevante Leads';
  if(type==='all'){all=population.all;leads=all;label=group.key==='customer'?'Neukunden':'Alle Leads inklusive No Shows';}

@@ -90,8 +90,10 @@ test("PII, descriptions, notes and unknown CRM custom fields never enter journal
 test("one Close ID with contradictory page versions fails closed instead of counting both", async () => {
   await assert.rejects(() => prepareFunnelEventSnapshot(input({ customRecords: [activity(), activity({ status: "draft" })] })), /unstable_funnel_pagination/);
 });
-test("unknown authors and custom types cannot create sales-process events", async () => {
-  assert.deepEqual(await prepareFunnelEventSnapshot(input({ customRecords: [activity({ user_id: "other-user" }), activity({ custom_activity_type_id: "other-type" })] })), []);
+test("former authors remain historical evidence without reassignment; unknown types are excluded", async () => {
+  const journal=await prepareFunnelEventSnapshot(input({ customRecords: [activity({ user_id: "other-user" }), activity({ custom_activity_type_id: "other-type" })] }));
+  assert.equal(journal.length,1);assert.equal(journal[0].setter_id,"other-user");
+  assert.equal(toProcessEvents(journal,dataAsOf)[0].setter_id,"other-user");
 });
 test("future dated CRM outcomes are preserved but excluded from actual process events", async () => {
   const events = await prepareFunnelEventSnapshot(input({ customRecords: [activity({ activity_at: "2026-10-01T09:00:00Z" })] }));
@@ -163,50 +165,35 @@ test("calendar purpose persists as a categorical journal field without activatin
  const invalid=await prepareFunnelEventSnapshot(input({meetings:[{...calendar.meetings[0],purpose_code:"PRIVATE_CATEGORY"}]}));
  assert.equal(invalid[0].payload.purpose_code,"unclassified");assert.equal(JSON.stringify(invalid).includes("PRIVATE_CATEGORY"),false);
 });
-test("first acquisition is counted once per lead in its Won period; upsell and later Won excluded", async () => {
-  const events = await prepareFunnelEventSnapshot(input({ opportunities: [won(), won({ id: "later", date_won: "2026-09-08" }),
-    won({ id: "old", date_won: "2026-02-19" }), won({ id: "upsell", lead_id: "lead-2", status_id: "stat_JogyhmNFRLb0ucUfEXPYRJTpVeRXJFix9GB0aVoBfz0" })] }));
-  const process = toProcessEvents(events, dataAsOf);
-  assert.equal(events.length, 4);
-  assert.deepEqual(process.map(e => [e.source_event_id, e.event_type, e.occurred_at]), [["old", "customer_won", "2026-02-18T23:00:00.000Z"]]);
-  assert.equal(process[0].occurred_at_precision, "date");
-  assert.equal(events.find(e => e.source_event_id === "old")?.payload.occurred_at_precision, "date");
+test("only the first exact Neukunde status event creates an acquisition, including older phases", async () => {
+ const customer="stat_cD0BJbQkdi32yVVjypYBOeXYyRnHBZKrSuJYhyzWory";
+ const events=await prepareFunnelEventSnapshot(input({opportunities:[won()],statusChanges:[
+  status({id:"old",new_status_id:customer,date_created:"2026-02-19T09:00:00Z",activity_at:"2026-02-19T09:00:00Z"}),
+  status({id:"repeat",new_status_id:customer}),status({id:"general",lead_id:"lead-2",new_status_id:"sold-general"})]}));
+ const process=toProcessEvents(events,dataAsOf).filter(e=>e.event_type==="customer_won");
+ assert.deepEqual(process.map(e=>[e.source_event_id,e.occurred_at]),[["old","2026-02-19T09:00:00Z"]]);
 });
 test("future acquisition and custom-sale assertions are not an additional actual new customer", async () => {
   const events = await prepareFunnelEventSnapshot(input({ opportunities: [won({ date_won: "2026-10-01" })], customRecords: [activity({ custom_activity_type_id: ACTIVITY_TYPES.closerCall,
     [`custom.${CUSTOM_FIELDS.closerResult}`]: "3. ✅ Verkauft - in CC2 🔥" })] }));
   assert.deepEqual(toProcessEvents(events, dataAsOf).map(e => e.event_type), ["cc2_sold"]);
 });
-test("known date-only Won counts during its morning, never on the previous or future date", async () => {
-  const events = await prepareFunnelEventSnapshot(input({ opportunities: [won({ date_won: "2026-09-10" })] }));
-  assert.equal(events[0].occurred_at, "2026-09-10T12:00:00.000Z", "original mapper anchor remains in journal");
-  assert.deepEqual(toProcessEvents(events, "2026-09-09T21:59:59Z"), []);
-  const process = toProcessEvents(events, "2026-09-10T07:00:00Z");
-  assert.equal(process.length, 1);
-  assert.equal(process[0].occurred_at, "2026-09-09T22:00:00.000Z");
-  assert.equal(process[0].occurred_at_precision, "date");
+test("opportunity dates and deal type never substitute the Neukunde status event", async () => {
+ for(const date of ["2026-03-29","2026-09-10","2026-10-25"]){
+  const events=await prepareFunnelEventSnapshot(input({opportunities:[won({date_won:date,[`custom.${OPPORTUNITY_DEAL_TYPE_FIELD}`]:"Neukunde"})]}));
+  assert.deepEqual(toProcessEvents(events,"2026-12-01T00:00:00Z"),[]);
+ }
 });
-test("date-only process anchors use Berlin midnight on both DST transition dates", async () => {
-  for (const [date, expected] of [["2026-03-29", "2026-03-28T23:00:00.000Z"], ["2026-10-25", "2026-10-24T22:00:00.000Z"]]) {
-    const events = await prepareFunnelEventSnapshot(input({ opportunities: [won({ date_won: date })] }));
-    assert.equal(toProcessEvents(events, "2026-12-01T00:00:00Z")[0].occurred_at, expected);
-  }
-});
-test("explicit non-acquisition deal type overrides even the Kunde Won status", async () => {
-  for (const dealType of ["Upsell", "Verlängerung", "unbekannt", ""]) {
-    const events = await prepareFunnelEventSnapshot(input({ opportunities: [won({ [`custom.${OPPORTUNITY_DEAL_TYPE_FIELD}`]: dealType })] }));
-    assert.equal(events[0].payload.deal_type, dealType);
-    assert.deepEqual(toProcessEvents(events, dataAsOf), []);
-  }
-  const events = await prepareFunnelEventSnapshot(input({ opportunities: [won({ [`custom.${OPPORTUNITY_DEAL_TYPE_FIELD}`]: "Neukunde" })] }));
-  assert.equal(toProcessEvents(events, dataAsOf)[0].event_type, "customer_won");
+test("a status event recorded in the future is not an actual customer",async()=>{
+ const events=await prepareFunnelEventSnapshot(input({statusChanges:[status({date_created:"2026-10-01T09:00:00Z",new_status_id:"stat_cD0BJbQkdi32yVVjypYBOeXYyRnHBZKrSuJYhyzWory"})]}));
+ assert.equal(toProcessEvents(events,dataAsOf).filter(e=>e.event_type==="customer_won").length,0);
 });
 test("explicit Setter and Closer outcomes support deterministic process attribution", async () => {
   const cases = [
     [ACTIVITY_TYPES.setterCall, CUSTOM_FIELDS.setterResult, "✅ Closer terminiert", ["setter_qualified"]],
     [ACTIVITY_TYPES.setterCall, CUSTOM_FIELDS.setterResult, "❌ Disqualifiziert", ["setter_disqualified"]],
     [ACTIVITY_TYPES.closerCall, CUSTOM_FIELDS.closerResult, "2. 🔥 CC2 vereinbart", ["cc2_agreed"]],
-    [ACTIVITY_TYPES.closerCall, CUSTOM_FIELDS.closerResult, "4. ❌ Nicht verkauft", ["closer_lost"]],
+    [ACTIVITY_TYPES.closerCall, CUSTOM_FIELDS.closerResult, "4. ❌ Nicht verkauft", ["closer_follow_up"]],
     [ACTIVITY_TYPES.noShow, CUSTOM_FIELDS.setterNoShow, "⛔ Abgesagt", ["setter_cancelled"]],
     [ACTIVITY_TYPES.noShow, CUSTOM_FIELDS.setterNoShow, "🔄 Termin verschoben", ["setter_rescheduled"]],
     [ACTIVITY_TYPES.noShow, CUSTOM_FIELDS.closerNoShow, "Nicht erschienen", ["closer_no_show"]],

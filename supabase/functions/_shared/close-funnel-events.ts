@@ -29,7 +29,6 @@ export type FunnelEventSnapshotInput = {
   historicalBookingSourceIds?: ReadonlySet<string>;
   taskRecords?: Row[];
 };
-const salesUsers = new Set<string>(Object.values(CLOSE_USERS));
 const knownTypes = new Set<string>(Object.values(ACTIVITY_TYPES));
 const customTypeNames: Record<string, string> = {
   [ACTIVITY_TYPES.openingCall]: "opening_activity", [ACTIVITY_TYPES.followUp]: "followup_activity",
@@ -87,7 +86,7 @@ export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput
   const rows: UnversionedEvent[] = [];
   const customVersions = new Map<string, string>();
   for (const record of input.customRecords) {
-    if (!knownTypes.has(String(record.custom_activity_type_id)) || !salesUsers.has(String(record.user_id))) continue;
+    if (!knownTypes.has(String(record.custom_activity_type_id))) continue;
     const activity = normalizeCustomRecord(record);
     const created = timestamp(record.date_created, "invalid_funnel_custom_created");
     const updated = timestamp(record.date_updated, "invalid_funnel_custom_updated");
@@ -246,11 +245,14 @@ export function toProcessEvents(events: FunnelEvent[], dataAsOf: string): Funnel
   for (const event of events) {
     if (datePrecision(event) ? String(event.payload.won_date) > metricTimeInReportingTimezone(dataAsOf).metricDate
       : !isObservedAt(event.occurred_at, dataAsOf)) continue;
-    if (event.source_kind === "lead_status_change") { push(event, "status_changed"); continue; }
-    if (event.source_kind === "opportunity" && event.payload.acquisition === true) {
-      const old = firstWonByLead.get(event.lead_id);
-      if (!old || Date.parse(event.occurred_at) < Date.parse(old.occurred_at)
-        || (Date.parse(event.occurred_at) === Date.parse(old.occurred_at) && event.source_event_id < old.source_event_id)) firstWonByLead.set(event.lead_id, event);
+    if (event.source_kind === "lead_status_change") {
+      if (!isObservedAt(String(event.payload.date_created), dataAsOf)) continue;
+      push(event, "status_changed");
+      if (event.new_status === "stat_cD0BJbQkdi32yVVjypYBOeXYyRnHBZKrSuJYhyzWory") {
+        const old = firstWonByLead.get(event.lead_id);
+        if (!old || Date.parse(String(event.payload.date_created)) < Date.parse(String(old.payload.date_created))) firstWonByLead.set(event.lead_id, event);
+      }
+      continue;
     }
     if (event.source_kind !== "custom_activity" || event.payload.status !== "published") continue;
     const fields = event.payload.custom as Record<string, JsonValue>;
@@ -268,7 +270,7 @@ export function toProcessEvents(events: FunnelEvent[], dataAsOf: string): Funnel
     }
     if (fact.closerCalls) {
       const result = fields[CUSTOM_FIELDS.closerResult];
-      push(event, result === "2. 🔥 CC2 vereinbart" ? "cc2_agreed" : result === "4. ❌ Nicht verkauft" ? "closer_lost"
+      push(event, result === "2. 🔥 CC2 vereinbart" ? "cc2_agreed" : result === "4. ❌ Nicht verkauft" ? "closer_follow_up"
         : result === "1. ✅ Verkauft - in CC1" ? "closer_sold" : result === "3. ✅ Verkauft - in CC2 🔥" ? "cc2_sold" : "closer_completed");
     }
     // The custom template allows one field for each stage. Keep both explicit
@@ -281,7 +283,7 @@ export function toProcessEvents(events: FunnelEvent[], dataAsOf: string): Funnel
       if (value === "🔄 Termin verschoben") push(event, `${prefix}_rescheduled`);
     }
   }
-  for (const event of firstWonByLead.values()) push(event, "customer_won");
+  for (const event of firstWonByLead.values()) push({ ...event, occurred_at: String(event.payload.date_created) }, "customer_won");
   return output.sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at)
     || `${a.source_kind}:${a.source_event_id}:${a.event_type}`.localeCompare(`${b.source_kind}:${b.source_event_id}:${b.event_type}`));
 }

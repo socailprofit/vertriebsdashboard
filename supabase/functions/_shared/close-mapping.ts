@@ -1,4 +1,4 @@
-export const MAPPING_VERSION = "2026-09-07.antony-reconciliation";
+export const MAPPING_VERSION = "2026-09-10.verified-journey";
 export const REPORTING_TIMEZONE = "Europe/Berlin";
 const reportingTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: REPORTING_TIMEZONE,
