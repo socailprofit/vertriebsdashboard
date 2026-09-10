@@ -1,7 +1,7 @@
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison-2';
-import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-2';
-export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-2';
-import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-month-comparison-2';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison-3';
+import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-3';
+export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-3';
+import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-month-comparison-3';
 export const dimensions = Object.freeze({lead_source:'Herkunft / Leadquelle',industry:'Branche',owner:'Lead-Owner',opener:'Opener',setter:'Setter',closer:'Closer',industry_wz:'Branche (WZ)',employees:'Mitarbeiterzahl'});
 const pct = (n,d) => d ? `${new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(n/d*100)} %` : '—';
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(value))+' Uhr' : '—';
@@ -27,7 +27,7 @@ export function renderSelectionReport(report,key='setting',dimension='lead_sourc
  const population=selectionPopulation(group),leads=population.relevant,statuses=statusBuckets(leads),segments=dimensionBuckets(leads,dimension);
  return `<div class="selection-sources" aria-label="Leadauswahl">${report.groups.map(g=>`<button type="button" class="selection-source ${g.key===group.key?'is-active':''}" data-lead-source="${esc(g.key)}" aria-pressed="${g.key===group.key}"><span>${esc(g.label)}</span><strong>${selectionPopulation(g).relevant.length}</strong><small>${g.key==='customer'?'Leads mit Neukunden-Statuswechsel':`relevant · ${uniqueLeads(g).length} insgesamt · ${selectionPopulation(g).noShows.length} No Shows`}</small></button>`).join('')}</div>
  <p class="selection-basis">Auswahl über Statuswechsel im Zeitraum. Aktuelle No-Show-Status zählen separat; die weiteren Raten beziehen sich auf die relevanten Leads ohne No Shows.</p>
- <section class="selection-outcomes"><div class="selection-heading"><div><p class="eyebrow">${esc(group.label)} · ${leads.length} relevante Leads als Basis</p><h3>Wo stehen die relevanten Leads?</h3></div><button type="button" class="selection-detail" data-lead-evidence="all">Alle ${population.all.length} Leads inkl. No Shows ↗</button></div>
+ <section class="selection-outcomes"><div class="selection-heading"><div><p class="eyebrow">${esc(group.label)} · ${leads.length} relevante Leads als Basis</p><h3>Wo stehen die relevanten Leads?</h3></div><button type="button" class="selection-detail" data-lead-evidence="all">${group.key==='customer'?`Alle ${population.all.length} Neukunden ↗`:`Alle ${population.all.length} Leads inkl. No Shows ↗`}</button></div>
  ${group.metadata_pending?'<p role="status">Einige Profildaten warten noch auf den nächsten vollständigen Import.</p>':''}
  ${group.key==='customer'?'':`<div class="selection-attendance"><button type="button" data-lead-evidence="relevant"><span>Ohne No Show</span><strong>${leads.length} / ${population.all.length} · ${pct(leads.length,population.all.length)}</strong></button><button type="button" data-lead-evidence="no-show"><span>No-Show-Quote</span><strong>${population.noShows.length} / ${population.all.length} · ${pct(population.noShows.length,population.all.length)}</strong></button>${population.unknown.length?`<span>${population.unknown.length} ohne bestätigten Status · nicht in den weiteren Raten</span>`:''}</div>`}
  <div class="selection-statuses">${statuses.map(b=>`<button type="button" class="selection-status" data-lead-evidence="status" data-lead-value="${esc(b.key)}" aria-label="${esc(b.label)}: ${b.leads.length} von ${leads.length} Leads, ${pct(b.leads.length,leads.length)}. Leads ansehen"><span>${esc(b.label)}</span><strong>${pct(b.leads.length,leads.length)}</strong><small>${b.leads.length} von ${leads.length} Leads</small><span class="selection-track" aria-hidden="true"><i style="width:${leads.length?b.leads.length/leads.length*100:0}%"></i></span></button>`).join('')||'<p>Keine relevanten Leads ohne No Shows in dieser Auswahl.</p>'}</div></section>
@@ -40,7 +40,7 @@ export function renderSelectionReport(report,key='setting',dimension='lead_sourc
 export function renderLeadEvidence(report,key,dimension,type,value) {
  const group=report?.groups?.find(g=>g.key===key)||report?.groups?.[0];if(!group)return '';
  const population=selectionPopulation(group);let all=population.relevant,leads=all,label='Relevante Leads';
- if(type==='all'){all=population.all;leads=all;label='Alle Leads inklusive No Shows';}
+ if(type==='all'){all=population.all;leads=all;label=group.key==='customer'?'Neukunden':'Alle Leads inklusive No Shows';}
  if(type==='relevant'){all=population.all;leads=population.relevant;label='Ohne No Show';}
  if(type==='no-show'){all=population.all;leads=population.noShows;label='No Shows';}
  if(type==='status'){const bucket=statusBuckets(all).find(b=>b.key===value);leads=bucket?.leads||[];label=bucket?.label||'Status';}

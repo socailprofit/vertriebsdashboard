@@ -24,7 +24,7 @@ export function buildHistorySeries(report,group) {
 }
 export function renderHistoryChart(report,group,enabled=['relevant','no_show','cc2','sold']) {
  if(report.period?.type==='trend')return renderMonthlyComparison(report,group,enabled);
- const series=buildHistorySeries(report,group),keys=Object.keys(historyMetrics).filter(k=>enabled.includes(k));
+ const series=buildHistorySeries(report,group),keys=group.key==='customer'?['sold']:Object.keys(historyMetrics).filter(k=>enabled.includes(k));
  if(!series.length)return '<p class="selection-basis">Für diesen Zeitraum liegt noch kein auswertbarer Statusverlauf vor.</p>';
  const w=1000,h=300,left=48,right=20,top=26,bottom=48,plotW=w-left-right,plotH=h-top-bottom;
  const min=series[0].at,max=series.at(-1).at,peak=Math.max(1,...series.flatMap(p=>keys.map(k=>p[k])));
@@ -37,12 +37,13 @@ export function renderHistoryChart(report,group,enabled=['relevant','no_show','c
  const ticks=Array.from({length:5},(_,i)=>{const at=min+(max-min)*i/4;return `<text x="${x(at)}" y="${h-20}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${esc(axisFmt.format(new Date(at)))}</text>`;}).join('');
  const points=series.map((p,i)=>{
   const rows=[{label:'Gesamte Auswahl bis dahin',value:`${p.total} Leads`},...keys.map(k=>({label:historyMetrics[k].label,value:`${p[k]} Leads`})),{label:'No-Show-Quote',value:`${p.no_show} / ${p.total} · ${pct(p.no_show,p.total)}`}];
+  if(group.key==='customer')rows.pop();
   if(p.unknown)rows.push({label:'Historischer Status ungeklärt',value:`${p.unknown} Leads`});
   const point={title:`${group.label} · damaliger Status`,time:fmt.format(new Date(p.at))+' Uhr',rows,note:'Stand aus protokollierten Statuswechseln. Filter beziehen sich auf heutige CRM-Felder.'};
   const a=i?(x(series[i-1].at)+x(p.at))/2:left,b=i<series.length-1?(x(p.at)+x(series[i+1].at))/2:w-right;
   return `<rect class="lead-history-hit" x="${a}" y="${top}" width="${Math.max(1,b-a)}" height="${plotH}" fill="transparent" tabindex="0" role="button" aria-label="Werte am ${esc(point.time)}" data-chart-point="${esc(JSON.stringify(point))}"/>`;
  }).join('');
- return `<div class="lead-history-legend">${Object.entries(historyMetrics).map(([key,m])=>`<label style="--series-color:${m.color}"><input type="checkbox" data-lead-chart-series="${key}" ${enabled.includes(key)?'checked':''}>${m.label}</label>`).join('')}</div><div class="lead-history-scroll"><svg class="lead-history-svg" viewBox="0 0 ${w} ${h}" aria-label="${esc(group.label)}: Entwicklung in Leads" role="group"><text x="${left}" y="15">Anzahl Leads</text>${grid}${paths}${ticks}${points}</svg></div><p class="selection-basis">Damals protokollierter Status · Uhrzeit Europe/Berlin. No Shows sind separat; CC2 und Follow-ups zeigen den damaligen Status. Neukunden zählen beim dokumentierten Wechsel zu „Verkauft – Neukunde“. Ein Klick zeigt den genauen Stand. Bei historischen Zeiträumen kann dieser von den heutigen Statuskarten abweichen.</p>`;
+ return `<div class="lead-history-legend">${Object.entries(historyMetrics).filter(([key])=>group.key!=='customer'||key==='sold').map(([key,m])=>`<label style="--series-color:${m.color}"><input type="checkbox" data-lead-chart-series="${key}" ${enabled.includes(key)?'checked':''}>${m.label}</label>`).join('')}</div><div class="lead-history-scroll"><svg class="lead-history-svg" viewBox="0 0 ${w} ${h}" aria-label="${esc(group.label)}: Entwicklung in Leads" role="group"><text x="${left}" y="15">Anzahl Leads</text>${grid}${paths}${ticks}${points}</svg></div><p class="selection-basis">Damals protokollierter Status · Uhrzeit Europe/Berlin. No Shows sind separat; CC2 und Follow-ups zeigen den damaligen Status. Neukunden zählen beim dokumentierten Wechsel zu „Verkauft – Neukunde“. Ein Klick zeigt den genauen Stand. Bei historischen Zeiträumen kann dieser von den heutigen Statuskarten abweichen.</p>`;
 }
 
 function monthBoundary(year,month,timeZone){
@@ -64,15 +65,16 @@ export function buildMonthlyComparison(report,group){
  });
 }
 function renderMonthlyComparison(report,group,enabled){
- const months=buildMonthlyComparison(report,group),keys=Object.keys(historyMetrics).filter(k=>enabled.includes(k));
+ const months=buildMonthlyComparison(report,group),keys=group.key==='customer'?['sold']:Object.keys(historyMetrics).filter(k=>enabled.includes(k));
  const peak=Math.max(1,...months.flatMap(m=>keys.map(k=>m[k]))),left=48,top=30,h=300,plotH=205,plotW=920,slot=plotW/3;
  const bars=months.map((m,i)=>{
   const width=Math.min(38,220/Math.max(1,keys.length)),origin=left+i*slot+(slot-width*keys.length)/2;
   const rects=keys.map((k,j)=>`<rect x="${origin+j*width}" y="${top+plotH-m[k]/peak*plotH}" width="${width-6}" height="${m[k]/peak*plotH}" fill="${historyMetrics[k].color}" rx="3"/><text x="${origin+j*width+(width-6)/2}" y="${top+plotH-m[k]/peak*plotH-7}" text-anchor="middle">${m[k]}</text>`).join('');
   const point={title:`${group.label} · ${m.label}`,time:`${new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(m.partial?m.end:m.end-1))} Uhr (Berlin) · ${m.partial?'laufender Monat':'Monatsende'}`,rows:[{label:'Auswahl in diesem Monat',value:`${m.total} Leads`},...keys.map(k=>({label:historyMetrics[k].label,value:`${m[k]} Leads`})),{label:'No-Show-Quote',value:m.total?`${m.no_show} / ${m.total} · ${new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(m.no_show/m.total*100)} %`:'—'}],note:'Eigene Monatsauswahl und damaliger Status am Monatsende bzw. Datenstand. Keine Addition der Vormonate.'};
+  if(group.key==='customer')point.rows.pop();
   return `${rects}<text x="${left+(i+.5)*slot}" y="265" text-anchor="middle">${esc(m.label)}</text>${m.partial?`<text x="${left+(i+.5)*slot}" y="285" text-anchor="middle">bis Datenstand · unvollständig</text>`:''}<rect class="lead-history-hit" x="${left+i*slot}" y="${top}" width="${slot}" height="${plotH}" fill="transparent" tabindex="0" role="button" aria-label="${esc(m.label)}: Monatswerte ansehen" data-chart-point="${esc(JSON.stringify(point))}"/>`;
  }).join('');
  const grid=[...new Set(Array.from({length:5},(_,i)=>Math.round(peak*i/4)))].map(v=>`<line x1="${left}" x2="980" y1="${top+plotH-v/peak*plotH}" y2="${top+plotH-v/peak*plotH}" stroke="#304156"/><text x="38" y="${top+plotH-v/peak*plotH+4}" text-anchor="end">${v}</text>`).join('');
- return `${renderLegend(enabled)}<div class="lead-history-scroll"><svg class="lead-history-svg" viewBox="0 0 1000 ${h}" role="group" aria-label="Monatsvergleich ${esc(group.label)}"><text x="48" y="15">Anzahl Leads je Monat</text>${grid}${bars}</svg></div><p class="selection-basis">Jeder Monat separat · Status am jeweiligen Monatsende. Der laufende Monat endet am Datenstand. Neukunden zählen beim dokumentierten Wechsel zu „Verkauft – Neukunde“.</p>`;
+ return `${renderLegend(enabled,group.key)}<div class="lead-history-scroll"><svg class="lead-history-svg" viewBox="0 0 1000 ${h}" role="group" aria-label="Monatsvergleich ${esc(group.label)}"><text x="48" y="15">Anzahl Leads je Monat</text>${grid}${bars}</svg></div><p class="selection-basis">Jeder Monat separat · Status am jeweiligen Monatsende. Der laufende Monat endet am Datenstand. Neukunden zählen beim dokumentierten Wechsel zu „Verkauft – Neukunde“.</p>`;
 }
-function renderLegend(enabled){return `<div class="lead-history-legend">${Object.entries(historyMetrics).map(([key,m])=>`<label style="--series-color:${m.color}"><input type="checkbox" data-lead-chart-series="${key}" ${enabled.includes(key)?'checked':''}>${m.label}</label>`).join('')}</div>`;}
+function renderLegend(enabled,groupKey){return `<div class="lead-history-legend">${Object.entries(historyMetrics).filter(([key])=>groupKey!=='customer'||key==='sold').map(([key,m])=>`<label style="--series-color:${m.color}"><input type="checkbox" data-lead-chart-series="${key}" ${enabled.includes(key)?'checked':''}>${m.label}</label>`).join('')}</div>`;}
