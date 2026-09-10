@@ -1,3 +1,4 @@
+import {readError,withRequestTimeout,readWithRetry} from './read-recovery.mjs?v=2026-09-10-recovery';
 import { loadOpeningMonthly } from './opening-monthly-data.mjs?v=2026-09-10-monthly-mobile';
 import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-cc2-evidence-fix";
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.
@@ -14,6 +15,10 @@ export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 const client = isConfigured
   ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true },
+      // Bound token refresh requests too, so an auth fetch cannot hold the client indefinitely.
+      global: { fetch: (url,options={})=>withRequestTimeout(signal=>fetch(url,{
+        ...options,signal:options.signal?AbortSignal.any([options.signal,signal]):signal,
+      })) },
     })
   : null;
 
@@ -26,19 +31,19 @@ function requireClient() {
 
 // Ein fehlgeschlagener Aufruf soll sagen, welche Abfrage gescheitert ist. Ohne
 // das steht im Browser nur eine PostgREST-Meldung ohne Zusammenhang.
-async function run(label, query) {
-  const { data, error } = await query.abortSignal(AbortSignal.timeout(30000));
-  if (error) {
-    const cause = error.message || error.code || "unbekannter Fehler";
-    throw new Error(`${label}: ${cause}`);
-  }
-  return data ?? [];
+async function run(label, query, {retry=true}={}) {
+  return readWithRetry(async()=>{
+    const { data, error, status } = await withRequestTimeout(signal=>query.abortSignal(signal));
+    if(error)throw readError(label,{...error,status});
+    return data ?? [];
+  },{attempts:retry?2:1}).catch(error=>{throw error.label?error:readError(label,error);});
 }
 
 // --- Anmeldung ---------------------------------------------------------------
 
 export async function currentSession() {
-  const { data } = await requireClient().auth.getSession();
+  const { data, error } = await withRequestTimeout(()=>requireClient().auth.getSession());
+  if(error)throw readError("Sitzung prüfen",error);
   return data.session ?? null;
 }
 
@@ -67,15 +72,19 @@ export async function signOut() {
 }
 
 export function onAuthChange(handler) {
-  requireClient().auth.onAuthStateChange((event, session) => handler(event, session));
+  requireClient().auth.onAuthStateChange((event, session) => { setTimeout(()=>handler(event, session),0); });
 }
 
 // Das Profil entscheidet über die Chefansicht und darüber, welche Person beim
 // Start im Fokus steht. Fehlt es, bleibt es bei der Vertriebsrolle ohne
 // eigene Zuordnung — dann ist nur die Teamansicht sinnvoll.
 export async function loadProfile() {
-  const { data: userData, error: userError } = await requireClient().auth.getUser();
-  if (userError || !userData.user) throw new Error("Anmeldung erforderlich.");
+  const userData = await readWithRetry(async()=>{
+    const {data,error}=await withRequestTimeout(()=>requireClient().auth.getUser());
+    if(error)throw readError("Anmeldung prüfen",error);
+    if(!data.user)throw readError("Anmeldung prüfen",{message:"Anmeldung erforderlich.",status:401});
+    return data;
+  });
   const rows = await run(
     "Profil laden",
     requireClient().from("profiles").select("display_name, role, sales_person_id, must_change_password")
@@ -83,8 +92,7 @@ export async function loadProfile() {
   );
   const profile = rows[0];
   if (!profile) return { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: true };
-  const { data: antonyAccess, error: accessError } = await requireClient().rpc("has_antony_access");
-  if (accessError) throw new Error("Zugriffsberechtigung konnte nicht geladen werden. Bitte erneut anmelden.");
+  const antonyAccess = await run("Zugriffsberechtigung laden",requireClient().rpc("has_antony_access"));
   return {
     antonyAccess: antonyAccess === true,
     displayName: profile.display_name,
@@ -241,6 +249,7 @@ export async function saveAntonyGoal(goal) {
       )
       .select("period_type, period_start, period_end, target_new_customers, target_revenue_cents, customer_value_cents, appointment_to_closer_rate_override, show_rate_override, closing_rate_override, decision_rate_override, confirmation_rate_override")
       .limit(1),
+    {retry:false},
   );
   return rows[0] ?? null;
 }
@@ -290,7 +299,7 @@ export async function loadTargets(periodStart, periodEnd) {
 }
 
 export async function saveTargets(rows) {
-  return run("Ziele speichern", requireClient().from("sales_targets").upsert(rows).select());
+  return run("Ziele speichern", requireClient().from("sales_targets").upsert(rows).select(),{retry:false});
 }
 
 // Nur Manager dürfen Sync-Läufe lesen. Für alle anderen liefert die Policy eine

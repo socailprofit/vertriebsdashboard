@@ -1,3 +1,4 @@
+import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-10-recovery';
 import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-clear-development';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-journey-polish';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
@@ -10,7 +11,7 @@ import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-ev
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-monthly-mobile";
+import * as data from "./data.js?v=2026-09-10-recovery";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -270,16 +271,26 @@ function toPerson(row) {
 
 let refreshRevision = 0;
 let backgroundRefreshPending = false;
+let refreshInFlight = false;
+let lastCompleteContext = null;
+const readContext=()=>[state.sessionUserId,state.view==='antony'?'antony':'opening',state.period,state.referenceDate].join('|');
 async function loadAll(revision = refreshRevision) {
   const period=state.period,referenceDate=state.referenceDate,view=state.view;
+  const optionalErrors=[];
+  const optional=async(label,request,fallback)=>{
+    try{return await request();}catch(error){
+      if(!isTransientReadError(error))throw error;
+      optionalErrors.push({label,error});return fallback;
+    }
+  };
   const unchanged=()=>revision===refreshRevision && period===state.period && referenceDate===state.referenceDate && view===state.view;
   if (canViewAntony() && view === "antony") {
     const [people,report,syncRun] = await Promise.all([
-      data.loadPeople(),data.loadAntonyLeadReport(period,referenceDate),
-      state.profile.role === "operator" ? data.loadLatestSyncRun() : null,
+      optional("Mitarbeiterliste",()=>data.loadPeople(),state.people||[]),data.loadAntonyLeadReport(period,referenceDate),
+      state.profile.role === "operator" ? optional("Sync-Status",()=>data.loadLatestSyncRun(),state.syncRun||null) : null,
     ]);
     if (!unchanged()) return false;
-    Object.assign(state,{people,antonyLeadReport:report,periodRange:report.period,syncRun,lastCalculated:report.data_as_of});
+    Object.assign(state,{people,antonyLeadReport:report,periodRange:report.period,syncRun,lastCalculated:report.data_as_of,optionalErrors});
     return true;
   }
   const goalsRange=goalPeriodRange(period,referenceDate);
@@ -292,7 +303,7 @@ async function loadAll(revision = refreshRevision) {
   const first=metricRows[0],periodRange=first?{start:first.period_start,end:first.period_end}:{start:referenceDate,end:referenceDate};
   const [series,targets,syncRun]=await Promise.all([
     data.loadDailySeries(periodRange.start,periodRange.end),data.loadTargets(goalsRange.start,goalsRange.end),
-    state.profile.role === "operator" ? data.loadLatestSyncRun() : null,
+    state.profile.role === "operator" ? optional("Sync-Status",()=>data.loadLatestSyncRun(),state.syncRun||null) : null,
   ]);
   if(!unchanged()) return false;
   const metrics=Object.fromEntries(metricRows.map(row=>[row.slug,toPerson(row)]));
@@ -304,7 +315,7 @@ async function loadAll(revision = refreshRevision) {
   }
   const times=series.map(row=>row.calculated_at).filter(Boolean).sort();
   Object.assign(state,{people,metrics,hours:hourRows,trends,trendHours,series,targets,periodRange,syncRun,transferBreakdown,
-    antonyLeadReport:null,lastCalculated:times.at(-1)??null});
+    antonyLeadReport:null,lastCalculated:times.at(-1)??null,optionalErrors});
   return true;
 }
 
@@ -901,7 +912,7 @@ function minutesSince(isoTimestamp) {
 }
 
 function renderSyncBadge() {
-  const label = state.status === "live" ? "Live-Daten"
+  const label = state.status === "live" ? (state.backgroundError?"Letzter Datenstand":"Live-Daten")
     : state.status === "preview" ? "Designvorschau"
     : state.status === "loading" ? "Lädt" : "Getrennt";
   let note;
@@ -909,7 +920,7 @@ function renderSyncBadge() {
     const her = minutesSince(state.lastCalculated);
     const bis = minutesToNextSync();
     const zuletzt = her === null ? "Stand unbekannt" : her < 1 ? "gerade aktualisiert" : `zuletzt vor ${her} Min`;
-    note = state.backgroundError?`${zuletzt} · Aktualisierung fehlgeschlagen`:`${zuletzt} · nächster Lauf in ~${bis} Min`;
+    note = state.backgroundError?`${zuletzt} · ${state.backgroundRetry?"Verbindung wird automatisch erneut geprüft":"Aktualisierung fehlgeschlagen"}`:state.optionalErrors?.length?`${zuletzt} · ${state.optionalErrors.map(e=>e.label).join(", ")} wird erneut geladen`:`${zuletzt} · nächster Lauf in ~${bis} Min`;
   } else if (state.status === "preview") {
     note = "Beispielzahlen, nicht aus Close";
   } else {
@@ -984,32 +995,49 @@ function showError(message) {
 }
 
 async function refresh({background=false}={}) {
-  if(background && state.status==="loading"){backgroundRefreshPending=true;return;}
-  background=background && state.status==="live";
+  if(background && refreshInFlight){backgroundRefreshPending=true;return;}
   if (new URLSearchParams(location.search).get("preview") === "1") {samplePreview();render();return;}
+  const keepSnapshot=lastCompleteContext===readContext();
+  background=keepSnapshot;
   const revision=++refreshRevision;
+  refreshInFlight=true;
   const shell=document.querySelector(".app-shell");
   try {
     document.querySelector("#load-error").hidden=true;
-    if(!background){state.status="loading";shell.setAttribute("aria-busy","true");}
+    if(!keepSnapshot){
+      state.status="loading";shell.setAttribute("aria-busy","true");shell.dataset.stale="true";
+      renderNav();renderHeader();updateUrl();
+    }
     renderSyncBadge();
     if(!await loadAll(revision))return;
+    lastCompleteContext=readContext();
     state.status="live";state.error=null;state.backgroundError=false;delete shell.dataset.stale;document.querySelector("#retry-load").hidden=true;
     document.querySelector("#load-error").hidden=true;render();
+    if(state.optionalErrors?.length)recovery.failed(state.optionalErrors[0].error);else recovery.success();
   } catch(error) {
     if(revision!==refreshRevision)return;
-    if(background){state.backgroundError=true;renderSyncBadge();return;}
+    recovery.failed(error);
+    if(keepSnapshot&&!isAccessError(error)){
+      state.status="live";state.backgroundError=true;state.backgroundRetry=isTransientReadError(error);renderSyncBadge();
+      document.querySelector("#retry-load").hidden=false;return;
+    }
+    lastCompleteContext=null;
     shell.dataset.stale="true";document.querySelector("#retry-load").hidden=false;
     state.antonyLeadReport=null;
+    document.querySelector("#antony-lead-report").innerHTML="";
     const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
     document.dispatchEvent(new Event("dashboard-private-reset"));
     document.querySelector("#antony-section").hidden=true;
     document.querySelector("#widget-kernwerte").hidden=true;
-    showError("Daten konnten nicht vollständig geladen werden. Es werden keine gemischten oder alten Zahlen angezeigt.");
+    const message=isAccessError(error)?"Zugriff konnte nicht bestätigt werden. Bitte erneut anmelden.":isTransientReadError(error)
+      ? "Verbindung vorübergehend unterbrochen. Die Daten werden automatisch erneut geladen."
+      : "Die ausgewählte Auswertung konnte nicht geladen werden. Bitte erneut versuchen.";
+    showError(message);
+    console.warn("Dashboard-Abruf fehlgeschlagen",{abfrage:error.label||"Auswertung",code:error.code||error.name,status:error.status});
   } finally {
     if(revision===refreshRevision){
-      shell.removeAttribute("aria-busy");
-      if(backgroundRefreshPending){backgroundRefreshPending=false;queueMicrotask(()=>refresh({background:true}));}
+      refreshInFlight=false;shell.removeAttribute("aria-busy");
+      if(backgroundRefreshPending){backgroundRefreshPending=false;recovery.signal();}
     }
   }
 }
@@ -1019,9 +1047,10 @@ async function refresh({background=false}={}) {
 // nicht sichtbar.
 function reportStartupFailure(error) {
   const message = error instanceof Error ? error.message : String(error);
-  document.querySelector("#login-status").textContent = `Anmeldung erfolgreich, aber das Laden schlug fehl: ${message}`;
+  document.querySelector("#login-status").textContent = isTransientReadError(error)?"Verbindung vorübergehend unterbrochen. Die Anmeldung wird automatisch erneut geprüft.":`Anmeldung konnte nicht abgeschlossen werden: ${message}`;
   showApp(false);
   showError(message);
+  recovery.failed(error);
 }
 
 function showApp(visible) {
@@ -1045,7 +1074,7 @@ let pendingSessionStart = null;
 function startSession() {
   const generation = sessionGeneration;
   if (pendingSessionStart?.generation === generation) return pendingSessionStart.promise;
-  const promise = initializeSession(generation);
+  const promise = initializeSession(generation).catch(error=>{if(generation===sessionGeneration)throw error;});
   pendingSessionStart = { generation, promise };
   const clear = () => { if (pendingSessionStart?.promise === promise) pendingSessionStart = null; };
   promise.then(clear, clear);
@@ -1082,11 +1111,14 @@ async function initializeSession(generation) {
   }
 
   state.unsubscribe?.();
-  state.unsubscribe = data.subscribeToUpdates(() => refresh({background:true}));
+  state.unsubscribe = data.subscribeToUpdates(() => recovery.signal());
 }
 
 function endSession() {
-  backgroundRefreshPending=false;
+  sessionExpected=false;recovery.stop();
+  for(const id of ['core-grid','goal-strip','series-legend','series-charts','transfer-donuts','funnel','hours-chart','opening-monthly-kpis','trend-hours','details-row'])document.getElementById(id)?.replaceChildren();
+  backgroundRefreshPending=false;refreshInFlight=false;lastCompleteContext=null;
+  Object.assign(state,{people:[],metrics:{},hours:[],trends:[],trendHours:[],series:[],targets:[],optionalErrors:[],lastCalculated:null,syncRun:null});
   sessionGeneration++;
   state.sessionUserId = null;
   refreshRevision++;
@@ -1133,8 +1165,8 @@ document.addEventListener("click", (event) => {
     state.view = viewButton.dataset.view;
     if(state.view!=="antony" && state.period==="trend") state.period="month";
     if(state.view === "antony" && state.referenceDate > berlinToday()){state.referenceDate=berlinToday();document.querySelector("#reference-date").value=state.referenceDate;}
-    render();
     if (previousView !== state.view && (previousView === "antony" || state.view === "antony")) refresh();
+    else {render();if(state.status==="error")refresh();}
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
@@ -1362,6 +1394,14 @@ function applyWidgetMode(name) {
   document.querySelector("#operations-section").hidden = true;
 }
 
+let sessionExpected=false;
+const recovery=createReadRecovery(()=>state.sessionUserId?refresh({background:true}):startSession().catch(reportStartupFailure),{
+  enabled:()=>sessionExpected&&!state.forcePasswordSetup&&!state.profile.mustChangePassword,
+  visible:()=>document.visibilityState!=="hidden"&&navigator.onLine!==false,
+});
+document.addEventListener("visibilitychange",()=>recovery.visibilityChanged());
+window.addEventListener("online",()=>recovery.signal());
+
 function boot() {
   readInitialState();
   // Das Abzeichen ändert sich laufend. Beim Tageswechsel folgt die
@@ -1400,11 +1440,13 @@ function boot() {
     return;
   }
 
+  sessionExpected=true;
   data.onAuthChange((event, session) => {
     if (!session) {
       endSession();
       return;
     }
+    sessionExpected=true;
     // Supabase kennzeichnet einen Einladungs-/Wiederherstellungslink als
     // PASSWORD_RECOVERY. Der Link darf nur die Passwortseite öffnen, nie die
     // Kennzahlen. Bei eingeladenen Konten greift zusätzlich die serverseitige
@@ -1412,12 +1454,15 @@ function boot() {
     if (event === "PASSWORD_RECOVERY") state.forcePasswordSetup = true;
     // Focus and token refresh can emit another sign-in event for the same user.
     // They must not restart every dashboard query or compete with boot().
-    if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED"].includes(event) && state.sessionUserId === session.user.id) return;
+    if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED"].includes(event) && state.sessionUserId === session.user.id) {
+      if(state.status==="error"||state.backgroundError)recovery.resume();
+      return;
+    }
     if (!state.passwordChangeInProgress) startSession().catch(reportStartupFailure);
   });
 
   data.currentSession()
-    .then((session) => { if (session) return startSession(); showApp(false); })
+    .then((session) => { if (session) return startSession(); sessionExpected=false;showApp(false); })
     .catch(reportStartupFailure);
 }
 

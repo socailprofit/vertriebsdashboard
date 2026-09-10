@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {isTransientReadError} from '../read-recovery.mjs';
 const source=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const loader=source.slice(source.indexOf('let refreshRevision = 0;'),source.indexOf('// --- Ziele'));
 function deferred(){let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j});return{promise,resolve,reject};}
@@ -9,7 +10,7 @@ function setup(antonyAccess=false,view='team'){
  const pending=[],queries=[];
  const state={view,period:'day',referenceDate:'2026-09-08',profile:{role:'sales'},metrics:{old:true}};
  const data={loadMetrics:(p,d)=>{queries.push([p,d]);const q=deferred();pending.push(q);return q.promise;},loadPeople:async()=>[],loadHourPerformance:async()=>[],loadTrends:async()=>[],loadTransferBreakdown:async()=>[],loadDailySeries:async()=>[],loadTargets:async(a,b)=>{queries.push(['goals',a,b]);return[];}};
- const context=vm.createContext({state,data,canViewAntony:()=>antonyAccess,canViewWeeklyReview:()=>antonyAccess,calendarMonthRange:()=>({start:'2026-09-01',end:'2026-09-30'}),goalPeriodRange:p=>({start:'2026-09-01',end:p==='month'?'2026-09-30':'2026-09-08'}),toPerson:r=>r});
+ const context=vm.createContext({state,data,isTransientReadError,canViewAntony:()=>antonyAccess,canViewWeeklyReview:()=>antonyAccess,calendarMonthRange:()=>({start:'2026-09-01',end:'2026-09-30'}),goalPeriodRange:p=>({start:'2026-09-01',end:p==='month'?'2026-09-30':'2026-09-08'}),toPerson:r=>r});
  vm.runInContext(loader+';this.load=loadAll;this.advance=()=>++refreshRevision;',context);
  return{context,state,pending,queries};
 }
@@ -40,4 +41,11 @@ test('Antony loads only its protected historical report and does not depend on p
  assert.equal(await t.context.load(),true);
  assert.equal(t.pending.length,0);
  assert.equal(t.state.antonyLeadReport.events.length,0);
+});
+
+test('transient people and sync failures cannot block the authoritative Anthony report',async()=>{
+ const t=setup(true,'antony');t.state.profile.role='operator';
+ t.context.data.loadPeople=async()=>{throw {status:503};};t.context.data.loadLatestSyncRun=async()=>{throw {code:'57014'};};
+ t.context.data.loadAntonyLeadReport=async()=>({period:{},data_as_of:'2026-09-10T12:00Z',groups:[]});
+ assert.equal(await t.context.load(),true);assert.equal(t.state.antonyLeadReport.data_as_of,'2026-09-10T12:00Z');assert.equal(t.state.optionalErrors.length,2);
 });
