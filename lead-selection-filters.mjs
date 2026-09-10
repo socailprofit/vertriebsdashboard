@@ -1,6 +1,6 @@
-import {PEOPLE} from './verified-journey.mjs?v=2026-09-10-verified-journey-3';
-import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-verified-journey-3';
-import {uniqueLeads} from './lead-selection-model.mjs?v=2026-09-10-verified-journey-3';
+import {PEOPLE} from './verified-journey.mjs?v=2026-09-10-shared-cohort';
+import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-shared-cohort';
+import {uniqueLeads} from './lead-selection-model.mjs?v=2026-09-10-shared-cohort';
 export const filterRoles={owner:'Lead-Owner',opener:'Opener',setter:'Setter',closer:'Closer'};
 export function filterOptions(report,key,role='owner') {
  if(key==='employee')return PEOPLE;

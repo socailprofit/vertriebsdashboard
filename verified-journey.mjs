@@ -119,23 +119,31 @@ function withPhaseEntries(report,key,cohort) {
  });
 }
 const NO_SHOW=new Set(['stat_9z5zqirMleW4DbhYjsmZnV96jexVlXiYXU3yqIR8KzZ','stat_13rPYib4kw9kmCqcrcVNysFD028WcuKwxQjH6syd0w6']);
+// One retrospective population: source exits in the period plus actual CC2
+// activity and first acquisition. New bookings alone never select a lead.
+export function pipelineCohort(report,start,end) {
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(start)).map(p=>[p.type,p.value]));
+ const utcStart=parts.year+'-'+parts.month+'-'+parts.day+'T00:00:00Z';
+ const endParts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(end)).map(p=>[p.type,p.value]));
+ const utcEnd=endParts.hour==='00'&&endParts.minute==='00'&&endParts.second==='00'?new Date(Math.min(ms(endParts.year+'-'+endParts.month+'-'+endParts.day+'T00:00:00Z'),ms(report.data_as_of))).toISOString():end;
+ const seeds=[...selectedCohort(report,'setting',utcStart,utcEnd),...selectedCohort(report,'closing',start,end),...metricFacts(report.facts,'cc2_show',start,end),...metricFacts(report.facts,'customer',start,end)].sort(byTime);
+ return withPhaseEntries(report,'setting',unique(seeds)).filter(c=>!report.facts.some(f=>f.lead_id===c.lead_id&&f.key==='customer'&&ms(f.at)<ms(start))).map(c=>{
+  const closingEntry=report.activity_history.filter(e=>e.lead_id===c.lead_id&&e.source_kind==='lead_status_change'&&e.status_id===STATUS.closing&&ms(e.recorded_at)<=ms(c.at)).sort((a,b)=>ms(a.recorded_at)-ms(b.recorded_at)).at(-1);
+  const anchor=c.entry_known?c.at:closingEntry?.recorded_at||c.at;
+  const facts=report.facts.filter(f=>f.lead_id===c.lead_id&&ms(f.at)>=ms(anchor)&&ms(f.at)<ms(end));
+  const first=key=>facts.find(f=>f.key===key)||null;
+  const setter=first('setter_show'),cc1=first('cc1_show'),cc2=first('cc2_show'),customer=first('customer');
+  const qualified=setter?report.activity_history.find(e=>e.lead_id===c.lead_id&&e.source_kind==='lead_status_change'&&e.status_id===STATUS.closing&&ms(e.recorded_at)>=ms(setter.at)&&ms(e.recorded_at)<ms(end)):null;
+  return {...c,setter,cc1,cc2,customer,qualified,facts};
+ });
+}
+const pipelineStage={setting:'setter',closing:'cc1',cc2_show:'cc2',customer:'customer'};
 export function metricEntries(report,key,start,end) {
- if(key==='setting'||key==='closing') {
-  // Source Setting uses UTC, Closing Berlin. Month/day starts use the source's
-  // explicit timezone; the shared graph labels that difference in its basis.
-  // Resolve UTC midnight by date, including winter (not a fixed DST offset).
-  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(start));
-  const d=Object.fromEntries(parts.map(p=>[p.type,p.value]));
-  const utcStart=d.year+'-'+d.month+'-'+d.day+'T00:00:00Z';
-  const endParts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(end)).map(p=>[p.type,p.value]));
-  const isMidnight=endParts.hour==='00'&&endParts.minute==='00'&&endParts.second==='00';
-  const sourceEnd=key==='setting'&&isMidnight?new Date(Math.min(ms(endParts.year+'-'+endParts.month+'-'+endParts.day+'T00:00:00Z'),ms(report.data_as_of))).toISOString():end;
-  const cohort=withPhaseEntries(report,key,selectedCohort(report,key,key==='setting'?utcStart:start,sourceEnd));
-  return cohort.flatMap(c=>{
-   const proof=report.facts.filter(f=>f.lead_id===c.lead_id&&f.key===(key==='setting'?'setter_show':'cc1_show')&&ms(f.at)>=ms(c.at)&&ms(f.at)<ms(end));
-   return c.entry_known&&proof.length?[{...c,at:proof[0].at,evidence:[...(c.evidence||[]),...proof]}]:[];
-  });
- }
+ if(Object.hasOwn(pipelineStage,key))return pipelineCohort(report,start,end).flatMap(c=>{
+  const proof=c[pipelineStage[key]];
+  // A first acquisition remains visible even if its older Setting proof is missing.
+  return proof?[{...c,...proof,evidence:[...(c.evidence||[]),proof]}]:[];
+ });
  return metricFacts(report.facts,key,start,end);
 }
 export function buildJourneyReport(raw,filters={}) {
@@ -147,7 +155,7 @@ export function buildJourneyReport(raw,filters={}) {
  report.groups=[['setting','Setting','setting'],['closing','Closer Call 1','closing'],['cc2','Closer Call 2','cc2_show'],['customer','Neukunden','customer']].map(([key,label,metric])=>{
   const entries=metricEntries(report,metric,raw.activity_start,raw.activity_end);
   const reference=report.references.find(g=>g.key===key);
-  const cohort=reference?selectedCohort(report,key,reference.selection_start,reference.selection_end):entries;
+  const cohort=pipelineCohort(report,raw.activity_start,raw.activity_end);
   const groupLeads=unique(entries).map(f=>{
    const evidence=entries.filter(x=>x.lead_id===f.lead_id).flatMap(x=>x.evidence||[x]);
    return {...leads.find(l=>l.lead_id===f.lead_id),first_recorded_at:evidence[0].at,last_recorded_at:evidence.at(-1).at,matching_events:evidence.length,evidence};
@@ -160,33 +168,25 @@ export function buildJourneyReport(raw,filters={}) {
  return report;
 }
 function cohortRates(report) {
- const facts=report.facts,end=report.activity_end;
- const rows=[];
- const add=(key,label,numerator,denominator,basis)=>{const missing=denominator.filter(c=>c.entry_known===false).length;rows.push({key,label,numerator,denominator,missing,basis:basis+(missing?' Für '+missing+' Leads fehlt der frühere Phaseneintritt; Quote nicht gesichert.':''),value:denominator.length&&!missing?numerator.length/denominator.length:null});};
- const stageCohort=key=>{
-  const ref=report.references.find(g=>g.key===key);
-  if(!ref)return [];
-  return withPhaseEntries(report,key,selectedCohort(report,key,ref.selection_start,ref.selection_end));
- };
- const setting=stageCohort('setting'),cc1=stageCohort('closing');
- const cc2=unique(metricFacts(facts,'cc2_show',report.activity_start,end));
- const after=(cohort,key)=>cohort.filter(c=>facts.some(f=>f.lead_id===c.lead_id&&f.key===key&&ms(f.at)>=ms(c.at)&&ms(f.at)<ms(end)));
- for(const [cohort,prefix,label] of [[setting,'setter','Setting'],[cc1,'closer','CC1']]) {
-  const base='Dieselben Leads mit dokumentiertem Statuswechsel aus '+label+' im Zeitraum; Ergebnis seit dem vorherigen Eintritt in diese Phase.';
-  add(prefix+'_show',label+' · belegte Showrate',after(cohort,prefix==='setter'?'setter_show':'cc1_show'),cohort,'Veröffentlichte Gesprächsaktivität / '+base);
-  add(prefix+'_no_show',label+' · belegte No-Show-Quote',after(cohort,prefix+'_no_show'),cohort,'Mindestens ein dokumentierter No Show / '+base+' Mehrere Versuche können Show und No Show beim selben Lead ergeben.');
-  add(prefix+'_lost',label+' · Verlustquote',cohort.filter(c=>statusAt(report,c.lead_id,end)===STATUS.disqualified),cohort,'Ausdrücklich disqualifizierte Leads am Zeitraumende / '+base+' Follow-ups bleiben offen.');
+ const cohort=pipelineCohort(report,report.activity_start,report.activity_end),end=report.activity_end,rows=[];
+ const setting=cohort.filter(c=>c.setter),cc1=cohort.filter(c=>c.cc1),cc2=cohort.filter(c=>c.cc2);
+ const linked=(population,from,to)=>population.filter(c=>c[to]&&ms(c[to].at)>=ms(c[from].at));
+ const add=(key,label,numerator,denominator,basis,missing=denominator.filter(c=>!c.entry_known).length)=>rows.push({key,label,numerator,denominator,missing,basis:basis+(missing?' Für '+missing+' Leads fehlt '+(key==='cc2_customer'?'ein CC2-Gesprächsnachweis':'der zugehörige Setting-Eintritt')+'; die Quote bleibt offen.':''),value:denominator.length&&!missing?numerator.length/denominator.length:null});
+ const base='Gemeinsame rückblickende Leadgruppe mit Setting-/Closing-Statuswechsel, dokumentiertem CC2 oder erstem Neukundenereignis im Zeitraum; Verlauf seit dem zugehörigen Setting-Eintritt, einschließlich Vormonaten.';
+ const closingPopulation=cohort.filter(c=>c.qualified||c.cc1||c.facts.some(f=>f.key==='closer_no_show'));
+ for(const [population,shown,prefix,label,noShowKey] of [[cohort,setting,'setter','Setting','setter_no_show'],[closingPopulation,cc1,'closer','CC1','closer_no_show']]) {
+  add(prefix+'_show',label+' · belegte Showrate',shown,population,'Leads mit Gesprächsnachweis / ausgewertete Leads dieser Phase. '+base);
+  add(prefix+'_no_show',label+' · belegte No-Show-Quote',population.filter(c=>c.facts.some(f=>f.key===noShowKey)),population,'Leads mit mindestens einem dokumentierten No Show / ausgewertete Leads dieser Phase. Mehrere Versuche können Show und No Show beim selben Lead ergeben. '+base);
+  add(prefix+'_lost',label+' · Verlustquote',population.filter(c=>statusAt(report,c.lead_id,end)===STATUS.disqualified),population,'Am Zeitraumende ausdrücklich disqualifiziert / ausgewertete Leads dieser Phase. Follow-ups bleiben offen. '+base);
  }
- add('setting_cc1','Setting → CC1',after(setting,'cc1_show'),setting,'Leads dieser rückblickenden Setting-Gruppe mit anschließendem CC1 / gesamte Setting-Gruppe. Kein Quotient unabhängiger Monatszahlen.');
- add('cc1_cc2','CC1 → CC2',after(cc1,'cc2_show'),cc1,'Leads dieser Closing-Gruppe mit dokumentiertem CC2 / gesamte Closing-Gruppe. CC2 ist optional.');
- add('cc1_customer','CC1 → Neukunde',after(cc1,'customer'),cc1,'Erster Neukunden-Statuswechsel nach Eintritt in Closing / dieselbe Closing-Gruppe; beide Abschlusswege.');
- add('cc2_customer','CC2 → Neukunde',after(cc2,'customer'),cc2,'Erster Neukunden-Statuswechsel nach dokumentiertem CC2 / dieselben Leads mit CC2 im Zeitraum.');
- const direct=after(cc1,'customer').filter(c=>{
-  const won=facts.find(f=>f.lead_id===c.lead_id&&f.key==='customer'&&ms(f.at)>=ms(c.at));
-  return facts.some(f=>f.lead_id===c.lead_id&&f.key==='sold_cc1_evidence'&&ms(f.at)>=ms(c.at)&&ms(f.at)<=ms(won.at))
-   && !facts.some(f=>f.lead_id===c.lead_id&&f.key==='cc2_show'&&ms(f.at)>=ms(c.at)&&ms(f.at)<=ms(won.at));
- });
- add('cc1_direct','Direktgewinn nach CC1',direct,cc1,'Expliziter Verkauf in CC1 plus erster Neukunden-Statuswechsel / dieselbe Closing-Gruppe. Fehlender Abschlussweg wird nicht geraten.');
+ add('setting_handoff','Setting → Closing übergeben',setting.filter(c=>c.qualified),setting,'Nach dem belegten Setting dokumentierter Eintritt in Closing / dieselben Leads mit belegtem Setting. '+base);
+ add('setting_cc1','Setting → CC1 durchgeführt',linked(setting,'setter','cc1'),setting,'Leads mit anschließendem belegtem CC1 / dieselben Leads mit belegtem Setting. '+base);
+ add('cc1_cc2','CC1 → CC2 durchgeführt',linked(cc1,'cc1','cc2'),cc1,'Leads mit anschließendem belegtem CC2 / dieselben Leads mit belegtem CC1. CC2 ist optional. '+base);
+ add('cc1_customer','CC1 → Neukunde',linked(cc1,'cc1','customer'),cc1,'Erster Neukunden-Statuswechsel nach CC1 / dieselben Leads mit belegtem CC1; beide Abschlusswege. '+base);
+ const missingCC2=cohort.filter(c=>c.customer&&!c.cc2&&report.activity_history.some(e=>e.source_event_id===c.customer.id&&e.previous_status===STATUS.cc2)).length;
+ add('cc2_customer','CC2 → Neukunde',linked(cc2,'cc2','customer'),cc2,'Erster Neukunden-Statuswechsel nach CC2 / dieselben Leads mit belegtem CC2. '+base,missingCC2);
+ const direct=linked(cc1,'cc1','customer').filter(c=>c.facts.some(f=>f.key==='sold_cc1_evidence'&&ms(f.at)>=ms(c.cc1.at)&&ms(f.at)<=ms(c.customer.at))&&!c.facts.some(f=>f.key==='cc2_show'&&ms(f.at)>=ms(c.cc1.at)&&ms(f.at)<=ms(c.customer.at)));
+ add('cc1_direct','Direktgewinn nach CC1',direct,cc1,'Expliziter Verkauf in CC1 plus erster Neukunden-Statuswechsel / dieselben Leads mit belegtem CC1. '+base);
  return rows;
 }
 export function monthlyBounds(report) {

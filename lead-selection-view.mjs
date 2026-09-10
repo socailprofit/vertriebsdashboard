@@ -1,8 +1,8 @@
-import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-10-verified-journey-3';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-verified-journey-3';
-import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-verified-journey-3';
-export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-verified-journey-3';
-import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-verified-journey-3';
+import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-10-shared-cohort';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-shared-cohort';
+import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-shared-cohort';
+export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-shared-cohort';
+import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-shared-cohort';
 export const dimensions = Object.freeze({lead_source:'Herkunft / Leadquelle',industry:'Branche',owner:'Lead-Owner',opener:'Opener',setter:'Setter',closer:'Closer',industry_wz:'Branche (WZ)',employees:'Mitarbeiterzahl'});
 const pct = (n,d) => d ? `${new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(n/d*100)} %` : '—';
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(value))+' Uhr' : '—';
