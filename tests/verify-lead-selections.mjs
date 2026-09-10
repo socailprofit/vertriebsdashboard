@@ -17,6 +17,7 @@ create function public.reconcile_close_funnel_snapshot(p_snapshot_started_at tim
 ${old}
 return '{}'::jsonb;end;$$;`);
 await db.exec(sql);
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260910070155_lead_selection_history.sql',import.meta.url),'utf8'));
 const sources=(await db.query('select * from private.antony_lead_report_sources order by sort_order')).rows;
 const [setting,closing,customer]=sources.map(x=>x.status_id);
 async function lead(id,status){await db.query('insert into close_funnel_leads(lead_id,display_name,status_id,report_dimensions) values($1,$1,$2,$3)',[id,status,JSON.stringify({status_label:status,selection_tracked:true})]);}
@@ -36,6 +37,8 @@ await event('call','lead_call',setting,'Other','2026-09-01T12:00Z',undefined,tru
 const report=async(p,d)=>(await db.query('select get_antony_lead_selection_report($1,$2) report',[p,d])).rows[0].report;
 const month=await report('month','2026-09-10');
 assert.deepEqual(month.groups.map(g=>g.total),[2,1,1]);
+assert.equal(month.history.length,5);
+assert(!month.history.some(e=>e.source_event_id==='future'));
 assert.equal(month.groups[0].leads.find(x=>x.lead_id==='lead_A').matching_events,2);
 assert.equal(month.groups[0].leads.find(x=>x.lead_id==='lead_A').status_label,'Follow-up'); // current, not destination
 assert.equal(new Date(month.groups[0].selection_start).toISOString(),'2026-09-01T00:00:00.000Z');

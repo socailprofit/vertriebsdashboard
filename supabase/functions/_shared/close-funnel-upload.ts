@@ -185,10 +185,32 @@ export async function uploadCloseFunnelSnapshot(options: {
     await Promise.all(workers).catch(async error => { controller.abort(); await Promise.allSettled(workers); throw error; });
     if (completed !== plan.chunks.length) fail("funnel_upload_incomplete");
     await report("finalizing");
-    const data = await call("finalize_close_funnel_upload", { p_run_id: plan.runId });
+    let data: unknown;
+    let recoveredFinalization = false;
+    try { data = await call("finalize_close_funnel_upload", { p_run_id: plan.runId }); }
+    catch (error) {
+      // A timed-out HTTP response does not prove a rollback. Check the same
+      // immutable run/manifest once before skipping downstream reconciliation.
+      // Never replay the finalizer, extend uploads, or override caller aborts.
+      if (options.signal?.aborted || !(error instanceof FunnelUploadError) ||
+        !["funnel_upload_budget_exhausted", "funnel_upload_aborted", "funnel_upload_transport_failed"].includes(error.code)) throw error;
+      const checkController = new AbortController();
+      const checkTimer = setTimeout(() => checkController.abort(), 3000);
+      const checkSignal = options.signal ? AbortSignal.any([options.signal, checkController.signal]) : checkController.signal;
+      try {
+        requests++;
+        const checked = await options.rpc("begin_close_funnel_upload", {
+          p_run_id: plan.runId, p_snapshot_started_at: plan.snapshotStartedAt, p_manifest: plan.manifest,
+        }, checkSignal);
+        const cached = checked.data as {state?: string; result?: unknown} | null;
+        if (checked.error || cached?.state !== "committed" || !cached.result || typeof cached.result !== "object" || Array.isArray(cached.result)) throw error;
+        data = cached.result; recoveredFinalization = true;
+      } catch { throw error; }
+      finally { clearTimeout(checkTimer); }
+    }
     if (!data || typeof data !== "object" || Array.isArray(data)) fail("invalid_funnel_upload_result");
     await report("committed");
     await cleanupCommitted();
-    return { data, diagnostics: { ...plan.diagnostics, requests, retries, resumedCommitted: false } };
+    return { data, diagnostics: { ...plan.diagnostics, requests, retries, resumedCommitted: false, recoveredFinalization } };
   } finally { clearTimeout(timer); }
 }

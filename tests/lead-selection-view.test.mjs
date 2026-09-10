@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import {statusBuckets,dimensionBuckets,renderSelectionReport,renderLeadEvidence,uniqueLeads} from '../lead-selection-view.mjs';
 const lead=(id,status,owner=null)=>({lead_id:id,lead_name:id,status_id:status,status_label:status,dimensions:{owner},matching_events:1});
 const group={key:'setting',label:'Setting',status_side:'old',leads:[lead('lead_A','No Show'),lead('lead_B','Follow-up'),lead('lead_C','Follow-up','Owner')]};
-test('each current status has exactly one bucket; no-show leads remain in the source denominator',()=>{
- assert.deepEqual(statusBuckets(group.leads).map(x=>[x.label,x.leads.length]),[['Follow-up',2],['No Show',1]]);
- const html=renderSelectionReport({groups:[group]});assert.match(html,/66,7 %/);assert.match(html,/33,3 %/);assert.match(html,/1 von 3 Leads/);assert.doesNotMatch(html,/Show-Rate/);
+test('No Shows remain in the total selection, but relevant status rates exclude them',()=>{
+ const g={...group,leads:[lead('lead_A','stat_9z5zqirMleW4DbhYjsmZnV96jexVlXiYXU3yqIR8KzZ'),lead('lead_B','Follow-up'),lead('lead_C','Disqualified')]};
+ const html=renderSelectionReport({groups:[g]});assert.match(html,/2 relevante Leads als Basis/);assert.match(html,/33,3 %/);assert.match(html,/1 von 2 Leads/);assert.match(html,/50 %/);
+ const popup=renderLeadEvidence({groups:[g]},'setting','owner','no-show');assert.match(popup,/1 von 3 Leads/);
 });
 test('repeated matching exits never inflate a lead selection',()=>assert.equal(uniqueLeads({...group,leads:[...group.leads,group.leads[0]]}).length,3));
 test('missing dimensions remain visible and subgroup rates use their own denominator',()=>{

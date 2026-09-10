@@ -254,11 +254,8 @@ export async function loadHourPerformance(period, referenceDate) {
   );
 }
 
-export async function loadTrends() {
-  return run(
-    "Trend laden",
-    requireClient().from("dashboard_monthly_trends").select("*"),
-  );
+export async function loadTrends(referenceDate) {
+  return run("Dreimonats-KPIs laden",requireClient().rpc("get_opening_monthly_review",{p_reference_date:referenceDate}));
 }
 
 // Tageszeilen für den Verlauf. Die Ansicht liefert bereits je Tag und Person

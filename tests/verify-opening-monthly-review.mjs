@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {pathToFileURL} from 'node:url';
+const {PGlite}=await import(pathToFileURL(process.argv[2]).href);const db=new PGlite();
+await db.exec(`create role anon;create role authenticated;create schema auth;
+create function auth.uid() returns uuid language sql as $$select '11111111-1111-1111-1111-111111111111'::uuid$$;
+create function has_dashboard_access() returns boolean language sql as $$select coalesce(current_setting('test.allowed',true),'true')<>'false'$$;
+create table sync_runs(status text,source_window_start timestamptz,source_window_end timestamptz);
+insert into sync_runs values('success','2026-08-20T22:00Z','2026-09-10T22:00Z');
+create function get_dashboard_metrics(text,date) returns table(slug text,calls_gross integer,gatekeeper_contacts integer) language sql as $$select 'michael',100,10 union all select 'felix',200,20$$;`);
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260910070907_opening_monthly_review_coverage.sql',import.meta.url),'utf8'));
+const report=(await db.query("select get_opening_monthly_review('2026-09-10') report")).rows[0].report;
+const michael=report.filter(r=>r.slug==='michael');
+assert.deepEqual(michael.map(r=>[r.month_start,r.calls_coverage_days,r.calendar_days,r.calls_coverage_complete,r.partial]),[['2026-07-01',0,31,false,false],['2026-08-01',11,31,false,false],['2026-09-01',10,10,true,true]]);
+await db.exec("set test.allowed='false'");await assert.rejects(db.query("select get_opening_monthly_review('2026-09-10')"),/Nicht berechtigt/);
+console.log('Opening monthly review: missing/partial/complete imported windows and permissions verified.');await db.close();

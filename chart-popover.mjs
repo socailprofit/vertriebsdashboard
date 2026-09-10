@@ -61,6 +61,7 @@ export function installChartPopover() {
       open(target, event);
     }
   });
+  document.addEventListener('dashboard-private-reset', () => { close(); popup.replaceChildren(); });
   window.addEventListener('resize', () => close());
   window.addEventListener('scroll', (event) => {
     if (!popup.contains(event.target)) close();

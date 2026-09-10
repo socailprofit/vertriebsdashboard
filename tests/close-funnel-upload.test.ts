@@ -151,3 +151,15 @@ test("late cleanup permission/transport/deadline failures never invalidate a com
     assert.equal(result.data.funnel_events, 1);
   }
 });
+
+test("a finalizer response lost at the deadline uses the verified cached commit and never publishes twice", async () => {
+  let begins=0,finals=0;
+  const result=await uploadCloseFunnelSnapshot({runId,snapshot:snapshot(),budgetMs:100,cleanupBudgetMs:0,rpc:async(name,_args,signal)=>{
+    if(name==='begin_close_funnel_upload')return ok(++begins===1?{state:'uploading'}:{state:'committed',result:{funnel_events:1}});
+    if(name==='put_close_funnel_upload_chunk')return ok({state:'uploading'});
+    finals++;
+    await new Promise<void>(resolve=>signal.addEventListener('abort',()=>resolve(),{once:true}));
+    return {data:null,error:{message:'AbortError'}};
+  }});
+  assert.equal(finals,1);assert.equal(begins,2);assert.equal(result.data.funnel_events,1);assert.equal(result.diagnostics.recoveredFinalization,true);
+});

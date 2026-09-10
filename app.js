@@ -1,12 +1,16 @@
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-lead-selections";
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-lead-quality';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-lead-quality';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-lead-quality';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-lead-quality';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-lead-quality";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-09-best-call-times";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-lead-quality";
 installChartPopover();
 import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-evidence-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-lead-selections";
+import * as data from "./data.js?v=2026-09-10-lead-quality";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -80,6 +84,8 @@ const state = {
   antonyLeadReport: null,
   leadSelection: "setting",
   leadDimension: "lead_source",
+  leadFilters: {role:"owner"},
+  leadChartSeries: ["relevant","no_show","cc2","sold"],
   periodRange: { start: null, end: null },
   profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null },
   syncRun: null,
@@ -274,7 +280,7 @@ async function loadAll(revision = refreshRevision) {
   const goalsRange=goalPeriodRange(period,referenceDate);
   const [people,metricRows,hourRows,trends,trendHours,transferBreakdown] = await Promise.all([
     data.loadPeople(),data.loadMetrics(period,referenceDate),data.loadHourPerformance(period,referenceDate),
-    period === "month" ? data.loadTrends() : [],
+    period === "month" ? data.loadTrends(referenceDate) : [],
     period === "month" ? data.loadHourPerformance("trend",referenceDate) : [],
     data.loadTransferBreakdown(period,referenceDate),
   ]);
@@ -561,11 +567,12 @@ function renderCore() {
 function renderAntony() {
   const leadDialog=document.querySelector("#lead-evidence-dialog");
   leadDialog.close();leadDialog.innerHTML="";
-  const report=state.antonyLeadReport;
+  const report=filterLeadReport(state.antonyLeadReport,state.leadFilters);
+  document.querySelector("#lead-filter-controls").innerHTML=renderLeadFilters(state.antonyLeadReport,state.leadFilters);
   const profile=document.querySelector("#antony-profile-avatar");
   profile.innerHTML=renderDashboardAvatar("antony","Antony Rigone");
   enableProfileImageFallbacks(profile);
-  document.querySelector("#antony-lead-report").innerHTML=renderSelectionReport(report,state.leadSelection,state.leadDimension);
+  document.querySelector("#antony-lead-report").innerHTML=renderSelectionReport(report,state.leadSelection,state.leadDimension,state.leadChartSeries);
   const at=report?.data_as_of;
   document.querySelector("#antony-data-time").textContent=at?`Aktueller Status · Stand ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"}).format(new Date(at))} Uhr`:"Leaddaten werden geladen …";
 }
@@ -813,6 +820,7 @@ function renderHours() {
 }
 
 function renderTrendHours() {
+  document.querySelector("#opening-monthly-kpis").innerHTML=renderOpeningMonthly(state.trends,state.people,state.view,state.referenceDate);
   document.querySelector("#trend-hours").innerHTML = renderCallTimeProfile(
     state.trendHours, orderedPeople(), state.trendRate, "Dreimonatsrückblick",
   );
@@ -838,30 +846,6 @@ function renderDetails() {
         <div class="detail-lines">${rows}</div>
       </details>`;
   }).join("");
-}
-
-function renderTrends() {
-  const columns = [
-    ["calls_gross", "Brutto", number],
-    ["calls_net", "Netto-Anrufe", number],
-    ["net_rate", "Nettoquote", percent],
-    ["connection_rate", "Durchstellquote", percent],
-    ["decision_maker_contacts", "Entscheider", number],
-    ["appointments", "Termine", number],
-    ["appointment_rate", "Terminquote", percent],
-  ];
-  const months = [...new Set(state.trends.map((row) => row.month_start))].sort().reverse();
-
-  const rows = months.flatMap((month) => orderedPeople().map((person) => {
-    const row = state.trends.find((entry) => entry.month_start === month && entry.slug === person.slug);
-    if (!row) return "";
-    const cells = columns.map(([key, , format]) => `<td>${format(key === "connection_rate" && Number(row.gatekeeper_contacts) === 0 ? null : Number(row[key]))}</td>`).join("");
-    return `<tr><td>${monthLabel(month)}</td><td><span class="status-chip" style="color:${safeColor(person.color)}">${escapeHtml(firstName(person.display_name))}</span></td>${cells}</tr>`;
-  })).join("");
-
-  document.querySelector("#trend-head").innerHTML =
-    `<tr><th>Monat</th><th>Person</th>${columns.map(([, label]) => `<th>${label}</th>`).join("")}</tr>`;
-  document.querySelector("#trend-rows").innerHTML = rows || `<tr><td colspan="8">Noch keine Monatsdaten vorhanden.</td></tr>`;
 }
 
 function renderManager() {
@@ -1003,6 +987,7 @@ async function refresh() {
     shell.dataset.stale="true";document.querySelector("#retry-load").hidden=false;
     state.antonyLeadReport=null;
     const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
+    document.dispatchEvent(new Event("dashboard-private-reset"));
     document.querySelector("#antony-section").hidden=true;
     document.querySelector("#widget-kernwerte").hidden=true;
     showError("Daten konnten nicht vollständig geladen werden. Es werden keine gemischten oder alten Zahlen angezeigt.");
@@ -1023,7 +1008,9 @@ function reportStartupFailure(error) {
 
 function showApp(visible) {
   if(!visible){const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
-    document.querySelector("#antony-lead-report").innerHTML="";}
+    document.querySelector("#antony-lead-report").innerHTML="";
+    document.querySelector("#lead-filter-controls").innerHTML="";
+    document.dispatchEvent(new Event("dashboard-private-reset"));}
   document.querySelector(".app-shell").hidden = !visible;
   document.querySelector("#login-screen").hidden = visible;
   document.querySelector("#password-setup-screen").hidden = true;
@@ -1111,11 +1098,12 @@ document.querySelector("#retry-load").addEventListener("click",()=>refresh());
 
 document.addEventListener("click", (event) => {
   if(canViewAntony() && state.view==="antony") {
+    if(event.target.closest("[data-reset-lead-filters]")){state.leadFilters={role:"owner"};renderAntony();return;}
     const source=event.target.closest("[data-lead-source]");
     if(source){state.leadSelection=source.dataset.leadSource;renderAntony();return;}
     const detail=event.target.closest("[data-lead-evidence]");
     if(detail){const dialog=document.querySelector("#lead-evidence-dialog");
-      dialog.innerHTML=renderLeadEvidence(state.antonyLeadReport,state.leadSelection,state.leadDimension,detail.dataset.leadEvidence,detail.dataset.leadValue);
+      dialog.innerHTML=renderLeadEvidence(filterLeadReport(state.antonyLeadReport,state.leadFilters),state.leadSelection,state.leadDimension,detail.dataset.leadEvidence,detail.dataset.leadValue);
       dialog.showModal();return;}
   }
   if(event.target.closest("[data-close-lead-dialog]")){document.querySelector("#lead-evidence-dialog").close();return;}
@@ -1406,7 +1394,28 @@ function boot() {
 boot();
 
 document.addEventListener("change",event=>{
+ if(event.target.dataset.leadChartSeries && canViewAntony() && state.view==="antony"){
+  const key=event.target.dataset.leadChartSeries;
+  state.leadChartSeries=event.target.checked?[...new Set([...state.leadChartSeries,key])]:state.leadChartSeries.filter(k=>k!==key);
+  const report=filterLeadReport(state.antonyLeadReport,state.leadFilters),group=report.groups.find(g=>g.key===state.leadSelection)||report.groups[0];
+  document.querySelector("#lead-history-chart").innerHTML=renderHistoryChart(report,group,state.leadChartSeries);
+  document.querySelector(`[data-lead-chart-series="${key}"]`).focus();return;
+ }
+ if(event.target.dataset.leadFilter && canViewAntony() && state.view==="antony"){
+  const key=event.target.dataset.leadFilter;
+  if(key==="role")state.leadFilters.employee="";
+  state.leadFilters[key]=event.target.value;
+  renderAntony();document.querySelector(`#lead-filter-${key}`).focus();return;
+ }
  if(event.target.id==="lead-dimension" && canViewAntony() && state.view==="antony"){
   state.leadDimension=event.target.value;renderAntony();document.querySelector("#lead-dimension").focus();
  }
+});
+
+// Native Escape support is retained; backdrop clicks close without swallowing table clicks.
+document.querySelector("#lead-evidence-dialog").addEventListener("click",event=>{
+ const dialog=event.currentTarget;
+ if(event.target!==dialog)return;
+ const box=dialog.getBoundingClientRect();
+ if(event.clientX<box.left || event.clientX>box.right || event.clientY<box.top || event.clientY>box.bottom)dialog.close();
 });
