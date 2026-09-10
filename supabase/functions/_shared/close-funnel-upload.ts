@@ -111,7 +111,7 @@ export async function uploadCloseFunnelSnapshot(options: {
   const concurrency = options.concurrency ?? 3;
   const cleanupBudgetMs = options.cleanupBudgetMs ?? 2000;
   if (!Number.isFinite(cleanupBudgetMs) || cleanupBudgetMs < 0 || cleanupBudgetMs > 3000) fail("invalid_funnel_cleanup_limits");
-  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4 || !Number.isFinite(budgetMs) || budgetMs < 100 || budgetMs > 60000) fail("invalid_funnel_upload_limits");
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4 || !Number.isFinite(budgetMs) || budgetMs < 100 || budgetMs > 90000) fail("invalid_funnel_upload_limits");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budgetMs);
   const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;

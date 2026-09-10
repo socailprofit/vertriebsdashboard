@@ -163,3 +163,9 @@ test("a finalizer response lost at the deadline uses the verified cached commit 
   }});
   assert.equal(finals,1);assert.equal(begins,2);assert.equal(result.data.funnel_events,1);assert.equal(result.diagnostics.recoveredFinalization,true);
 });
+
+test("extended production upload budgets remain bounded and reject oversized limits before any RPC", async () => {
+ let calls=0;
+ await assert.rejects(uploadCloseFunnelSnapshot({runId,snapshot:snapshot(),budgetMs:90001,rpc:async()=>{calls++;return ok(null);}}),/invalid_funnel_upload_limits/);
+ assert.equal(calls,0);
+});

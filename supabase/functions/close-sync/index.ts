@@ -710,9 +710,9 @@ Deno.serve(async (request) => {
         await markPhase("committing_funnel", { sourceRevisions: funnelEvents.length, processes: flow.processes.length });
         // The complete snapshot is prepared privately in bounded requests.
         // Only the final RPC publishes it; keep time for newsletter/metrics.
-        // Allow upload/checkpoint latency plus the finalizer's 20s SQL budget.
-        // Keep the existing overall deadline and downstream time reservation.
-        const uploadBudgetMs = Math.min(60_000, 140_000 - (Date.now() - Date.parse(snapshotStartedAt)));
+        // Allow one bounded finalizer retry without aborting a near-complete
+        // transaction; reserve 15s before the 145s cron deadline for downstream work.
+        const uploadBudgetMs = Math.min(85_000, 130_000 - (Date.now() - Date.parse(snapshotStartedAt)));
         if (uploadBudgetMs < 1000 || !syncRunId) throw new SyncError("funnel_upload_budget_exhausted", "No time remains for a complete funnel upload");
         const uploaded = await uploadCloseFunnelSnapshot({
           runId: syncRunId,
