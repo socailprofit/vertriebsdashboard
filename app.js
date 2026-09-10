@@ -1,4 +1,4 @@
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-separate-groups';
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-monthly-mobile';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-separate-groups';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-separate-groups';
@@ -10,7 +10,7 @@ import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-ev
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-separate-groups";
+import * as data from "./data.js?v=2026-09-10-monthly-mobile";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -93,6 +93,8 @@ const state = {
   series: [],
   trendHours: [],
   trendRate: "quality",
+  openingView: "months",
+  goalsVisible: false,
   widget: null,
   lastCalculated: null,
   status: "start",
@@ -265,6 +267,7 @@ function toPerson(row) {
 }
 
 let refreshRevision = 0;
+let backgroundRefreshPending = false;
 async function loadAll(revision = refreshRevision) {
   const period=state.period,referenceDate=state.referenceDate,view=state.view;
   const unchanged=()=>revision===refreshRevision && period===state.period && referenceDate===state.referenceDate && view===state.view;
@@ -580,21 +583,15 @@ function renderAntony() {
 }
 
 // Zielerreichung getrennt von den Kernwerten: Nicht jede Kennzahl hat ein Ziel,
-// und die wenigen, die eines haben, sollen nicht zwischen den anderen
-// untergehen. Die Liste ergibt sich aus den tatsächlich gepflegten Zielen —
-// kommt später eines dazu, erscheint es hier von selbst.
+// und die beiden vereinbarten Ziele bleiben getrennt von zielfreien Quoten.
 const GOAL_METRICS = [
   ["callsGross", "Anrufe brutto", "calls_gross", number],
-  ["callsNet", "Anrufe netto", "calls_net", number],
-  ["gatekeeper", "Vorzimmer", "gatekeeper_contacts", number],
-  ["connected", "Durchstellungen", "connected_calls", number],
-  ["connectionRate", "Durchstellquote", "transfer_rate_target", percent],
-  ["decisionMakers", "Entscheider gesamt", "decision_maker_contacts", number],
-  ["appointments", "Termine", "appointments", number],
-  ["appointmentRate", "Terminquote", "appointment_rate_target", percent],
+  ["appointmentRate", "Entscheider → Termin", "appointment_rate_target", percent],
 ];
 
 function renderGoals() {
+  document.querySelector("#goal-strip").hidden=!state.goalsVisible;
+  document.querySelector("#toggle-goals").setAttribute("aria-expanded",String(state.goalsVisible));
   const zeilen = boardEntries().flatMap((entry) =>
     GOAL_METRICS.flatMap(([key, label, column, format]) => {
       const ziel = targetFor(entry.targetId, column);
@@ -613,7 +610,7 @@ function renderGoals() {
 
   document.querySelector("#goal-strip").innerHTML = zeilen.length === 0
     ? `<p class="empty-note">Noch keine Ziele hinterlegt. Ohne Ziel bleibt eine Kennzahl farblos — das ist beabsichtigt, eine Farbe ohne Vorgabe wäre geraten.</p>`
-    : zeilen.join("");
+    : `<p class="goal-hint">150 Brutto-Anrufe je Arbeitstag und Person · 25 % Entscheider → Termin. Andere Quoten ohne Ziel.</p>`+zeilen.join("");
 }
 
 // --- Diagramme ---------------------------------------------------------------
@@ -822,7 +819,7 @@ function renderHours() {
 }
 
 function renderTrendHours() {
-  document.querySelector("#opening-monthly-kpis").innerHTML=renderOpeningMonthly(state.trends,state.people,state.view,state.referenceDate);
+  document.querySelector("#opening-monthly-kpis").innerHTML=renderOpeningMonthly(state.trends,state.people,state.view,state.referenceDate,state.openingView);
   document.querySelector("#trend-hours").innerHTML = renderCallTimeProfile(
     state.trendHours, orderedPeople(), state.trendRate, "Dreimonatsrückblick",
   );
@@ -902,7 +899,7 @@ function renderSyncBadge() {
     const her = minutesSince(state.lastCalculated);
     const bis = minutesToNextSync();
     const zuletzt = her === null ? "Stand unbekannt" : her < 1 ? "gerade aktualisiert" : `zuletzt vor ${her} Min`;
-    note = `${zuletzt} · nächster Lauf in ~${bis} Min`;
+    note = state.backgroundError?`${zuletzt} · Aktualisierung fehlgeschlagen`:`${zuletzt} · nächster Lauf in ~${bis} Min`;
   } else if (state.status === "preview") {
     note = "Beispielzahlen, nicht aus Close";
   } else {
@@ -937,6 +934,7 @@ function updateUrl() {
 }
 
 function render() {
+  document.body.classList.toggle("is-opening-view",["team","michael","felix"].includes(state.view));
   const leadDialog=document.querySelector("#lead-evidence-dialog");
   leadDialog.close();leadDialog.innerHTML="";
   if (state.view === "antony" && !canViewAntony()) {
@@ -952,6 +950,7 @@ function render() {
     return;
   }
   renderCore();
+  renderGoals();
   renderSeries();
   renderFunnel();
   renderHours();
@@ -974,18 +973,22 @@ function showError(message) {
   box.hidden = false;
 }
 
-async function refresh() {
+async function refresh({background=false}={}) {
+  if(background && state.status==="loading"){backgroundRefreshPending=true;return;}
+  background=background && state.status==="live";
   if (new URLSearchParams(location.search).get("preview") === "1") {samplePreview();render();return;}
   const revision=++refreshRevision;
   const shell=document.querySelector(".app-shell");
   try {
     document.querySelector("#load-error").hidden=true;
-    state.status="loading";shell.setAttribute("aria-busy","true");renderSyncBadge();
+    if(!background){state.status="loading";shell.setAttribute("aria-busy","true");}
+    renderSyncBadge();
     if(!await loadAll(revision))return;
-    state.status="live";state.error=null;delete shell.dataset.stale;document.querySelector("#retry-load").hidden=true;
+    state.status="live";state.error=null;state.backgroundError=false;delete shell.dataset.stale;document.querySelector("#retry-load").hidden=true;
     document.querySelector("#load-error").hidden=true;render();
   } catch(error) {
     if(revision!==refreshRevision)return;
+    if(background){state.backgroundError=true;renderSyncBadge();return;}
     shell.dataset.stale="true";document.querySelector("#retry-load").hidden=false;
     state.antonyLeadReport=null;
     const dialog=document.querySelector("#lead-evidence-dialog");dialog.close();dialog.innerHTML="";
@@ -994,7 +997,10 @@ async function refresh() {
     document.querySelector("#widget-kernwerte").hidden=true;
     showError("Daten konnten nicht vollständig geladen werden. Es werden keine gemischten oder alten Zahlen angezeigt.");
   } finally {
-    if(revision===refreshRevision)shell.removeAttribute("aria-busy");
+    if(revision===refreshRevision){
+      shell.removeAttribute("aria-busy");
+      if(backgroundRefreshPending){backgroundRefreshPending=false;queueMicrotask(()=>refresh({background:true}));}
+    }
   }
 }
 
@@ -1066,10 +1072,11 @@ async function initializeSession(generation) {
   }
 
   state.unsubscribe?.();
-  state.unsubscribe = data.subscribeToUpdates(() => refresh());
+  state.unsubscribe = data.subscribeToUpdates(() => refresh({background:true}));
 }
 
 function endSession() {
+  backgroundRefreshPending=false;
   sessionGeneration++;
   state.sessionUserId = null;
   refreshRevision++;
@@ -1120,6 +1127,12 @@ document.addEventListener("click", (event) => {
     if (previousView !== state.view && (previousView === "antony" || state.view === "antony")) refresh();
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
+  }
+  if(event.target.closest("#toggle-goals")){state.goalsVisible=!state.goalsVisible;renderGoals();return;}
+  const openingViewButton=event.target.closest("[data-opening-view]");
+  if(openingViewButton && ["team","michael","felix"].includes(state.view)){
+    state.openingView=openingViewButton.dataset.openingView==="development"?"development":"months";
+    renderTrendHours();document.querySelector(`[data-opening-view="${state.openingView}"]`).focus();return;
   }
   const periodButton = event.target.closest("[data-period]");
   if (periodButton) {

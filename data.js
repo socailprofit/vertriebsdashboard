@@ -1,3 +1,4 @@
+import { loadOpeningMonthly } from './opening-monthly-data.mjs?v=2026-09-10-monthly-mobile';
 import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-cc2-evidence-fix";
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.
 //
@@ -255,7 +256,8 @@ export async function loadHourPerformance(period, referenceDate) {
 }
 
 export async function loadTrends(referenceDate) {
-  return run("Dreimonats-KPIs laden",requireClient().rpc("get_opening_monthly_review",{p_reference_date:referenceDate}));
+  const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  return loadOpeningMonthly(date=>run("Dreimonats-KPIs laden",requireClient().rpc("get_opening_monthly_review",{p_reference_date:date})),referenceDate,today);
 }
 
 // Tageszeilen für den Verlauf. Die Ansicht liefert bereits je Tag und Person
@@ -328,7 +330,7 @@ export function subscribeToUpdates(onChange) {
     .channel("dashboard-live")
     .on("postgres_changes", { event: "*", schema: "public", table: "daily_sales_metrics" }, updates.signal)
     .on("postgres_changes", { event: "*", schema: "public", table: "sales_targets" }, updates.signal)
-    .on("postgres_changes", { event: "*", schema: "public", table: "sync_runs" }, updates.signal)
+    .on("postgres_changes", { event: "*", schema: "public", table: "sync_runs" }, payload=>{if(payload.new?.status==="success")updates.signal();})
     .subscribe();
   return () => {updates.dispose();return requireClient().removeChannel(channel);};
 }
