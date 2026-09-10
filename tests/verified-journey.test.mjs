@@ -15,7 +15,7 @@ function raw(){return {period:{type:'trend',start:'2026-07-01',end:'2026-09-10'}
  ]};}
 test('retrospective group excludes new bookings, no-show absence is not proof, attribution uses identical group',()=>{
  const r=raw();r.activity_history.push(status('D','opening',STATUS.setting,'2026-09-09T10:00:00Z'));
- const report=buildJourneyReport(r);assert.equal(report.groups[0].source_total,4);assert.equal(report.groups[0].total,1);assert.equal(report.groups[0].leads[0].lead_id,'A');
+ const report=buildJourneyReport(r);assert.equal(report.groups[0].source_total,2);assert.equal(report.groups[0].total,1);assert.equal(report.groups[0].leads[0].lead_id,'A');
  assert.equal(report.rates.find(r=>r.key==='setter_show').numerator.length,1);assert.equal(report.rates.find(r=>r.key==='setter_lost').numerator.length,0);
  const filtered=buildJourneyReport(r,{employee:PEOPLE[0].value,source:'LinkedIn',industry:'Factory',status:'today'});assert.equal(filtered.groups[0].total,1);assert.equal(filtered.groups[3].total,0);assert.equal(filtered.rates.find(r=>r.key==='closer_show').denominator.length,0);
  assert.deepEqual(filterOptions(r,'employee').map(p=>p.label),['Felix','Michael','Anthony','LinkedIn']);assert.equal(buildJourneyReport(r,{employee:'linkedin'}).leads.length,0);
@@ -24,7 +24,7 @@ test('first exact customer event survives prior-month phases and repetitions; mo
  const report=buildJourneyReport(raw());assert.equal(report.groups[3].total,2);
  assert.deepEqual(monthlyBounds(report).map(m=>metricEntries(report,'customer',m.start,m.end).length),[0,1,1]);
  assert.deepEqual(monthlyBounds(report).map(m=>m.partial),[false,false,true]);
- assert.equal(report.rates.find(r=>r.key==='cc1_direct').numerator.length,1);assert.equal(report.rates.find(r=>r.key==='cc2_customer').numerator.length,1);
+ assert.equal(report.facts.filter(f=>f.key==='sold_cc1_evidence').length,1);assert.equal(report.facts.filter(f=>f.key==='sold_cc2_evidence').length,1);
 });
 test('historical status is reconstructed, repeated exits deduplicate but preserve evidence',()=>{
  const r=raw();r.activity_history.push(status('A','followup',STATUS.setting,'2026-07-11T10:00:00Z'),status('A',STATUS.setting,'followup','2026-07-12T10:00:00Z'),status('A','followup',noShow,'2026-08-10T10:00:00Z'));
@@ -36,8 +36,8 @@ test('missing entry yields no fabricated rate, forecasts excluded, follow-up is 
  const report=buildJourneyReport(r);assert.equal(report.rates.find(r=>r.key==='setter_show').value,null);assert.equal(report.groups[3].total,2);assert.equal(report.facts.filter(f=>f.key==='lost').length,0);
 });
 test('render includes all stages, cohort evidence, only verified assignment and escape-safe names',()=>{
- const r=raw();r.leads[0].lead_name='<img onerror=bad>';const report=buildJourneyReport(r);const html=renderJourneyReport(report);assert.match(html,/CC1 → Neukunde/);assert.match(html,/data-lead-evidence="cohort"/);assert.match(html,/data-lead-chart-series="cc2_show"/);
- const details=renderJourneyEvidence(report,'setting','lead_source','cohort');assert.match(details,/&lt;img/);assert.match(details,/4 von 4 Leads/);
+ const r=raw();r.leads[0].lead_name='<img onerror=bad>';const report=buildJourneyReport(r);const html=renderJourneyReport(report);assert.match(html,/Quoten innerhalb der Setting-Auswahl/);assert.match(html,/data-lead-evidence="cohort"/);assert.match(html,/data-lead-chart-series="cc2_show"/);
+ const details=renderJourneyEvidence(report,'setting','lead_source','cohort');assert.match(details,/&lt;img/);assert.match(details,/2 von 2 Leads/);
 });
 test('explicit No Show status is evidence and historical UTC month end includes its last two hours',()=>{
  const r=raw();r.activity_history.push(status('A','followup',STATUS.setting,'2026-07-31T21:00:00Z'),status('A',STATUS.setting,'followup','2026-07-31T23:00:00Z'));
@@ -50,18 +50,15 @@ test('cohort conversation from previous month counts in its retrospective outcom
  r.activity_history=[status('A','opening',STATUS.setting,'2026-08-25T10:00:00Z'),activity('A','setter_activity','🔎 Setter Follow Up','2026-08-31T10:00:00Z'),status('A',STATUS.setting,'followup','2026-09-01T10:00:00Z')];
  const report=buildJourneyReport(r);assert.equal(report.groups[0].total,1);assert.equal(metricEntries(report,'setter_show',r.activity_start,r.activity_end).length,0);assert.equal(report.rates.find(r=>r.key==='setter_show').numerator.length,1);
 });
-test('one cohort carries older Setting and Closing phases into all cards, rates, chart and attribution',()=>{
- const r=raw();r.period={type:'month',start:'2026-09-01',end:'2026-09-10'};r.activity_start='2026-08-31T22:00:00Z';for(const g of r.groups)g.selection_start='2026-09-01T00:00:00Z';
- r.activity_history=[
-  status('A','opening',STATUS.setting,'2026-08-20T10:00:00Z'),activity('A','setter_activity','🔎 Setter Follow Up','2026-09-02T10:00:00Z'),status('A',STATUS.setting,'followup','2026-09-02T10:01:00Z'),
-  status('B','opening',STATUS.setting,'2026-07-01T10:00:00Z'),activity('B','setter_activity','✅ Closer terminiert','2026-07-02T10:00:00Z'),status('B',STATUS.setting,STATUS.closing,'2026-07-02T10:01:00Z'),activity('B','closer_activity','2. 🔥 CC2 vereinbart','2026-09-03T10:00:00Z'),status('B',STATUS.closing,STATUS.cc2,'2026-09-03T10:01:00Z'),
-  status('C','opening',STATUS.setting,'2025-11-01T10:00:00Z'),activity('C','setter_activity','✅ Closer terminiert','2025-11-02T10:00:00Z'),status('C',STATUS.setting,STATUS.closing,'2025-11-02T10:01:00Z'),activity('C','closer_activity','2. 🔥 CC2 vereinbart','2025-12-03T10:00:00Z'),status('C',STATUS.closing,STATUS.cc2,'2025-12-03T10:01:00Z'),status('C',STATUS.cc2,STATUS.customer,'2026-09-04T10:00:00Z'),
-  status('D','opening',STATUS.setting,'2026-09-05T10:00:00Z') // booking alone never joins
- ];
- const report=buildJourneyReport(r);assert.deepEqual(report.groups.map(g=>g.total),[3,2,0,1]);assert(report.groups.every(g=>g.source_total===3));
- const rate=report.rates.find(r=>r.key==='setting_cc1');assert.equal(rate.numerator.length,2);assert.equal(rate.denominator.length,report.groups[0].total);assert.equal(rate.value,2/3);
- assert.equal(report.rates.find(r=>r.key==='cc1_customer').value,1/2);assert.equal(report.rates.find(r=>r.key==='cc2_customer').value,null);
- assert.deepEqual(metricEntries(report,'closing',r.activity_start,r.activity_end).map(x=>x.lead_id).sort(),report.groups[1].leads.map(x=>x.lead_id).sort());
- const filtered=buildJourneyReport(r,{employee:PEOPLE[0].value,source:'LinkedIn'});assert.deepEqual(filtered.groups.map(g=>g.total),[2,1,0,0]);assert.equal(filtered.rates.find(r=>r.key==='setting_cc1').value,1/2);
- assert.match(renderJourneyReport(report),/3 aus 3 gemeinsam ausgewerteten Leads/);
+
+test('Setting and Closing populations remain separate even when later stages belong to prior months',()=>{
+ const r=raw();const report=buildJourneyReport(r);
+ assert.equal(report.groups[0].source_total,2);assert.equal(report.groups[1].source_total,2);
+ assert.deepEqual(report.groups[0].leads.map(l=>l.lead_id),['A']);
+ assert(report.groups[1].leads.every(l=>['C','D'].includes(l.lead_id)));
+ assert.equal(report.groups[3].total,2);assert.equal(report.groups[3].source_total,2);
+ assert(!report.rates.some(r=>['setting_cc1','cc1_customer','cc2_customer'].includes(r.key)));
+ const settingView=renderJourneyReport(report,'setting');assert.match(settingView,/Setting · belegte Showrate/);assert.doesNotMatch(settingView,/CC1 · belegte Showrate/);
+ const closingView=renderJourneyReport(report,'closing');assert.match(closingView,/CC1 · belegte Showrate/);assert.doesNotMatch(closingView,/Setting · belegte Showrate/);
+ assert.equal(report.rates.find(r=>r.key==='setter_show').denominator.length,2);
 });

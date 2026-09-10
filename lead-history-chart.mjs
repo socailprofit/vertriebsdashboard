@@ -1,6 +1,6 @@
-import {renderJourneyChart} from './verified-journey-view.mjs?v=2026-09-10-shared-cohort';
-import {escapeHtml as esc} from './render-security.mjs?v=2026-09-10-shared-cohort';
-import {uniqueLeads,NO_SHOW_STATUS_IDS} from './lead-selection-model.mjs?v=2026-09-10-shared-cohort';
+import {renderJourneyChart} from './verified-journey-view.mjs?v=2026-09-10-separate-groups';
+import {escapeHtml as esc} from './render-security.mjs?v=2026-09-10-separate-groups';
+import {uniqueLeads,NO_SHOW_STATUS_IDS} from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
 const FOLLOWUPS=new Set(['stat_8ugtaHvwvKH3hIELdeQUqwUExa4Hn4ipsYQUuRvEfAm','stat_d9hxREiCT5xmQHv7HbfzeyBmeVHoZYUzkMXuwzPiIve','stat_SPNvi34PmlJBYNre2CJh12Yc78H6si1jYvNyhxarxwS']);
 const CC2='stat_ohblHuUMB0T7CwMfQSZhu0xWc2GDGaOEtCYOHeMMA6c',SOLD='stat_cD0BJbQkdi32yVVjypYBOeXYyRnHBZKrSuJYhyzWory';
 export const historyMetrics={relevant:{label:'Relevant ohne No Show',color:'#79a2ff'},no_show:{label:'No Shows',color:'#ff8d9d'},followup:{label:'Follow-ups',color:'#f3bf69'},cc2:{label:'CC2',color:'#c09bff'},sold:{label:'Neukunden',color:'#5dd6b0'}};

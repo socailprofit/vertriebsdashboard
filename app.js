@@ -1,16 +1,16 @@
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-shared-cohort';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-shared-cohort';
-import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-shared-cohort';
-import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-shared-cohort';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-shared-cohort";
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-separate-groups';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-separate-groups';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-separate-groups';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-separate-groups";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-shared-cohort";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-separate-groups";
 installChartPopover();
 import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-evidence-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-shared-cohort";
+import * as data from "./data.js?v=2026-09-10-separate-groups";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
