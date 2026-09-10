@@ -459,8 +459,7 @@ Deno.serve(async (request) => {
         user_id: SALES_USER_IDS.join(","),
       }, closeReads)),
       settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
-        // Historical conversation evidence includes former staff; performance mapping
-        // still resolves only the configured sales users.
+        user_id: CUSTOM_ACTIVITY_USER_IDS.join(","),
         _fields: CUSTOM_RECONCILIATION_FIELDS.join(","),
       }, closeReads)),
       settle(newsletterOnly ? Promise.resolve([]) : closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
@@ -573,16 +572,21 @@ Deno.serve(async (request) => {
     // Full status histories prove earlier acquisitions and phase entries. The
     // complete per-lead scope also permits safe reconciliation of deletions.
     const historicalStatusRows: JsonRecord[] = [];
+    const historicalCustomRows: JsonRecord[] = [];
     const historyLeadIds = [...selectedLeadIds].sort();
     for (let offset = 0; offset < historyLeadIds.length; offset += 40) {
-      historicalStatusRows.push(...await closeList<JsonRecord>(closeApiKey, "/activity/status_change/lead/", {
-        lead_id: historyLeadIds.slice(offset, offset + 40).join(","),
-        _fields: LEAD_STATUS_FIELDS.join(","),
-      }, closeReads));
+      const leadScope = historyLeadIds.slice(offset, offset + 40).join(",");
+      const [statuses, activities] = await Promise.all([
+        closeList<JsonRecord>(closeApiKey, "/activity/status_change/lead/", {lead_id: leadScope, _fields: LEAD_STATUS_FIELDS.join(",")}, closeReads),
+        closeList<JsonRecord>(closeApiKey, "/activity/custom/", {lead_id: leadScope, _fields: CUSTOM_RECONCILIATION_FIELDS.join(",")}, closeReads),
+      ]);
+      historicalStatusRows.push(...statuses);
+      historicalCustomRows.push(...activities);
     }
     const historyScope = new Set(historyLeadIds);
     // The complete second read supersedes the earlier rolling-window read.
     const completeStatusRows = [...statusResult.value.filter(row => !historyScope.has(String(row.lead_id))), ...historicalStatusRows];
+    const completeCustomRows = [...customResult.value.filter(row => !historyScope.has(String(row.lead_id))), ...historicalCustomRows];
     const activeLeadIds = new Set([...selectedLeadIds, ...retainedWonLeadIds,
       ...taskResult.value.map(row => String(row.lead_id)),
       ...[...calendarLeadIds].filter((id): id is string => id !== null),
@@ -634,7 +638,7 @@ Deno.serve(async (request) => {
     }
 
     await markPhase("normalizing_funnel", { sourceCustomActivities: customResult.value.length, sourceMeetings: calendar.meetings.length });
-    const funnelEvents = await prepareFunnelEventSnapshot({ customRecords: customResult.value,
+    const funnelEvents = await prepareFunnelEventSnapshot({ customRecords: completeCustomRows,
       meetings: calendar.meetings, statusChanges: completeStatusRows, opportunities, taskRecords: taskResult.value,
       attributions: leadAttributions, dataAsOf: snapshotStartedAt, historicalBookingSourceIds });
     const processEvents = toProcessEvents(funnelEvents, snapshotStartedAt);

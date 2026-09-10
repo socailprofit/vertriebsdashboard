@@ -1691,3 +1691,7 @@ main { grid-template-columns: minmax(0, 1fr); }
 .lead-evidence-dialog .selection-table th,.lead-evidence-dialog .selection-table td{white-space:normal;overflow-wrap:anywhere;text-transform:none;letter-spacing:normal}
 .lead-evidence-dialog .selection-table th:first-child{width:23%}
 .lead-evidence-dialog .selection-table th:last-child{width:15%}
+
+/* The four pipeline steps retain the existing card design. */
+@media(min-width:1100px){.journey-pipeline{grid-template-columns:repeat(4,minmax(0,1fr))}.journey-transitions{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:1099px){.journey-pipeline{grid-template-columns:repeat(2,minmax(0,1fr))}}

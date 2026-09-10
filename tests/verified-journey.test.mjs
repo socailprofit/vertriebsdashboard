@@ -39,3 +39,8 @@ test('render includes all stages, cohort evidence, only verified assignment and 
  const r=raw();r.leads[0].lead_name='<img onerror=bad>';const report=buildJourneyReport(r);const html=renderJourneyReport(report);assert.match(html,/CC1 → Neukunde/);assert.match(html,/data-lead-evidence="cohort"/);assert.match(html,/data-lead-chart-series="cc2_show"/);
  const details=renderJourneyEvidence(report,'setting','lead_source','cohort');assert.match(details,/&lt;img/);assert.match(details,/2 von 2 Leads/);
 });
+test('explicit No Show status is evidence and historical UTC month end includes its last two hours',()=>{
+ const r=raw();r.activity_history.push(status('A','followup',STATUS.setting,'2026-07-31T21:00:00Z'),status('A',STATUS.setting,'followup','2026-07-31T23:00:00Z'));
+ const report=buildJourneyReport(r);assert.equal(report.rates.find(r=>r.key==='setter_no_show').numerator.length,1);
+ const july=monthlyBounds(report)[0];assert.equal(metricEntries(report,'setting',july.start,july.end)[0].evidence.length,2);
+});

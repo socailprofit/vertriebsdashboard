@@ -45,6 +45,8 @@ export function journeyFacts(report) {
    }
    if(e.status_id===STATUS.closing)priorCC2.delete(e.lead_id);
    if(e.status_id===STATUS.disqualified)push(e,'lost',e.recorded_at);
+   if(e.status_id==='stat_9z5zqirMleW4DbhYjsmZnV96jexVlXiYXU3yqIR8KzZ')push(e,'setter_no_show',e.recorded_at);
+   if(e.status_id==='stat_13rPYib4kw9kmCqcrcVNysFD028WcuKwxQjH6syd0w6')push(e,'closer_no_show',e.recorded_at);
    continue;
   }
   if(e.publication_status!=='published')continue;
