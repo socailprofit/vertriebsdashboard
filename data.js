@@ -337,9 +337,11 @@ export function subscribeToUpdates(onChange) {
   const updates = createUpdateScheduler(onChange);
   const channel = requireClient()
     .channel("dashboard-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "daily_sales_metrics" }, updates.signal)
     .on("postgres_changes", { event: "*", schema: "public", table: "sales_targets" }, updates.signal)
-    .on("postgres_changes", { event: "*", schema: "public", table: "sync_runs" }, payload=>{if(payload.new?.status==="success")updates.signal();})
+    // Subscribe to publication, not every rewritten KPI row or import checkpoint.
+    // Filtering on the server saves messages before they reach each open tab.
+    // The independent 90-second recovery poll remains the fallback.
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sync_runs", filter: "status=eq.success" }, payload=>{if(payload.new?.status==="success")updates.signal();})
     .subscribe();
   return () => {updates.dispose();return requireClient().removeChannel(channel);};
 }

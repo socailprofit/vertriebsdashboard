@@ -29,14 +29,16 @@ test('foreground failure releases the busy state and exposes retry',async()=>{
  const t=setup(false),p=t.refresh();t.requests[0].reject(new Error('timeout'));await p;
  assert.equal(t.state.status,'error');assert.equal(t.element('#retry-load').hidden,false);assert.equal(t.element('.app-shell').attributes['aria-busy'],undefined);
 });
-test('import checkpoints do not cause reloads; completed snapshots and normal table edits do',()=>{
- const source=fs.readFileSync(new URL('../data.js',import.meta.url),'utf8');const handlers=new Map();let signals=0;
- const chain={channel(){return this;},on(_,filter,cb){handlers.set(filter.table,cb);return this;},subscribe(){return this;}};
+test('only completed imports and target edits are subscribed; KPI row bursts never reach the browser',()=>{
+ const source=fs.readFileSync(new URL('../data.js',import.meta.url),'utf8');const handlers=new Map(),filters=new Map();let signals=0;
+ const chain={channel(){return this;},on(_,filter,cb){handlers.set(filter.table,cb);filters.set(filter.table,filter);return this;},subscribe(){return this;}};
  const c=vm.createContext({createUpdateScheduler:()=>({signal:()=>signals++,dispose(){}}),requireClient:()=>chain});
  vm.runInContext(source.slice(source.indexOf('export function subscribeToUpdates')).replace('export function','function')+';subscribeToUpdates(()=>{});',c);
  for(let i=0;i<25;i++)handlers.get('sync_runs')({new:{status:'running'}});
  handlers.get('sync_runs')({new:{status:'failed'}});assert.equal(signals,0);
- handlers.get('sync_runs')({new:{status:'success'}});handlers.get('sales_targets')({});handlers.get('daily_sales_metrics')({});assert.equal(signals,3);
+ assert.equal(handlers.has('daily_sales_metrics'),false);
+ assert.equal(filters.get('sync_runs').event,'UPDATE');assert.equal(filters.get('sync_runs').filter,'status=eq.success');
+ handlers.get('sync_runs')({new:{status:'success'}});handlers.get('sales_targets')({});assert.equal(signals,2);
 });
 
 test('permission failure clears even the last good private snapshot',async()=>{
