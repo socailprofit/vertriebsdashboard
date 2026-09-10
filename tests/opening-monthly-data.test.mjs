@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {monthlyComparisonDates,loadOpeningMonthly} from '../opening-monthly-data.mjs';
-import {openingComparison,openingMonthMetrics,renderOpeningMonthly} from '../opening-monthly-view.mjs';
+import {openingComparison,openingMonthMetrics,renderOpeningMonthly,openingDevelopmentSeries} from '../opening-monthly-view.mjs';
 test('partial comparisons use equal calendar-day spans, including short months and year boundaries',()=>{
  assert.deepEqual(monthlyComparisonDates('2026-09-10'),{current:'2026-09-10',previous:'2026-08-10',days:10});
  assert.deepEqual(monthlyComparisonDates('2026-03-30'),{current:'2026-03-28',previous:'2026-02-28',days:28});
@@ -31,11 +31,39 @@ test('negative rate changes use red and percentage points, never relative percen
  const result=openingComparison({appointment_rate:25,decision_maker_contacts:20},{appointment_rate:20,decision_maker_contacts:20},metric);
  assert.equal(result.tone,'down');assert.equal(result.label,'-5 Pp.');
 });
-test('development mode shows all seven KPIs with separate employee series and clickable data',()=>{
+test('development mode uses one plot with separate employee series and unit-consistent metrics',()=>{
  const people=[{slug:'michael',display_name:'Michael'},{slug:'felix',display_name:'Felix'}];
  const rows=people.flatMap(p=>['2026-07-01','2026-08-01','2026-09-01'].map((m,i)=>({slug:p.slug,month_start:m,month_end:m,calls_gross:100+i*20,calls_net:70,net_rate:70,gatekeeper_contacts:20,connection_rate:50,decision_maker_contacts:10,appointments:3,appointment_rate:30})));
  const html=renderOpeningMonthly(rows,people,'team','2026-09-10','development');
- assert.equal((html.match(/class="opening-development-card"/g)||[]).length,7);
+ assert.equal((html.match(/class="opening-development-card"/g)||[]).length,1);
+ assert.equal((html.match(/class="opening-combined-svg"/g)||[]).length,1);
+ assert.equal((html.match(/data-opening-metric=/g)||[]).length,4);
+ const rates=renderOpeningMonthly(rows,people,'team','2026-09-10','development',{unit:'rates'});
+ assert.equal((rates.match(/class="opening-combined-svg"/g)||[]).length,1);
+ assert.equal((rates.match(/data-opening-metric=/g)||[]).length,3);
+ assert.doesNotMatch(rates,/data-opening-metric="calls_gross"/);
  assert.match(html,/person-michael/);assert.match(html,/person-felix/);assert.match(html,/data-chart-point/);
  assert.doesNotMatch(renderOpeningMonthly(rows,people,'felix','2026-09-10','development'),/person-michael/);
+});
+
+
+test('shared chart keeps raw monthly values, missing history and unit-specific scales',()=>{
+ const people=[{slug:'michael',display_name:'Michael'}],months=['2026-07-01','2026-08-01','2026-09-01'];
+ const rows=[{slug:'michael',month_start:months[0],calls_gross:0,calls_coverage_complete:false,calls_coverage_days:0},{slug:'michael',month_start:months[1],calls_gross:100},{slug:'michael',month_start:months[2],calls_gross:50,partial:true}];
+ const model=openingDevelopmentSeries(rows,people,months,{unit:'counts',metrics:['calls_gross','appointment_rate']});
+ assert.equal(model.series.length,1);assert.deepEqual(model.series[0].data.map(p=>p.value),[null,100,50]);
+ assert.equal(model.series[0].data[2].partial,true);assert.equal(model.max,100);
+ const html=renderOpeningMonthly(rows,people,'michael','2026-09-10','development',{unit:'counts',metrics:['calls_gross']});
+ assert.equal((html.match(/class="opening-chart-line /g)||[]).length,1);
+ assert.match(html,/unvollständig/);assert.match(html,/is-incomplete/);
+ assert.equal(openingDevelopmentSeries(rows,people,months,{unit:'rates'}).max,100);
+});
+
+test('unselected metrics and other employees never affect the shared chart scale',()=>{
+ const people=[{slug:'felix',display_name:'Felix'}],months=['2026-09-01'];
+ const rows=[{slug:'felix',month_start:months[0],calls_gross:1000,appointments:5},{slug:'michael',month_start:months[0],appointments:500}];
+ const model=openingDevelopmentSeries(rows,people,months,{unit:'counts',metrics:['appointments']});
+ assert.equal(model.series.length,1);assert.equal(model.max,8);
+ const empty=renderOpeningMonthly(rows,people,'felix','2026-09-10','development',{unit:'counts',metrics:[]});
+ assert.match(empty,/Mindestens eine Kennzahl auswählen/);assert.doesNotMatch(empty,/class="opening-combined-point /);
 });

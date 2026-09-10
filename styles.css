@@ -1780,3 +1780,51 @@ main { grid-template-columns: minmax(0, 1fr); }
  .is-opening-view .core-name{font-size:20px}
  .is-opening-view .core-values{width:100%}
 }
+
+.opening-development-single{grid-template-columns:minmax(0,1fr)}
+.opening-chart-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.opening-chart-toolbar button{min-height:44px}
+.opening-metric-picker{display:flex;flex-wrap:wrap;gap:8px 20px;margin:16px 0 8px}
+.opening-metric-picker label{display:flex;align-items:center;gap:7px;min-height:44px;cursor:pointer;font-size:13px;color:var(--text)}
+.opening-metric-picker input{flex-shrink:0;accent-color:var(--michael);width:16px;height:16px;margin:0}
+.opening-metric-picker label svg{width:36px;height:10px;margin:0;stroke:#b1bdce;stroke-width:2;fill:none}
+.opening-person-legend{display:flex;flex-wrap:wrap;gap:14px 24px;font-size:13px;font-weight:600}
+.opening-person-legend span{display:flex;align-items:center;gap:8px}.opening-person-legend i{width:9px;height:9px;border-radius:50%;background:currentColor}
+.opening-chart-note{font-size:12px;color:var(--muted);margin:16px 0 10px;line-height:1.5}
+.opening-combined-plot{display:grid;grid-template-columns:58px minmax(0,1fr)}
+.opening-y-axis{display:flex;flex-direction:column;justify-content:space-between;padding:12px 10px 12px 0;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.opening-plot-body{position:relative;min-width:0}
+.opening-development-card .opening-combined-svg{width:100%;height:300px;margin:0;overflow:visible}
+.opening-chart-line.is-incomplete{opacity:.65}
+.opening-partial-month{fill:#ffffff05;pointer-events:none}
+.opening-combined-point{position:absolute;display:grid;place-items:center;transform:translate(-50%,-50%);width:32px;height:32px;border:0;background:transparent;padding:0;cursor:pointer}
+.opening-point-symbol{display:block;width:8px;height:8px;border:2px solid currentColor;background:currentColor;box-sizing:border-box;border-radius:50%}
+.opening-point-symbol.symbol-1{border-radius:0}.opening-point-symbol.symbol-2{border-radius:0;transform:rotate(45deg)}
+.opening-point-symbol.symbol-3{border-radius:2px;width:11px;height:6px}
+.opening-combined-point.is-incomplete .opening-point-symbol{background:#0c1728}
+.opening-combined-point:focus-visible{outline:2px solid currentColor;outline-offset:0;border-radius:6px}
+.opening-month-axis{display:grid;gap:8px;margin-left:58px;padding:0}
+.opening-month-axis button{min-height:44px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-align:center}
+.opening-month-axis small{display:block;font-size:10px;margin-top:3px}
+.opening-chart-empty{position:absolute;inset:30% 8% auto;text-align:center;background:#0c1728;color:var(--muted);padding:12px;font-size:13px}
+.opening-development-details{border-top:1px solid #2d4059;margin-top:18px;padding-top:14px}
+.opening-development-details summary{cursor:pointer;color:var(--muted);font-size:13px;min-height:44px;display:flex;align-items:center;gap:8px}
+.opening-development-details summary:before{content:'▸'}.opening-development-details[open] summary:before{content:'▾'}
+.opening-chart-detail-series{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.opening-chart-detail-series h5{font-size:13px;margin:6px 0 12px}
+@media(max-width:700px){
+ .is-opening-view .opening-metric-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
+ .is-opening-view .opening-metric-picker label{font-size:11px;gap:5px;min-width:0}
+ .is-opening-view .opening-metric-picker label svg{width:24px;flex-shrink:0}
+ .is-opening-view .opening-combined-plot{grid-template-columns:44px minmax(0,1fr)}
+ .is-opening-view .opening-y-axis{font-size:11px;padding-right:6px}
+ .is-opening-view .opening-development-card .opening-combined-svg{height:300px}
+ .is-opening-view .opening-month-axis{margin-left:44px;padding:0;gap:3px}
+ .is-opening-view .opening-month-axis button{font-size:11px}
+ .is-opening-view .opening-chart-note{font-size:11px}
+ .is-opening-view .opening-chart-detail-series{grid-template-columns:minmax(0,1fr)}
+}
+
+@media(pointer:coarse){.opening-combined-point{width:44px;height:44px}}
+
+@media(max-width:700px){.is-opening-view .opening-metric-picker label span{min-width:0;overflow-wrap:anywhere;hyphens:auto;line-height:1.4}}

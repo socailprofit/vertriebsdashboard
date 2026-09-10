@@ -1,4 +1,4 @@
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-monthly-mobile';
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-single-development';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-separate-groups';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-separate-groups';
@@ -94,6 +94,8 @@ const state = {
   trendHours: [],
   trendRate: "quality",
   openingView: "months",
+  openingChartUnit: "counts",
+  openingChartMetrics: ["calls_gross","calls_net","decision_maker_contacts","appointments","net_rate","connection_rate","appointment_rate"],
   goalsVisible: false,
   widget: null,
   lastCalculated: null,
@@ -822,8 +824,12 @@ function renderHours() {
   );
 }
 
+function renderOpeningReview() {
+  document.querySelector("#opening-monthly-kpis").innerHTML=renderOpeningMonthly(state.trends,state.people,state.view,state.referenceDate,state.openingView,{unit:state.openingChartUnit,metrics:state.openingChartMetrics});
+}
+
 function renderTrendHours() {
-  document.querySelector("#opening-monthly-kpis").innerHTML=renderOpeningMonthly(state.trends,state.people,state.view,state.referenceDate,state.openingView);
+  renderOpeningReview();
   document.querySelector("#trend-hours").innerHTML = renderCallTimeProfile(
     state.trendHours, orderedPeople(), state.trendRate, "Dreimonatsrückblick",
   );
@@ -1136,7 +1142,12 @@ document.addEventListener("click", (event) => {
   const openingViewButton=event.target.closest("[data-opening-view]");
   if(openingViewButton && ["team","michael","felix"].includes(state.view)){
     state.openingView=openingViewButton.dataset.openingView==="development"?"development":"months";
-    renderTrendHours();document.querySelector(`[data-opening-view="${state.openingView}"]`).focus();return;
+    renderOpeningReview();document.querySelector(`[data-opening-view="${state.openingView}"]`).focus();return;
+  }
+  const openingUnitButton=event.target.closest("[data-opening-unit]");
+  if(openingUnitButton && canViewThreeMonthReview()){
+    state.openingChartUnit=openingUnitButton.dataset.openingUnit==="rates"?"rates":"counts";
+    renderOpeningReview();document.querySelector(`[data-opening-unit="${state.openingChartUnit}"]`).focus();return;
   }
   const periodButton = event.target.closest("[data-period]");
   if (periodButton) {
@@ -1413,6 +1424,11 @@ function boot() {
 boot();
 
 document.addEventListener("change",event=>{
+ if(event.target.dataset.openingMetric && canViewThreeMonthReview()){
+  const key=event.target.dataset.openingMetric;
+  state.openingChartMetrics=event.target.checked?[...new Set([...state.openingChartMetrics,key])]:state.openingChartMetrics.filter(k=>k!==key);
+  renderOpeningReview();document.querySelector(`[data-opening-metric="${key}"]`).focus();return;
+ }
  if(event.target.dataset.leadChartSeries && canViewAntony() && state.view==="antony"){
   const key=event.target.dataset.leadChartSeries;
   state.leadChartSeries=event.target.checked?[...new Set([...state.leadChartSeries,key])]:state.leadChartSeries.filter(k=>k!==key);

@@ -46,24 +46,50 @@ function pointFor(person,row,month,metric,previous){
  return {title:`${person.display_name} · ${metric.label}`,time:monthLabel(month),rows:details,note:incompleteCalls(row,metric)?`Anrufimporte decken ${row.calls_coverage_days} von ${row.calendar_days} Kalendertagen ab. Erfasster Teilbestand; keine Wachstumsquote.`:row?.partial?`Unvollständiger Monat bis ${row.month_end}. Vergleich, falls belegt: gleicher Kalendertagbereich in beiden Monaten; keine Hochrechnung.`:'Abgeschlossener Monatszeitraum.'};
 }
 function valueLabel(row,metric){const value=openingMetricValue(row,metric);return value===null?'—':`${fmt.format(value)}${metric.unit==='%'?' %':''}${incompleteCalls(row,metric)?' *':''}`;}
-function developmentCharts(rows,shown,months){
- return `<div class="opening-development">${openingMonthMetrics.map(metric=>{
-  const series=shown.map(person=>({person,data:months.map(m=>rows.find(r=>r.month_start===m&&r.slug===person.slug))}));
-  const max=Math.max(1,...series.flatMap(s=>s.data.map(r=>openingMetricValue(r,metric)??0)));
-  const x=i=>48+i*(months.length>1?264/(months.length-1):0),y=value=>142-value/max*112;
-  return `<section class="opening-development-card"><h4>${metric.label}</h4><svg viewBox="0 0 360 182" role="img" aria-label="${esc(metric.label)} je Monat"><text x="8" y="33" class="opening-chart-label">${fmt.format(max)}</text><text x="20" y="145" class="opening-chart-label">0</text><path d="M48 30H312 M48 86H312 M48 142H312" class="opening-chart-grid"/>${series.map(({person,data})=>data.map((row,i)=>{
-   const v=openingMetricValue(row,metric);if(v===null)return '';
-   const previous=i?openingMetricValue(data[i-1],metric):null;
-   return `${previous===null?'':`<path d="M${x(i-1)} ${y(previous)}L${x(i)} ${y(v)}" class="opening-chart-line ${row?.partial||incompleteCalls(row,metric)||incompleteCalls(data[i-1],metric)?'is-partial':''} person-${person.slug}"/>`}<circle cx="${x(i)}" cy="${y(v)}" r="4" class="opening-chart-dot person-${person.slug}"><title>${esc(person.display_name)} · ${esc(monthLabel(months[i]))} · ${esc(valueLabel(row,metric))}</title></circle>`;
-  }).join('')).join('')}${months.map((m,i)=>`<text x="${x(i)}" y="170" text-anchor="middle" class="opening-chart-label">${esc(monthLabel(m))}</text>`).join('')}</svg><div class="opening-chart-values">${series.map(({person,data})=>`<div><strong class="person-${person.slug}">${esc(person.display_name)}</strong><div class="opening-chart-months">${data.map((row,i)=>`<button type="button" class="opening-month-value" data-chart-point="${esc(JSON.stringify(pointFor(person,row,months[i],metric,data[i-1])))}"><span>${esc(monthLabel(months[i]))}${row?.partial?' · läuft':''}</span><b>${esc(valueLabel(row,metric))}</b>${deltaMarkup(openingComparison(data[i-1],row,metric))}</button>`).join('')}</div></div>`).join('')}</div></section>`;
- }).join('')}</div>`;
+const metricDashes=['','12 5','2 5','10 4 2 4'];
+export function openingDevelopmentSeries(rows,shown,months,{unit='counts',metrics=openingMonthMetrics.map(m=>m.key)}={}) {
+ const available=openingMonthMetrics.filter(m=>(m.unit==='%')===(unit==='rates'));
+ const selected=available.filter(m=>metrics.includes(m.key));
+ const series=shown.flatMap(person=>selected.map(metric=>({person,metric,dash:metricDashes[available.indexOf(metric)],data:months.map(month=>{
+  const row=rows.find(r=>r.month_start===month&&r.slug===person.slug);
+  return {row,value:openingMetricValue(row,metric),partial:!!row?.partial||incompleteCalls(row,metric)};
+ })})));
+ const largest=Math.max(1,...series.flatMap(s=>s.data.map(p=>p.value??0)));
+ const magnitude=10**Math.floor(Math.log10(largest/4));
+ const tickStep=Math.max(1,[1,2,2.5,5,10].find(n=>n*magnitude>=largest/4)*magnitude);
+ const max=unit==='rates'?Math.max(100,Math.ceil(largest/25)*25):tickStep*4;
+ return {available,series,max,unit:unit==='rates'?'rates':'counts'};
 }
-export function renderOpeningMonthly(rows,people,view,referenceDate,mode='months') {
+function developmentChart(rows,shown,months,options){
+ const model=openingDevelopmentSeries(rows,shown,months,options),{series,max,available,unit}=model;
+ const selected=new Set(series.map(s=>s.metric.key));
+ const x=i=>(i+.5)*720/months.length,y=value=>280-value/max*260;
+ const monthPoint=i=>({title:'Monatswerte · '+(unit==='rates'?'Quoten':'Anzahlen'),time:monthLabel(months[i]),rows:series.map(s=>({label:`${s.person.display_name} · ${s.metric.label}`,value:valueLabel(s.data[i].row,s.metric)})),note:'Separate Monatswerte. * = Anruf-Teilbestand. Laufende Monate sind unvollständig; keine Hochrechnung. Die Detailtabelle zeigt die Berechnungsbasis und den Vormonatsvergleich.'});
+ const partialMonths=new Set(months.filter(month=>rows.some(row=>row.month_start===month&&row.partial&&shown.some(p=>p.slug===row.slug))));
+ return `<div class="opening-development opening-development-single"><section class="opening-development-card">
+ <div class="opening-chart-toolbar"><h4>Monatliche Entwicklung</h4><div class="rate-switch" role="group" aria-label="Skala auswählen">${[['counts','Anzahlen'],['rates','Quoten']].map(([key,label])=>`<button type="button" data-opening-unit="${key}" aria-pressed="${unit===key}" class="${unit===key?'active':''}">${label}</button>`).join('')}</div></div>
+ <div class="opening-metric-picker" role="group" aria-label="Kennzahlen im gemeinsamen Graphen">${available.map((metric,i)=>`<label><input type="checkbox" data-opening-metric="${metric.key}" ${selected.has(metric.key)?'checked':''}/><svg viewBox="0 0 36 10" aria-hidden="true"><path d="M0 5H36" stroke-dasharray="${metricDashes[i]}"/></svg><span>${metric.key==='decision_maker_contacts'?'Entscheider':metric.label}</span></label>`).join('')}</div>
+ <div class="opening-person-legend">${shown.map(person=>`<span class="person-${person.slug}"><i></i>${esc(person.display_name)}</span>`).join('')}</div>
+ <p class="opening-chart-note">${unit==='rates'?'Quote in %':'Anzahl je Monat'} · Farbe = Vertriebler · Linienmuster = KPI · Helle Linien / offene Punkte = unvollständig</p>
+ <div class="opening-combined-plot"><div class="opening-y-axis" aria-hidden="true">${[4,3,2,1,0].map(i=>`<span>${fmt.format(max*i/4)}${unit==='rates'?' %':''}</span>`).join('')}</div><div class="opening-plot-body">
+ <svg class="opening-combined-svg" viewBox="0 0 720 300" preserveAspectRatio="none" role="img" aria-label="Gemeinsame ${unit==='rates'?'Quoten':'Anzahlen'} der Vertriebler über ${months.map(monthLabel).join(', ')}">
+ ${[0,1,2,3,4].map(i=>`<path d="M0 ${20+i*65}H720" class="opening-chart-grid"/>`).join('')}
+ ${months.map((month,i)=>partialMonths.has(month)?`<rect x="${Math.max(0,x(i)-70)}" y="0" width="${Math.min(720,x(i)+70)-Math.max(0,x(i)-70)}" height="300" class="opening-partial-month"/>`:'').join('')}
+ ${series.map(s=>s.data.map((p,i)=>{
+  const previous=i?s.data[i-1]:null;
+  return p.value===null||!previous||previous.value===null?'':`<path d="M${x(i-1)} ${y(previous.value)}L${x(i)} ${y(p.value)}" class="opening-chart-line person-${s.person.slug} ${p.partial||previous.partial?'is-incomplete':''}" stroke-dasharray="${s.dash}"/>`;
+ }).join('')).join('')}
+ </svg>${series.map(s=>s.data.map((p,i)=>p.value===null?'':`<button type="button" class="opening-combined-point person-${s.person.slug} ${p.partial?'is-incomplete':''}" style="left:${x(i)/720*100}%;top:${y(p.value)/300*100}%" aria-label="${esc(s.person.display_name+' · '+s.metric.label+' · '+monthLabel(months[i])+' · '+valueLabel(p.row,s.metric))}" data-chart-point="${esc(JSON.stringify(pointFor(s.person,p.row,months[i],s.metric,s.data[i-1]?.row)))}"><span class="opening-point-symbol symbol-${available.indexOf(s.metric)}"></span></button>`).join('')).join('')}${!series.length?'<p class="opening-chart-empty">Mindestens eine Kennzahl auswählen.</p>':series.every(s=>s.data.every(p=>p.value===null))?'<p class="opening-chart-empty">Für diese Auswahl liegen keine belegten Werte vor.</p>':''}
+ </div></div><div class="opening-month-axis" style="grid-template-columns:repeat(${months.length},minmax(0,1fr))">${months.map((m,i)=>`<button type="button" data-chart-point="${esc(JSON.stringify(monthPoint(i)))}">${esc(monthLabel(m))}${partialMonths.has(m)?'<small>unvollständig</small>':''}</button>`).join('')}</div>
+ <details class="opening-development-details"><summary>Werte &amp; Vormonatsvergleich</summary><div class="opening-chart-detail-series">${series.map(s=>`<section><h5 class="person-${s.person.slug}">${esc(s.person.display_name)} · ${s.metric.label}</h5><div class="opening-chart-months">${s.data.map((p,i)=>`<button type="button" class="opening-month-value" data-chart-point="${esc(JSON.stringify(pointFor(s.person,p.row,months[i],s.metric,s.data[i-1]?.row)))}"><span>${esc(monthLabel(months[i]))}</span><b>${esc(valueLabel(p.row,s.metric))}</b>${deltaMarkup(openingComparison(s.data[i-1]?.row,p.row,s.metric))}</button>`).join('')}</div></section>`).join('')}</div></details>
+ </section></div>`;
+}
+export function renderOpeningMonthly(rows,people,view,referenceDate,mode='months',chartOptions={}) {
  const months=[...new Set(rows.map(r=>r.month_start))].sort();
  const shown=people.filter(p=>['michael','felix'].includes(p.slug)&&(view==='team'||view===p.slug));
- const heading=`<div class="selection-heading opening-month-heading"><div><p class="eyebrow">Dreimonatsrückblick</p><h3>Entwicklung der Vertriebler</h3></div><div class="rate-switch opening-view-switch" role="group" aria-label="Entwicklungsansicht">${[['months','Monatswerte'],['development','Gesamtentwicklung']].map(([key,label])=>`<button type="button" data-opening-view="${key}" aria-pressed="${mode===key}" class="${mode===key?'active':''}">${label}</button>`).join('')}</div></div><p class="selection-basis">Δ zum Vormonat: Grün = Anstieg, Rot = Rückgang. Laufende Monate vergleichen denselben Kalendertagbereich. Fehlende Anrufhistorie ergibt keine Quote.${mode==='development'?' Jede Linie zeigt separate Monatswerte; gestrichelt = unvollständig.':''}</p>`;
+ const heading=`<div class="selection-heading opening-month-heading"><div><p class="eyebrow">Dreimonatsrückblick</p><h3>Entwicklung der Vertriebler</h3></div><div class="rate-switch opening-view-switch" role="group" aria-label="Entwicklungsansicht">${[['months','Monatswerte'],['development','Gesamtentwicklung']].map(([key,label])=>`<button type="button" data-opening-view="${key}" aria-pressed="${mode===key}" class="${mode===key?'active':''}">${label}</button>`).join('')}</div></div><p class="selection-basis">Δ zum Vormonat: Grün = Anstieg, Rot = Rückgang. Laufende Monate vergleichen denselben Kalendertagbereich. Fehlende Anrufhistorie ergibt keine Quote.</p>`;
  if(!months.length)return heading+'<p>Für diesen Zeitraum sind noch keine Monatswerte verfügbar.</p>';
- if(mode==='development')return heading+developmentCharts(rows,shown,months);
+ if(mode==='development')return heading+developmentChart(rows,shown,months,chartOptions);
  return heading+`<div class="opening-month-people">${shown.map(person=>{
   const data=months.map(month=>rows.find(r=>r.month_start===month&&r.slug===person.slug));
   const complete=data.filter(r=>r&&!r.partial);const previous=complete.at(-2),current=complete.at(-1);
