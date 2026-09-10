@@ -1,7 +1,7 @@
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison';
-import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-month-comparison';
-export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-month-comparison';
-import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-month-comparison';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison-2';
+import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-2';
+export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-2';
+import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-month-comparison-2';
 export const dimensions = Object.freeze({lead_source:'Herkunft / Leadquelle',industry:'Branche',owner:'Lead-Owner',opener:'Opener',setter:'Setter',closer:'Closer',industry_wz:'Branche (WZ)',employees:'Mitarbeiterzahl'});
 const pct = (n,d) => d ? `${new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(n/d*100)} %` : '—';
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(value))+' Uhr' : '—';

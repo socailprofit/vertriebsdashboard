@@ -1,16 +1,16 @@
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-month-comparison';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison';
-import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-month-comparison';
-import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-month-comparison';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-month-comparison";
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-month-comparison-2';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-month-comparison-2';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-month-comparison-2';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-month-comparison-2';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-month-comparison-2";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
-import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-month-comparison";
+import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-month-comparison-2";
 installChartPopover();
 import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-evidence-fix";
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-month-comparison";
+import * as data from "./data.js?v=2026-09-10-month-comparison-2";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -565,6 +565,7 @@ function renderCore() {
 }
 
 function renderAntony() {
+  document.dispatchEvent(new Event("dashboard-private-reset"));
   const leadDialog=document.querySelector("#lead-evidence-dialog");
   leadDialog.close();leadDialog.innerHTML="";
   const report=filterLeadReport(state.antonyLeadReport,state.leadFilters);
