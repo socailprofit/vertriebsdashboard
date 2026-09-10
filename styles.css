@@ -552,6 +552,7 @@ tbody td:first-child { font-weight: 620; }
 .core-label { color: var(--muted-2); font-size: 0.74rem; }
 .core-value strong { font-size: clamp(1.6rem, 2.8vw, 2.4rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; color: var(--perf); }
 .core-value small { color: var(--muted-2); font-size: 0.7rem; }
+.core-value .core-target { color: #9ba4b0; font-weight: 400; line-height: 1.4; }
 
 .core-card.is-strong .core-score { color: var(--good); }
 .core-card.is-weak .core-score { color: var(--bad); }

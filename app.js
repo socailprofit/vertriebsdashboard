@@ -546,10 +546,14 @@ function renderCore() {
       // hier alles ab, sobald eine Kennzahl ohne Ziel nach oben rückte.
       const target = metricTarget(metric, entry.targetId);
       const tone = metricPerformanceClass(metric.key, value, target, entry.targetId);
+      const goalLabel = metric.key === "callsGross"
+        ? `${{day:"Tagesziel",week:"Wochenziel",month:"Monatsziel"}[state.period] || "Ziel"}: ${number(target)}`
+        : metric.key === "appointmentRate" ? `Ziel: ${percent(target)}` : null;
       return `
         <div class="core-value ${tone}">
           <span class="core-label">${metric.label}</span>
           <strong>${metric.format(value)}</strong>
+          ${target !== null && goalLabel ? `<small class="core-target">${escapeHtml(goalLabel)}</small>` : ""}
         </div>`;
     }).join("");
 
