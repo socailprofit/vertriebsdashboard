@@ -38,6 +38,9 @@ test('development mode uses one plot with separate employee series and unit-cons
  assert.equal((html.match(/class="opening-development-card"/g)||[]).length,1);
  assert.equal((html.match(/class="opening-combined-svg"/g)||[]).length,1);
  assert.equal((html.match(/data-opening-metric=/g)||[]).length,4);
+ assert.equal((html.match(/class="opening-combined-point /g)||[]).length,6);
+ assert.equal((html.match(/type="radio"/g)||[]).length,4);
+ assert.match(html,/opening-point-value/);
  const rates=renderOpeningMonthly(rows,people,'team','2026-09-10','development',{unit:'rates'});
  assert.equal((rates.match(/class="opening-combined-svg"/g)||[]).length,1);
  assert.equal((rates.match(/data-opening-metric=/g)||[]).length,3);
@@ -65,5 +68,5 @@ test('unselected metrics and other employees never affect the shared chart scale
  const model=openingDevelopmentSeries(rows,people,months,{unit:'counts',metrics:['appointments']});
  assert.equal(model.series.length,1);assert.equal(model.max,8);
  const empty=renderOpeningMonthly(rows,people,'felix','2026-09-10','development',{unit:'counts',metrics:[]});
- assert.match(empty,/Mindestens eine Kennzahl auswählen/);assert.doesNotMatch(empty,/class="opening-combined-point /);
+ assert.match(empty,/data-opening-metric="calls_gross" checked/);assert.equal((empty.match(/class="opening-combined-point /g)||[]).length,1);
 });

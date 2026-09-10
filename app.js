@@ -1,4 +1,4 @@
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-single-development';
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-clear-development';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-separate-groups';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-separate-groups';
@@ -95,7 +95,7 @@ const state = {
   trendRate: "quality",
   openingView: "months",
   openingChartUnit: "counts",
-  openingChartMetrics: ["calls_gross","calls_net","decision_maker_contacts","appointments","net_rate","connection_rate","appointment_rate"],
+  openingChartMetrics: ["calls_gross","net_rate"],
   goalsVisible: false,
   widget: null,
   lastCalculated: null,
@@ -1426,7 +1426,7 @@ boot();
 document.addEventListener("change",event=>{
  if(event.target.dataset.openingMetric && canViewThreeMonthReview()){
   const key=event.target.dataset.openingMetric;
-  state.openingChartMetrics=event.target.checked?[...new Set([...state.openingChartMetrics,key])]:state.openingChartMetrics.filter(k=>k!==key);
+  state.openingChartMetrics=[...state.openingChartMetrics.filter(k=>k.endsWith("_rate")!==key.endsWith("_rate")),key];
   renderOpeningReview();document.querySelector(`[data-opening-metric="${key}"]`).focus();return;
  }
  if(event.target.dataset.leadChartSeries && canViewAntony() && state.view==="antony"){

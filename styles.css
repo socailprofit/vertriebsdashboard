@@ -1784,10 +1784,13 @@ main { grid-template-columns: minmax(0, 1fr); }
 .opening-development-single{grid-template-columns:minmax(0,1fr)}
 .opening-chart-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .opening-chart-toolbar button{min-height:44px}
-.opening-metric-picker{display:flex;flex-wrap:wrap;gap:8px 20px;margin:16px 0 8px}
-.opening-metric-picker label{display:flex;align-items:center;gap:7px;min-height:44px;cursor:pointer;font-size:13px;color:var(--text)}
-.opening-metric-picker input{flex-shrink:0;accent-color:var(--michael);width:16px;height:16px;margin:0}
-.opening-metric-picker label svg{width:36px;height:10px;margin:0;stroke:#b1bdce;stroke-width:2;fill:none}
+.opening-chart-eyebrow{font-size:11px;color:var(--muted);margin:0 0 6px;letter-spacing:.05em}
+.opening-development-card .opening-chart-toolbar h4{font-size:23px}
+.opening-metric-picker{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 20px}
+.opening-metric-picker label{position:relative;display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid #2d4059;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted)}
+.opening-metric-picker label.is-selected{color:#f4f7ff;background:#223750;border-color:#6781a2}
+.opening-metric-picker input{position:absolute;opacity:0;width:1px;height:1px}
+.opening-metric-picker label:focus-within{outline:2px solid #8bbcff;outline-offset:3px}
 .opening-person-legend{display:flex;flex-wrap:wrap;gap:14px 24px;font-size:13px;font-weight:600}
 .opening-person-legend span{display:flex;align-items:center;gap:8px}.opening-person-legend i{width:9px;height:9px;border-radius:50%;background:currentColor}
 .opening-chart-note{font-size:12px;color:var(--muted);margin:16px 0 10px;line-height:1.5}
@@ -1795,10 +1798,10 @@ main { grid-template-columns: minmax(0, 1fr); }
 .opening-y-axis{display:flex;flex-direction:column;justify-content:space-between;padding:12px 10px 12px 0;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 .opening-plot-body{position:relative;min-width:0}
 .opening-development-card .opening-combined-svg{width:100%;height:300px;margin:0;overflow:visible}
-.opening-chart-line.is-incomplete{opacity:.65}
+.opening-chart-line.is-incomplete{opacity:.85}
 .opening-partial-month{fill:#ffffff05;pointer-events:none}
 .opening-combined-point{position:absolute;display:grid;place-items:center;transform:translate(-50%,-50%);width:32px;height:32px;border:0;background:transparent;padding:0;cursor:pointer}
-.opening-point-symbol{display:block;width:8px;height:8px;border:2px solid currentColor;background:currentColor;box-sizing:border-box;border-radius:50%}
+.opening-point-symbol{display:block;width:10px;height:10px;border:2px solid currentColor;background:currentColor;box-sizing:border-box;border-radius:50%}
 .opening-point-symbol.symbol-1{border-radius:0}.opening-point-symbol.symbol-2{border-radius:0;transform:rotate(45deg)}
 .opening-point-symbol.symbol-3{border-radius:2px;width:11px;height:6px}
 .opening-combined-point.is-incomplete .opening-point-symbol{background:#0c1728}
@@ -1828,3 +1831,16 @@ main { grid-template-columns: minmax(0, 1fr); }
 @media(pointer:coarse){.opening-combined-point{width:44px;height:44px}}
 
 @media(max-width:700px){.is-opening-view .opening-metric-picker label span{min-width:0;overflow-wrap:anywhere;hyphens:auto;line-height:1.4}}
+
+/* One metric, two clear employee lines; numbers remain on their true monthly points. */
+.opening-point-value{position:absolute;bottom:31px;left:50%;transform:translateX(-50%);font-size:14px;font-weight:650;white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1.2;background:#0c1728;padding:2px 5px;border-radius:4px;pointer-events:none}
+.opening-point-value.is-below{bottom:auto;top:31px}
+.opening-combined-point{width:44px;height:44px}
+.opening-development-card .opening-chart-grid{stroke:#26364b}
+.opening-person-legend{margin-bottom:20px}
+.opening-partial-month{fill:#ffffff04}
+@media(max-width:700px){
+ .is-opening-view .opening-metric-picker label{padding:0 8px;font-size:12px}
+ .is-opening-view .opening-point-value{font-size:12px;padding:2px 3px}
+ .is-opening-view .opening-development-card .opening-chart-toolbar h4{font-size:21px}
+}
