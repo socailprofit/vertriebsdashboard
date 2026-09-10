@@ -29,7 +29,7 @@ test('first exact customer event survives prior-month phases and repetitions; mo
 test('historical status is reconstructed, repeated exits deduplicate but preserve evidence',()=>{
  const r=raw();r.activity_history.push(status('A','followup',STATUS.setting,'2026-07-11T10:00:00Z'),status('A',STATUS.setting,'followup','2026-07-12T10:00:00Z'),status('A','followup',noShow,'2026-08-10T10:00:00Z'));
  const report=buildJourneyReport(r);const july=monthlyBounds(report)[0];const entries=metricEntries(report,'setting',july.start,july.end);
- assert.equal(entries.length,1);assert.equal(entries[0].evidence.length,2);assert.equal(statusAt(report,'A',july.end),'followup');assert.equal(report.groups[0].total,0);
+ assert.equal(entries.length,1);assert.equal(entries[0].evidence.filter(e=>e.kind==='lead_status_change').length,2);assert.equal(statusAt(report,'A',july.end),'followup');assert.equal(report.groups[0].total,1);
 });
 test('missing entry yields no fabricated rate, forecasts excluded, follow-up is not loss',()=>{
  const r=raw();r.activity_history=r.activity_history.filter(e=>!(e.lead_id==='A'&&e.status_id===STATUS.setting));r.activity_history.push(activity('A','closer_activity','4. ❌ Nicht verkauft','2026-09-09T10:00:00Z'),status('A','followup',STATUS.customer,'2026-10-01T10:00:00Z'));
@@ -42,5 +42,11 @@ test('render includes all stages, cohort evidence, only verified assignment and 
 test('explicit No Show status is evidence and historical UTC month end includes its last two hours',()=>{
  const r=raw();r.activity_history.push(status('A','followup',STATUS.setting,'2026-07-31T21:00:00Z'),status('A',STATUS.setting,'followup','2026-07-31T23:00:00Z'));
  const report=buildJourneyReport(r);assert.equal(report.rates.find(r=>r.key==='setter_no_show').numerator.length,1);
- const july=monthlyBounds(report)[0];assert.equal(metricEntries(report,'setting',july.start,july.end)[0].evidence.length,2);
+ const july=monthlyBounds(report)[0];assert.equal(metricEntries(report,'setting',july.start,july.end)[0].evidence.filter(e=>e.kind==='lead_status_change').length,2);
+});
+
+test('cohort conversation from previous month counts in its retrospective outcome, not monthly activity',()=>{
+ const r=raw();r.period.start='2026-09-01';r.period.type='month';r.activity_start='2026-08-31T22:00:00Z';for(const g of r.groups)g.selection_start='2026-09-01T00:00:00Z';
+ r.activity_history=[status('A','opening',STATUS.setting,'2026-08-25T10:00:00Z'),activity('A','setter_activity','🔎 Setter Follow Up','2026-08-31T10:00:00Z'),status('A',STATUS.setting,'followup','2026-09-01T10:00:00Z')];
+ const report=buildJourneyReport(r);assert.equal(report.groups[0].total,1);assert.equal(metricEntries(report,'setter_show',r.activity_start,r.activity_end).length,0);assert.equal(report.rates.find(r=>r.key==='setter_show').numerator.length,1);
 });

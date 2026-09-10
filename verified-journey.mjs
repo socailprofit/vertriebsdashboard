@@ -84,10 +84,10 @@ export function journeyFacts(report) {
  return facts.sort(byTime);
 }
 export const METRICS=Object.freeze({
- setting:{label:'Setting · Ergebnisbestand',color:'#79a2ff',unit:'Leads'},
- closing:{label:'CC1 · Ergebnisbestand',color:'#e7a14c',unit:'Leads'},
- setter_show:{label:'Setting durchgeführt',color:'#8dc5ff',unit:'Leads'},
- cc1_show:{label:'Closer Call 1',color:'#f3bf69',unit:'Leads'},
+ setting:{label:'Setting · belegter Verlauf',color:'#79a2ff',unit:'Leads'},
+ closing:{label:'CC1 · belegter Verlauf',color:'#e7a14c',unit:'Leads'},
+ setter_show:{label:'Setting · Monatsaktivität',color:'#8dc5ff',unit:'Leads'},
+ cc1_show:{label:'CC1 · Monatsaktivität',color:'#f3bf69',unit:'Leads'},
  cc2_show:{label:'Closer Call 2',color:'#c09bff',unit:'Leads'},
  customer:{label:'Neukunden',color:'#5dd6b0',unit:'Leads'},
  setter_no_show:{label:'Setting No Shows',color:'#ff8d9d',unit:'Leads'},
@@ -112,6 +112,12 @@ export function selectedCohort(report,key,start,end) {
  .sort((a,b)=>ms(a.recorded_at)-ms(b.recorded_at)||a.source_event_id.localeCompare(b.source_event_id));
  return unique(events).map(e=>({lead_id:e.lead_id,at:e.recorded_at,id:e.source_event_id,kind:e.source_kind,status_id:statusAt(report,e.lead_id,end),evidence:events.filter(x=>x.lead_id===e.lead_id).map(x=>({at:x.recorded_at,id:x.source_event_id,kind:x.source_kind}))}));
 }
+function withPhaseEntries(report,key,cohort) {
+ return cohort.map(c=>{
+  const entries=report.activity_history.filter(e=>e.lead_id===c.lead_id&&e.source_kind==='lead_status_change'&&e.status_id===STATUS[key]&&ms(e.recorded_at)<=ms(c.at)).sort((a,b)=>ms(a.recorded_at)-ms(b.recorded_at));
+  return {...c,at:entries.at(-1)?.recorded_at||c.at,entry_known:entries.length>0};
+ });
+}
 const NO_SHOW=new Set(['stat_9z5zqirMleW4DbhYjsmZnV96jexVlXiYXU3yqIR8KzZ','stat_13rPYib4kw9kmCqcrcVNysFD028WcuKwxQjH6syd0w6']);
 export function metricEntries(report,key,start,end) {
  if(key==='setting'||key==='closing') {
@@ -124,7 +130,11 @@ export function metricEntries(report,key,start,end) {
   const endParts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(end)).map(p=>[p.type,p.value]));
   const isMidnight=endParts.hour==='00'&&endParts.minute==='00'&&endParts.second==='00';
   const sourceEnd=key==='setting'&&isMidnight?new Date(Math.min(ms(endParts.year+'-'+endParts.month+'-'+endParts.day+'T00:00:00Z'),ms(report.data_as_of))).toISOString():end;
-  return selectedCohort(report,key,key==='setting'?utcStart:start,sourceEnd).filter(l=>l.status_id&&!NO_SHOW.has(l.status_id));
+  const cohort=withPhaseEntries(report,key,selectedCohort(report,key,key==='setting'?utcStart:start,sourceEnd));
+  return cohort.flatMap(c=>{
+   const proof=report.facts.filter(f=>f.lead_id===c.lead_id&&f.key===(key==='setting'?'setter_show':'cc1_show')&&ms(f.at)>=ms(c.at)&&ms(f.at)<ms(end));
+   return c.entry_known&&proof.length?[{...c,at:proof[0].at,evidence:[...(c.evidence||[]),...proof]}]:[];
+  });
  }
  return metricFacts(report.facts,key,start,end);
 }
@@ -156,10 +166,7 @@ function cohortRates(report) {
  const stageCohort=key=>{
   const ref=report.references.find(g=>g.key===key);
   if(!ref)return [];
-  return selectedCohort(report,key,ref.selection_start,ref.selection_end).map(c=>{
-   const entries=report.activity_history.filter(e=>e.lead_id===c.lead_id&&e.source_kind==='lead_status_change'&&e.status_id===STATUS[key]&&ms(e.recorded_at)<=ms(c.at)).sort((a,b)=>ms(a.recorded_at)-ms(b.recorded_at));
-   return {...c,at:entries.at(-1)?.recorded_at||c.at,entry_known:entries.length>0};
-  });
+  return withPhaseEntries(report,key,selectedCohort(report,key,ref.selection_start,ref.selection_end));
  };
  const setting=stageCohort('setting'),cc1=stageCohort('closing');
  const cc2=unique(metricFacts(facts,'cc2_show',report.activity_start,end));
