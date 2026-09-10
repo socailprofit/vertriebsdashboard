@@ -24,7 +24,7 @@ test('future dates are capped and incomplete coverage remains uncomparable',asyn
  const current={month_start:'2026-09-01',calls_gross:200,partial:true,comparison:{days:10,previous,current:{calls_gross:200}}};
  assert.equal(openingComparison(null,current,metric).label,'—');
  previous.calls_coverage_complete=true;
- assert.deepEqual(openingComparison(null,current,metric),{label:'+100 %',tone:'up',basis:'1.–10. jeweils · Aug. 2026'});
+ assert.deepEqual(openingComparison(null,current,metric),{label:'+100 %',tone:'up',basis:'Jeweils Tag 1–10 · gegenüber Aug. 2026'});
 });
 test('negative rate changes use red and percentage points, never relative percent',()=>{
  const metric=openingMonthMetrics.find(m=>m.key==='appointment_rate');
@@ -69,4 +69,26 @@ test('unselected metrics and other employees never affect the shared chart scale
  assert.equal(model.series.length,1);assert.equal(model.max,8);
  const empty=renderOpeningMonthly(rows,people,'felix','2026-09-10','development',{unit:'counts',metrics:[]});
  assert.match(empty,/data-opening-metric="calls_gross" checked/);assert.equal((empty.match(/class="opening-combined-point /g)||[]).length,1);
+});
+
+
+test('rightmost comparison is the latest month versus its predecessor, including a running month',()=>{
+ const people=[{slug:'michael',display_name:'Michael'}];
+ const previous={slug:'michael',month_start:'2026-08-01',month_end:'2026-08-31',appointments:15};
+ const current={slug:'michael',month_start:'2026-09-01',month_end:'2026-09-10',partial:true,appointments:6,
+  comparison:{days:10,previous:{...previous,month_end:'2026-08-10',appointments:2},current:{month_start:'2026-09-01',month_end:'2026-09-10',appointments:6}}};
+ const rows=[{...previous,month_start:'2026-07-01',month_end:'2026-07-31',appointments:14},previous,current];
+ const html=renderOpeningMonthly(rows,people,'team','2026-09-10');
+ assert.match(html,/<th>Sept\. 2026<small>gegenüber Aug\. 2026<\/small><\/th>/);
+ const finalCells=[...html.matchAll(/<td class="opening-month-delta">(.*?)<\/td>/g)];
+ const appointmentCell=finalCells[openingMonthMetrics.findIndex(m=>m.key==='appointments')][1];
+ assert.match(appointmentCell,/\+200 %/);assert.doesNotMatch(appointmentCell,/7,1/);
+ const chart=renderOpeningMonthly(rows,people,'team','2026-09-10','development',{unit:'counts',metrics:['appointments']});
+ assert.match(chart,/6 Termine gegenüber 2 Termine im Vormonat/);
+ assert.match(chart,/01\.09\.2026–10\.09\.2026 gegenüber 01\.08\.2026–10\.08\.2026/);
+ assert.match(chart,/Das Gespräch muss dafür noch nicht stattgefunden haben/);
+ current.partial=false;current.month_end='2026-09-30';
+ const closed=renderOpeningMonthly(rows,people,'team','2026-09-30');
+ const closedCells=[...closed.matchAll(/<td class="opening-month-delta">(.*?)<\/td>/g)];
+ assert.match(closedCells[5][1],/-60 %/);
 });

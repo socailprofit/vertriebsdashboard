@@ -1,5 +1,5 @@
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-10-recovery';
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-clear-development';
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-plain-comparison';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-journey-polish';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-separate-groups';

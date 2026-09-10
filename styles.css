@@ -1886,3 +1886,10 @@ main { grid-template-columns: minmax(0, 1fr); }
  .journey-legend svg{display:none}
  .journey-scroll-hint{display:block;font-size:11px;color:#aebfd6;margin:0 0 8px}
 }
+
+/* Plain-language guidance within the existing monthly chart. */
+.opening-chart-explanation{font-size:15px;line-height:1.6;color:var(--muted);margin:14px 0 0;max-width:850px}
+.opening-chart-comparison{display:flex;flex-wrap:wrap;gap:12px 32px;margin-top:20px;font-size:14px;line-height:1.5}
+.opening-chart-comparison p{flex:1 1 280px;margin:0;min-width:0}
+.opening-chart-comparison small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.opening-chart-comparison .opening-change{font-size:14px}
