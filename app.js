@@ -573,7 +573,8 @@ function renderAntony() {
   profile.innerHTML=renderDashboardAvatar("antony","Anthony");
   enableProfileImageFallbacks(profile);
   document.querySelector("#antony-lead-report").innerHTML=renderSelectionReport(report,state.leadSelection,state.leadDimension,state.leadChartSeries);
-  document.querySelector("#lead-filter-controls").innerHTML=renderLeadFilters(state.antonyLeadReport,state.leadFilters);
+  const filterControls=document.querySelector("#lead-filter-controls");
+  if(filterControls)filterControls.innerHTML=renderLeadFilters(state.antonyLeadReport,state.leadFilters);
   const at=report?.data_as_of;
   document.querySelector("#antony-data-time").textContent=at?`Aktueller Status · Stand ${new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"}).format(new Date(at))} Uhr`:"Leaddaten werden geladen …";
 }
