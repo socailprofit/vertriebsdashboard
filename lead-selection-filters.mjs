@@ -1,6 +1,6 @@
-import {PEOPLE} from './verified-journey.mjs?v=2026-09-10-separate-groups';
+import {PEOPLE} from './verified-journey.mjs?v=2026-09-11-dual-setting';
 import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-separate-groups';
-import {uniqueLeads} from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
+import {uniqueLeads} from './lead-selection-model.mjs?v=2026-09-11-dual-setting';
 export const filterRoles={owner:'Lead-Owner',opener:'Opener',setter:'Setter',closer:'Closer'};
 export function filterOptions(report,key,role='owner') {
  if(key==='employee')return PEOPLE;

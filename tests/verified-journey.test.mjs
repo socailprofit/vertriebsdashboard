@@ -18,7 +18,7 @@ test('retrospective group excludes new bookings, no-show absence is not proof, a
  const report=buildJourneyReport(r);assert.equal(report.groups[0].source_total,2);assert.equal(report.groups[0].total,1);assert.equal(report.groups[0].leads[0].lead_id,'A');
  assert.equal(report.rates.find(r=>r.key==='setter_show').numerator.length,1);assert.equal(report.rates.find(r=>r.key==='setter_lost').numerator.length,0);
  const filtered=buildJourneyReport(r,{employee:PEOPLE[0].value,source:'LinkedIn',industry:'Factory',status:'today'});assert.equal(filtered.groups[0].total,1);assert.equal(filtered.groups[3].total,0);assert.equal(filtered.rates.find(r=>r.key==='closer_show').denominator.length,0);
- assert.deepEqual(filterOptions(r,'employee').map(p=>p.label),['Felix','Michael','Anthony','LinkedIn']);assert.equal(buildJourneyReport(r,{employee:'linkedin'}).leads.length,0);
+ assert.deepEqual(filterOptions(r,'employee').map(p=>p.label),['Felix','Michael','Antony','LinkedIn']);assert.equal(buildJourneyReport(r,{employee:'linkedin'}).leads.length,0);
 });
 test('first exact customer event survives prior-month phases and repetitions; monthly graph is not cumulative',()=>{
  const report=buildJourneyReport(raw());assert.equal(report.groups[3].total,2);
@@ -61,4 +61,36 @@ test('Setting and Closing populations remain separate even when later stages bel
  const settingView=renderJourneyReport(report,'setting');assert.match(settingView,/Setting · belegte Showrate/);assert.doesNotMatch(settingView,/CC1 · belegte Showrate/);
  const closingView=renderJourneyReport(report,'closing');assert.match(closingView,/CC1 · belegte Showrate/);assert.doesNotMatch(closingView,/Setting · belegte Showrate/);
  assert.equal(report.rates.find(r=>r.key==='setter_show').denominator.length,2);
+});
+
+
+test('future-only Setting bookings and future activity never enter retrospective counts or rates',()=>{
+ const r=raw();r.leads.push({lead_id:'F',lead_name:'Future booking',status_id:STATUS.setting,dimensions:{}});
+ r.activity_history.push(status('F','opening',STATUS.setting,'2026-09-09T08:00:00Z'),activity('F','setter_activity','🔎 Setter Follow Up','2026-09-20T08:00:00Z'));
+ r.calendar.push({lead_id:'F',meeting_id:'future',stage:'setter',outcome:'attended',starts_at:'2026-09-20T08:00:00Z'});
+ // Even an over-wide response or future reference date cannot exceed the snapshot.
+ r.activity_end='2026-10-01T00:00:00Z';
+ const report=buildJourneyReport(r);
+ assert.equal(report.calendar.length,0);assert(!report.facts.some(f=>f.lead_id==='F'));
+ assert.equal(report.groups[0].source_total,2);assert.equal(report.groups[0].total,1);
+ assert(report.rates.every(rate=>!rate.denominator.some(l=>l.lead_id==='F')));
+ assert(!metricEntries(report,'setting_source',r.activity_start,r.activity_end).some(l=>l.lead_id==='F'));
+});
+test('a future rebooking preserves an earlier real conversation but does not create another one',()=>{
+ const r=raw();r.activity_history.push(status('A','followup',STATUS.setting,'2026-09-09T08:00:00Z'));
+ r.calendar.push({lead_id:'A',meeting_id:'future',stage:'setter',outcome:'unknown',starts_at:'2026-09-20T08:00:00Z'});
+ const report=buildJourneyReport(r);assert.equal(report.groups[0].source_total,2);assert.equal(report.groups[0].total,1);
+ assert.equal(report.groups[0].monthly_entries.length,1);assert.equal(report.calendar.length,0);
+});
+test('CRM selection, proven subset and actual period conversations stay separate, with unknowns visible',()=>{
+ const r=raw();r.period.type='month';r.period.start='2026-09-01';r.activity_start='2026-08-31T22:00:00Z';for(const g of r.groups)g.selection_start='2026-09-01T00:00:00Z';
+ r.activity_history=[status('A','opening',STATUS.setting,'2026-08-01T08:00:00Z'),activity('A','setter_activity','🔎 Setter Follow Up','2026-08-10T08:00:00Z'),status('A',STATUS.setting,'followup','2026-09-01T08:00:00Z'),status('B','opening',STATUS.setting,'2026-08-01T08:00:00Z'),status('B',STATUS.setting,'followup','2026-09-02T08:00:00Z'),activity('B','setter_activity',null,'2026-09-02T08:01:00Z')];
+ const report=buildJourneyReport(r),g=report.groups[0];assert.equal(g.source_total,2);assert.equal(g.total,1);assert.equal(g.monthly_entries.length,0);assert.equal(g.audit.unknown.length,1);
+ const html=renderJourneyReport(report);assert.match(html,/CRM-Auswahl/);assert.match(html,/davon Gespräch belegt/);assert.match(html,/Teilnahme ungeklärt/);
+ assert.equal(metricEntries(report,'setting_source',r.activity_start,r.activity_end).length,2);
+ assert.match(renderJourneyEvidence(report,'setting','lead_source','unknown'),/Teilnahme ungeklärt/);
+});
+test('show and no-show overlap is disclosed rather than silently treated as complements',()=>{
+ const r=raw();r.activity_history.push(status('A','followup',noShow,'2026-07-12T08:00:00Z'));
+ const report=buildJourneyReport(r);assert.equal(report.groups[0].audit.overlap.length,1);assert.match(renderJourneyReport(report),/keine Gegenanteile/);
 });

@@ -1893,3 +1893,10 @@ main { grid-template-columns: minmax(0, 1fr); }
 .opening-chart-comparison p{flex:1 1 280px;margin:0;min-width:0}
 .opening-chart-comparison small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
 .opening-chart-comparison .opening-change{font-size:14px}
+
+.journey-dual-values{display:grid;grid-template-columns:1fr 1.15fr;gap:14px;margin-top:14px}
+.journey-dual-values>div+div{border-left:1px solid #3b506c;padding-left:16px}
+.journey-dual-values strong{display:block;font-size:34px;line-height:1.2}
+.journey-dual-values small{display:block;font-size:12px;line-height:1.5;margin-top:8px}
+.journey-period-measures{margin:22px 0}
+@media(max-width:600px){.journey-dual-values{gap:8px}.journey-dual-values>div+div{padding-left:8px}.journey-dual-values strong{font-size:28px}}

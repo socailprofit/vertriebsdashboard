@@ -1,9 +1,9 @@
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-10-recovery';
 import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-plain-comparison';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-10-journey-polish';
-import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-10-separate-groups';
-import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-10-separate-groups';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-10-journey-polish";
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-11-dual-setting';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-11-dual-setting';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-11-dual-setting';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-11-dual-setting";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-separate-groups";
 installChartPopover();
@@ -64,7 +64,7 @@ const targetFields = [
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat", trend: "3 Monate" };
 const viewCopy = {
   team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  antony: ["Vertriebssteuerung", "Anthony im Fokus", "Relevante Leads von Setting bis Neukunde, aufgeteilt nach aktuellem Close-Status."],
+  antony: ["Vertriebssteuerung", "Antony im Fokus", "Relevante Leads von Setting bis Neukunde, aufgeteilt nach aktuellem Close-Status."],
   chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
   betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
@@ -86,7 +86,7 @@ const state = {
   leadSelection: "setting",
   leadDimension: "lead_source",
   leadFilters: {role:"owner"},
-  leadChartSeries: ["setting","closing","setter_show","cc1_show","cc2_show","customer"],
+  leadChartSeries: ["setting_source","setting","setter_show","cc1_show","cc2_show","customer"],
   periodRange: { start: null, end: null },
   profile: { displayName: null, role: "sales", salesPersonId: null, mustChangePassword: false, email: null },
   syncRun: null,
@@ -439,11 +439,11 @@ function renderNav() {
   if (canViewAntony()) {
     const antonyAvatar = renderPersonAvatar({
       slug: "antony",
-      name: "Anthony",
+      name: "Antony",
       initials: PROFILE_INITIALS.antony,
       image: PROFILE_IMAGES.antony,
     });
-    buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Anthony</span></button>`);
+    buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Antony</span></button>`);
   }
 
   const navigation = document.querySelector(".view-nav");
@@ -590,7 +590,7 @@ function renderAntony() {
   leadDialog.close();leadDialog.innerHTML="";
   const report=filterLeadReport(state.antonyLeadReport,state.leadFilters);
   const profile=document.querySelector("#antony-profile-avatar");
-  profile.innerHTML=renderDashboardAvatar("antony","Anthony");
+  profile.innerHTML=renderDashboardAvatar("antony","Antony");
   enableProfileImageFallbacks(profile);
   document.querySelector("#antony-lead-report").innerHTML=renderSelectionReport(report,state.leadSelection,state.leadDimension,state.leadChartSeries);
   const filterControls=document.querySelector("#lead-filter-controls");

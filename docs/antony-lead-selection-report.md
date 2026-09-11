@@ -31,3 +31,12 @@ Michael/Felix erhalten im Monatsrückblick drei Monate aus denselben `get_dashbo
 Nach einer unklaren Finalizer-Antwort prüft der Import einmal mit einem eigenen 3-Sekunden-Limit den bereits gespeicherten, unveränderlichen Run samt Manifest. Nur ein bestätigter Commit erlaubt die anschließende Kennzahlenberechnung; ein offener Upload oder externer Abbruch bleibt ein Fehler.
 
 Anrufimporte sind erst ab dem ersten erfolgreichen Importfenster belegt. Der Dreimonats-RPC ermittelt die abgedeckten Kalendertage aus erfolgreichen Importfenstern. Nicht importierte Anrufmonate bleiben unbekannt; Teilbestände werden gekennzeichnet und von Wachstumsvergleichen ausgeschlossen. Der service-interne Finalizer erhält ein begrenztes 40-Sekunden-SQL-Limit, damit ein größerer Snapshot nicht wiederholt kurz vor dem Abschluss zurückgerollt wird.
+
+
+## Getrennte Setting-Zahlen (11.09.2026)
+
+Die Setting- und CC1-Karten zeigen die CRM-Statuswechsel-Auswahl und deren Teilmenge mit belegtem Gespräch nebeneinander. Zusätzlich steht die Anzahl eindeutiger Leads mit Gespräch innerhalb des gewählten Zeitraums separat darunter. Ein Gespräch vor Monatsbeginn kann zur rückblickenden Statuswechsel-Auswahl gehören, erhöht aber nicht die Monatsaktivität. Die ursprüngliche CRM-Auswahl wird nicht mehr durch die Gesprächsprüfung verdeckt.
+
+Zeitgrenzen gelten einheitlich bis zum Datenstand und maximal bis jetzt. Neu gebuchte, zukünftige Termine begründen weder eine Gesprächszahl noch einen Quotennenner. Ein früherer tatsächlich dokumentierter Versuch bleibt auch bei einer späteren Neubuchung erhalten. Setter-Vorlagen ohne gepflegtes Ergebnis gelten nicht als Gesprächsnachweis. Ungeklärte Teilnahmen und Überschneidungen zwischen Show und No Show bleiben explizit sichtbar; No Show wird nicht als Gegenanteil von Show errechnet.
+
+Die gemeinsame Modellfunktion berechnet Karten, Diagramme, Filter und Detailnachweise nach denselben Regeln bei jedem regulären Datenabruf. Keine Einzelfall- oder Sollwertkorrekturen.
