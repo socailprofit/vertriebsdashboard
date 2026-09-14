@@ -233,3 +233,38 @@ test("source-to-process integration carries September cancellation plus October 
   assert.equal(flow.meetingRelations.find(r => r.meeting_id === "meeting-new")?.relation_type, "replacement");
   assert.equal(flow.eventRelations.find(r => r.source_event_id === "cancellation")?.applies_to_state, false);
 });
+test("ordinary edits during collection are accepted without moving the KPI cutoff", async () => {
+  const during = '2026-09-10T12:00:20Z', readEnd = '2026-09-10T12:00:40Z';
+  const meeting = prepareMeetingSnapshot([{id:'meeting-race',lead_id:'lead-1',user_id:CLOSE_USERS.antony,
+    starts_at:'2026-10-01T10:00:00Z',ends_at:'2026-10-01T11:00:00Z',
+    date_created:'2026-09-01T09:00:00Z',date_updated:during}],[],dataAsOf).meetings;
+  const task={id:'task-race',_type:'lead',lead_id:'lead-1',assigned_to:CLOSE_USERS.antony,
+    date_created:'2026-09-01T09:00:00Z',date_updated:during,is_complete:false,is_dateless:true};
+  const events=await prepareFunnelEventSnapshot(input({sourceReadCompletedAt:readEnd,
+    customRecords:[activity({date_updated:during,activity_at:'2026-10-01T09:00:00Z'})],
+    statusChanges:[status({date_updated:during})],opportunities:[won({date_updated:during})],meetings:meeting,taskRecords:[task]}));
+  assert.equal(events.length,5);
+  assert(!toProcessEvents(events,dataAsOf).some(event=>Date.parse(event.occurred_at)>Date.parse(dataAsOf)));
+  validateFunnelLeadRecord({id:'lead-1',status_id:'current-status',date_updated:during},'lead-1',readEnd);
+  await assert.rejects(()=>prepareFunnelEventSnapshot(input({sourceReadCompletedAt:readEnd,
+    customRecords:[activity({date_updated:'2026-09-10T12:00:41Z'})]})),/funnel_source_changed_during_snapshot/);
+});
+test("late publication reconciles next run, with one identity and consistent facts and history", async () => {
+  const during='2026-09-10T12:00:20Z', readEnd='2026-09-10T12:00:40Z';
+  const row=activity({user_id:CLOSE_USERS.michael,custom_activity_type_id:ACTIVITY_TYPES.openingCall,
+    activity_at:'2026-09-10T11:00:00Z',date_updated:during,
+    [`custom.${CUSTOM_FIELDS.openingDecisionMakerResult}`]:'Entscheider: Termin vereinbart'});
+  const draft={...row,status:'draft'};
+  for(const current of [draft,row]){
+    const facts=prepareCustomReconciliation([current],'2026-09-01','2026-09-10',dataAsOf);
+    const journal=await prepareFunnelEventSnapshot(input({sourceReadCompletedAt:readEnd,customRecords:[current],historicalBookingSourceIds:new Set([row.id])}));
+    assert.equal(facts.bookings.length,current.status==='published'?1:0);
+    assert.equal(toProcessEvents(journal,dataAsOf).filter(event=>event.event_type==='booking').length,facts.bookings.length);
+  }
+  const newlyCreated={...row,date_created:during};
+  assert.equal(prepareCustomReconciliation([newlyCreated],'2026-09-01','2026-09-10',dataAsOf).bookings.length,0);
+  assert.equal((await prepareFunnelEventSnapshot(input({sourceReadCompletedAt:readEnd,customRecords:[newlyCreated]}))).length,0);
+  assert.equal(prepareCustomReconciliation([newlyCreated],'2026-09-01','2026-09-10',readEnd).bookings.length,1);
+  const next=await prepareFunnelEventSnapshot(input({dataAsOf:readEnd,customRecords:[newlyCreated]}));
+  assert.equal(next.length,1);assert.equal(next[0].source_event_id,row.id);
+});

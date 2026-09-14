@@ -29,15 +29,17 @@ export function safeTaskPurposeCode(text: unknown): "follow_up" | null {
 /** Close task.date is native actionability/due time, not evidence of a meeting
  * or conversation. Date-only input never receives a fabricated clock time.
  * This source is intentionally limited to Antony's lead tasks. */
-export function normalizeCloseTask(record: Record<string, unknown>, dataAsOf: string): CloseTaskRow | null {
+export function normalizeCloseTask(record: Record<string, unknown>, dataAsOf: string, sourceReadCompletedAt = dataAsOf): CloseTaskRow | null {
   instant(dataAsOf, "invalid_task_snapshot_time");
+  instant(sourceReadCompletedAt, "invalid_task_snapshot_time");
+  if (Date.parse(sourceReadCompletedAt) < Date.parse(dataAsOf)) throw new Error("invalid_task_snapshot_time");
   if (record._type !== "lead" || record.assigned_to !== CLOSE_USERS.antony) return null;
   const task_id = requiredId(record.id, "invalid_task_source_id");
   const lead_id = requiredId(record.lead_id, "invalid_task_lead_id");
   const date_created = instant(record.date_created, "invalid_task_created");
   if (Date.parse(date_created) > Date.parse(dataAsOf)) return null;
   const date_updated = instant(record.date_updated, "invalid_task_updated");
-  if (Date.parse(date_updated) > Date.parse(dataAsOf)) throw new Error("funnel_source_changed_during_snapshot");
+  if (Date.parse(date_updated) > Date.parse(sourceReadCompletedAt)) throw new Error("funnel_source_changed_during_snapshot");
   if (Date.parse(date_updated) < Date.parse(date_created)) throw new Error("invalid_task_source_time_order");
   if (typeof record.is_complete !== "boolean" || typeof record.is_dateless !== "boolean") throw new Error("invalid_task_status");
   const contact_id = record.contact_id == null ? null : requiredId(record.contact_id, "invalid_task_contact_id");

@@ -47,6 +47,7 @@ export function createReadRecovery(run,{enabled=()=>true,visible=()=>true,setTim
   failed(error){if(!isTransientReadError(error)){stopped=true;dirty=false;cancel();return;}stopped=false;dirty=true;schedule([3000,10000,30000,60000][Math.min(failures++,3)]);},
   resume(){stopped=false;this.signal();},
   signal(){dirty=true;if(!running)schedule(700+Math.random()*500);},
+  check(){if(!stopped&&enabled()&&visible()&&!running&&now()-lastSuccess>=pollMs)this.signal();},
   visibilityChanged(){if(!visible())cancel();else if(dirty||now()-lastSuccess>=60000)this.signal();else schedule(pollMs);},
   stop(){stopped=true;dirty=false;failures=0;lastSuccess=0;cancel();},
  };

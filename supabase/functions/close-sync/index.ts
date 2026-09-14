@@ -512,11 +512,10 @@ Deno.serve(async (request) => {
         activitiesWithoutTimestamp += 1;
         return false;
       }
-      return activityAt >= startMilliseconds && activityAt < endMilliseconds;
+      return activityAt >= startMilliseconds && activityAt < endMilliseconds && activityAt <= Date.parse(snapshotStartedAt);
     };
     const rawCalls = callResult.value.filter(withinReportingWindow);
-    const reconciled = prepareCustomReconciliation(customResult.value, retentionStart, reconciliationEnd, snapshotStartedAt);
-    await markPhase("loading_persisted_history", { bookings: reconciled.bookings.length, retainedFacts: reconciled.facts.length });
+    await markPhase("loading_persisted_history");
     const [storedMeetingLinks, storedProcesses, storedRelations, storedFunnelLeads, storedMeetingRevisions, historicalBookingSourceIds] = newsletterOnly
       ? [[], [], [], [], [], new Set<string>()] as [StoredMeetingLink[], Array<{payload: FunnelProcess}>, Array<{payload: MeetingProcessRelation}>, FunnelLeadRow[], MeetingTimeRevision[], Set<string>]
       : await Promise.all([
@@ -529,20 +528,6 @@ Deno.serve(async (request) => {
       ]);
     await markPhase("persisted_history_loaded", { storedMeetings: storedMeetingLinks.length, storedProcesses: storedProcesses.length,
       storedRelations: storedRelations.length, storedLeads: storedFunnelLeads.length, storedMeetingRevisions: storedMeetingRevisions.length, historicalBookingMarkers: historicalBookingSourceIds.size });
-    const previousMeetingLinks = storedMeetingLinks.filter(row => row.booking_activity_id);
-    const calendar = prepareMeetingSnapshot(meetingResult.value, reconciled.bookings, snapshotStartedAt, previousMeetingLinks);
-    const oldMeetingById = new Map(storedMeetingLinks.map(meeting => [meeting.meeting_id, meeting]));
-    const meetingRevisions = [...storedMeetingRevisions];
-    // The trigger stores these actual moves when the transaction commits. The
-    // current process replay must see them already in that very same snapshot.
-    for (const meeting of calendar.meetings) {
-      const old = oldMeetingById.get(meeting.meeting_id);
-      if (old && Date.parse(old.starts_at) !== Date.parse(meeting.starts_at)) meetingRevisions.push({
-        meeting_id: meeting.meeting_id, source_updated_at: meeting.date_updated,
-        old_starts_at: old.starts_at, new_starts_at: meeting.starts_at,
-      });
-    }
-    const rawCustomActivities = reconciled.raw;
     const opportunities = opportunityResult.value;
 
     const newsletterSends = [...new Map(newsletterResult.value
@@ -553,12 +538,6 @@ Deno.serve(async (request) => {
         return day >= retentionStart && day <= endDate;
       }).map((send) => [send.emailId, send])).values()];
 
-    const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
-    const customFacts = reconciled.facts;
-    const activityFacts = [...callFacts, ...customFacts];
-
-    const calendarLeadIds = new Set(calendar.meetings.filter(m => m.booking_activity_id
-      && metricTimeInReportingTimezone(m.starts_at).metricDate >= retentionStart).map(m => m.lead_id));
     const retainedWonLeadIds = opportunities.filter(opportunity => {
       const fact = mapWonOpportunity(opportunity, { openerUserId: null, setterUserId: null, closerUserId: null });
       return fact && fact.wonDate >= retentionStart && fact.wonDate <= reconciliationEnd;
@@ -587,6 +566,29 @@ Deno.serve(async (request) => {
     // The complete second read supersedes the earlier rolling-window read.
     const completeStatusRows = [...statusResult.value.filter(row => !historyScope.has(String(row.lead_id))), ...historicalStatusRows];
     const completeCustomRows = [...customResult.value.filter(row => !historyScope.has(String(row.lead_id))), ...historicalCustomRows];
+    // Use the authoritative second read for performance, bookings and history
+    // together. Otherwise an edit between reads can publish conflicting KPIs.
+    const reconciled = prepareCustomReconciliation(completeCustomRows, retentionStart, reconciliationEnd, snapshotStartedAt);
+    const previousMeetingLinks = storedMeetingLinks.filter(row => row.booking_activity_id);
+    const calendar = prepareMeetingSnapshot(meetingResult.value, reconciled.bookings, snapshotStartedAt, previousMeetingLinks);
+    const oldMeetingById = new Map(storedMeetingLinks.map(meeting => [meeting.meeting_id, meeting]));
+    const meetingRevisions = [...storedMeetingRevisions];
+    // The trigger stores these actual moves when the transaction commits. The
+    // current process replay must see them already in that very same snapshot.
+    for (const meeting of calendar.meetings) {
+      const old = oldMeetingById.get(meeting.meeting_id);
+      if (old && Date.parse(old.starts_at) !== Date.parse(meeting.starts_at)) meetingRevisions.push({
+        meeting_id: meeting.meeting_id, source_updated_at: meeting.date_updated,
+        old_starts_at: old.starts_at, new_starts_at: meeting.starts_at,
+      });
+    }
+    const rawCustomActivities = reconciled.raw;
+    const callFacts = rawCalls.map((record) => mapCall(record as unknown as CloseCall));
+    const customFacts = reconciled.facts;
+    const activityFacts = [...callFacts, ...customFacts];
+
+    const calendarLeadIds = new Set(calendar.meetings.filter(m => m.booking_activity_id
+      && metricTimeInReportingTimezone(m.starts_at).metricDate >= retentionStart).map(m => m.lead_id));
     const activeLeadIds = new Set([...selectedLeadIds, ...retainedWonLeadIds,
       ...taskResult.value.map(row => String(row.lead_id)),
       ...[...calendarLeadIds].filter((id): id is string => id !== null),
@@ -594,7 +596,7 @@ Deno.serve(async (request) => {
       ...storedProcesses.filter(row => row.payload.closed_at === null).map(row => row.payload.lead_id)]);
     const knownTypes = new Set<string>(Object.values(ACTIVITY_TYPES));
     const knownAuthors = new Set<string>(CUSTOM_ACTIVITY_USER_IDS);
-    const historicalProcessLeadIds = customResult.value.filter(row => knownTypes.has(String(row.custom_activity_type_id)) && knownAuthors.has(String(row.user_id)))
+    const historicalProcessLeadIds = completeCustomRows.filter(row => knownTypes.has(String(row.custom_activity_type_id)) && knownAuthors.has(String(row.user_id)))
       .map(normalizeCustomRecord).map(mapCustomActivity).filter(fact => fact && isProcessReportingFact(fact))
       .map(fact => fact!.leadId).filter((leadId): leadId is string => leadId !== null);
     const allFunnelLeadIds = new Set([...activeLeadIds, ...historicalProcessLeadIds,
@@ -614,12 +616,13 @@ Deno.serve(async (request) => {
         body => closeRequest<CloseSearchPage>(closeApiKey, "/data/search/", {}, closeReads, body)),
       newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/user/", { _fields: "id,first_name,last_name" }, closeReads),
     ]);
+    const sourceReadCompletedAt = new Date().toISOString();
     const reportUserNames = new Map(reportUsers.map(user => [String(user.id), [user.first_name, user.last_name]
       .filter(part => typeof part === "string" && part.trim()).join(" ").trim()]));
     await markPhase("lead_metadata_refreshed", { refreshedLeads: refreshedLeads.length });
     for (const lead of refreshedLeads) {
         const leadId = lead.id as string;
-        validateFunnelLeadRecord(lead, leadId, snapshotStartedAt);
+        validateFunnelLeadRecord(lead, leadId, sourceReadCompletedAt);
         const fields = customFieldsFrom(lead);
         const attribution = leadAttribution(fields);
         const source = fields.find(field => field.id === CUSTOM_FIELDS.leadSource)?.value;
@@ -640,7 +643,7 @@ Deno.serve(async (request) => {
     await markPhase("normalizing_funnel", { sourceCustomActivities: customResult.value.length, sourceMeetings: calendar.meetings.length });
     const funnelEvents = await prepareFunnelEventSnapshot({ customRecords: completeCustomRows,
       meetings: calendar.meetings, statusChanges: completeStatusRows, opportunities, taskRecords: taskResult.value,
-      attributions: leadAttributions, dataAsOf: snapshotStartedAt, historicalBookingSourceIds });
+      attributions: leadAttributions, dataAsOf: snapshotStartedAt, sourceReadCompletedAt, historicalBookingSourceIds });
     const processEvents = toProcessEvents(funnelEvents, snapshotStartedAt);
     await markPhase("deriving_processes", { sourceRevisions: funnelEvents.length, processEvents: processEvents.length });
     const flow = deriveCloseProcesses({ meetings: calendar.meetings, bookings: reconciled.bookings,
@@ -717,7 +720,7 @@ Deno.serve(async (request) => {
       p_status_created_since: statusCreatedSince,
     };
     const payloadBytes = funnelPayloadBytes(snapshotPayload);
-    const funnelDiagnostics: JsonRecord = { ...flowDiagnostics, payloadBytes };
+    const funnelDiagnostics: JsonRecord = { ...flowDiagnostics, payloadBytes, sourceReadCompletedAt };
     await markPhase("snapshot_prepared", { payloadBytes: payloadBytes.totalBytes,
       ...Object.fromEntries(Object.entries(payloadBytes.sections).map(([section, value]) => [`${section}_bytes`, value.bytes])) });
     if (mode === "write" && supabase) {

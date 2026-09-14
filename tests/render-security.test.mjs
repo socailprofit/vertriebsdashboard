@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import fs from "node:fs";
 import vm from "node:vm";
+import {syncImportState} from "../sync-status.mjs";
 import { escapeHtml, safeColor } from "../render-security.mjs";
 
 test("database text cannot break out of HTML attributes", () => {
@@ -22,7 +23,7 @@ test("the real error renderer treats upstream errors as text", () => {
   const element = { innerHTML: '' };
   vm.runInNewContext(renderer + '\nrenderSyncBadge();', {
     state: { status: 'error', error: '<img src=x onerror="alert(1)">' },
-    escapeHtml,
+    escapeHtml, syncImportState,
     document: { querySelector: () => element },
   });
   assert.ok(element.innerHTML.includes('&lt;img'));

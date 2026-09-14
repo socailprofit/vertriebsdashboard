@@ -1,4 +1,5 @@
-import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-10-recovery';
+import {syncImportState} from './sync-status.mjs?v=2026-09-14-stable-sync';
+import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-14-stable-sync';
 import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-plain-comparison';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-11-dual-setting';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-11-dual-setting';
@@ -11,7 +12,7 @@ import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-ev
 // Die Versionskennung an allen Datei-Verweisen sorgt dafür, dass ein Browser
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
-import * as data from "./data.js?v=2026-09-10-usage";
+import * as data from "./data.js?v=2026-09-14-stable-sync";
 import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
@@ -912,7 +913,8 @@ function minutesSince(isoTimestamp) {
 }
 
 function renderSyncBadge() {
-  const label = state.status === "live" ? (state.backgroundError?"Letzter Datenstand":"Live-Daten")
+  const importState = syncImportState(state.syncRun, state.lastCalculated);
+  const label = state.status === "live" ? (state.backgroundError||importState.delayed?"Letzter Datenstand":"Live-Daten")
     : state.status === "preview" ? "Designvorschau"
     : state.status === "loading" ? "Lädt" : "Getrennt";
   let note;
@@ -920,7 +922,7 @@ function renderSyncBadge() {
     const her = minutesSince(state.lastCalculated);
     const bis = minutesToNextSync();
     const zuletzt = her === null ? "Stand unbekannt" : her < 1 ? "gerade aktualisiert" : `zuletzt vor ${her} Min`;
-    note = state.backgroundError?`${zuletzt} · ${state.backgroundRetry?"Verbindung wird automatisch erneut geprüft":"Aktualisierung fehlgeschlagen"}`:state.optionalErrors?.length?`${zuletzt} · ${state.optionalErrors.map(e=>e.label).join(", ")} wird erneut geladen`:`${zuletzt} · nächster Lauf in ~${bis} Min`;
+    note = state.backgroundError?`${zuletzt} · ${state.backgroundRetry?"Verbindung wird automatisch erneut geprüft":"Aktualisierung fehlgeschlagen"}`:state.optionalErrors?.length?`${zuletzt} · ${state.optionalErrors.map(e=>e.label).join(", ")} wird erneut geladen`:`${zuletzt} · ${importState.note ? `${importState.note} · ` : ""}nächster Lauf in ~${bis} Min`;
   } else if (state.status === "preview") {
     note = "Beispielzahlen, nicht aus Close";
   } else {
@@ -932,7 +934,7 @@ function renderSyncBadge() {
     : "";
 
   document.querySelector(".sync-status").innerHTML =
-    `<span class="sync-dot ${state.status === "live" ? "is-live" : ""}" aria-hidden="true"></span>
+    `<span class="sync-dot ${state.status === "live" && !state.backgroundError && !importState.delayed ? "is-live" : ""}" aria-hidden="true"></span>
      <span title="${escapeHtml(titel)}"><strong>${label}</strong><small>${escapeHtml(note)}</small></span>`;
 }
 
@@ -1401,6 +1403,9 @@ const recovery=createReadRecovery(()=>state.sessionUserId?refresh({background:tr
 });
 document.addEventListener("visibilitychange",()=>recovery.visibilityChanged());
 window.addEventListener("online",()=>recovery.signal());
+window.addEventListener("focus",()=>recovery.visibilityChanged());
+window.addEventListener("pageshow",()=>recovery.visibilityChanged());
+document.addEventListener("resume",()=>recovery.visibilityChanged());
 
 function boot() {
   readInitialState();
@@ -1408,6 +1413,7 @@ function boot() {
   // Standardansicht dem neuen Berliner Datum und fragt die neuen Tageswerte
   // nach; ein bewusst gewählter historischer Stichtag bleibt unverändert.
   setInterval(() => {
+    recovery.check();
     if (state.status !== "live") return;
     const today = berlinToday();
     if (!state.datePinned && state.referenceDate !== today) {

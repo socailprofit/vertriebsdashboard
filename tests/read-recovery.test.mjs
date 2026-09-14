@@ -31,3 +31,16 @@ test('hidden tabs defer updates, bursts coalesce and logout stops every timer',a
 test('permission denial cancels scheduled recovery',()=>{
  const t=setup();t.loop.failed({status:503});t.loop.failed({status:403});t.loop.signal();assert.equal(t.jobs.size,0);t.loop.resume();assert.equal(t.jobs.size,1);
 });
+test('a resumed page checks overdue data without extra reads while data is fresh',async()=>{
+ const t=setup();t.loop.success();t.loop.check();assert.equal([...t.jobs.values()][0].ms,90000);
+ t.tick(120000);t.loop.check();assert([...t.jobs.values()][0].ms<1500);
+ t.action=()=>t.loop.success();await t.flush();assert.equal(t.calls,1);assert.equal([...t.jobs.values()][0].ms,90000);
+ t.visible(false);t.tick(120000);t.loop.check();assert.equal(t.jobs.size,0);
+ t.visible(true);assert.equal(t.jobs.size,1);
+ t.loop.failed({status:403});t.loop.check();assert.equal(t.jobs.size,0);
+});
+test('refresh signals during an in-flight read are not lost',async()=>{
+ const t=setup();let finish;t.action=()=>new Promise(resolve=>{finish=resolve;});
+ t.loop.signal();const flight=t.flush();t.loop.signal();t.loop.signal();assert.equal(t.calls,1);
+ finish();await flight;assert.equal(t.jobs.size,1);assert.equal([...t.jobs.values()][0].ms,1000);
+});

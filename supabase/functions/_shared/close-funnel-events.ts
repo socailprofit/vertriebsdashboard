@@ -26,6 +26,7 @@ export type FunnelEventSnapshotInput = {
   customRecords: Row[]; meetings: MeetingRow[]; statusChanges: Row[];
   opportunities: (CloseOpportunity & { date_created?: string; date_updated?: string })[];
   attributions?: Map<string, LeadAttribution>; dataAsOf: string;
+  sourceReadCompletedAt?: string;
   historicalBookingSourceIds?: ReadonlySet<string>;
   taskRecords?: Row[];
 };
@@ -83,6 +84,11 @@ export function validateFunnelLeadRecord(record: Row, expectedLeadId: string, da
  */
 export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput): Promise<FunnelEvent[]> {
   timestamp(input.dataAsOf, "invalid_funnel_snapshot_time");
+  // The KPI cutoff also orders atomic commits. Close is read page by page:
+  // existing records may legitimately be edited before collection finishes.
+  // Accept those observed revisions; later edits reconcile on the next run.
+  const observedThrough = timestamp(input.sourceReadCompletedAt ?? input.dataAsOf, "invalid_funnel_observation_time");
+  if (Date.parse(observedThrough) < Date.parse(input.dataAsOf)) throw new Error("invalid_funnel_observation_time");
   const rows: UnversionedEvent[] = [];
   const customVersions = new Map<string, string>();
   for (const record of input.customRecords) {
@@ -91,7 +97,7 @@ export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput
     const created = timestamp(record.date_created, "invalid_funnel_custom_created");
     const updated = timestamp(record.date_updated, "invalid_funnel_custom_updated");
     if (!isObservedAt(created, input.dataAsOf)) continue;
-    assertSourceObserved(updated, input.dataAsOf);
+    assertSourceObserved(updated, observedThrough);
     timestamp(activity.activity_at, "invalid_funnel_custom_occurred");
     const fields = Object.fromEntries(Object.values(CUSTOM_FIELDS).filter(field => field !== CUSTOM_FIELDS.leadSource
       && field !== CUSTOM_FIELDS.leadOpener && field !== CUSTOM_FIELDS.leadSetter && field !== CUSTOM_FIELDS.leadCloser)
@@ -125,7 +131,7 @@ export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput
     if (!isObservedAt(meeting.date_created, input.dataAsOf)) continue;
     const event = base("meeting", id(meeting.meeting_id, "invalid_funnel_source_id"), id(meeting.lead_id, "invalid_funnel_lead_id"),
       timestamp(meeting.starts_at, "invalid_funnel_meeting_start"), timestamp(meeting.date_updated, "invalid_funnel_meeting_updated"));
-    assertSourceObserved(event.source_updated_at, input.dataAsOf);
+    assertSourceObserved(event.source_updated_at, observedThrough);
     const endsAt = timestamp(meeting.ends_at, "invalid_funnel_meeting_end");
     if (Date.parse(endsAt) < Date.parse(event.occurred_at)) throw new Error("invalid_funnel_meeting_duration");
     event.event_type = "meeting_scheduled";
@@ -145,7 +151,7 @@ export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput
     if (!isObservedAt(created, input.dataAsOf)) continue;
     const event = base("lead_status_change", id(record.id, "invalid_funnel_source_id"), id(record.lead_id, "invalid_funnel_lead_id"),
       timestamp(record.activity_at, "invalid_funnel_status_occurred"), timestamp(record.date_updated, "invalid_funnel_status_updated"));
-    assertSourceObserved(event.source_updated_at, input.dataAsOf);
+    assertSourceObserved(event.source_updated_at, observedThrough);
     event.event_type = "lead_status_changed";
     event.previous_status = id(record.old_status_id, "invalid_funnel_previous_status");
     event.new_status = id(record.new_status_id, "invalid_funnel_new_status");
@@ -166,7 +172,7 @@ export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput
     // Date-only Won is explicitly date precision, not a fabricated Close time.
     const occurredAt = fact?.wonAt ?? created ?? timestamp(opportunity.date_updated, "missing_funnel_opportunity_time");
     const updated = opportunity.date_updated == null ? occurredAt : timestamp(opportunity.date_updated, "invalid_funnel_opportunity_updated");
-    assertSourceObserved(updated, input.dataAsOf);
+    assertSourceObserved(updated, observedThrough);
     const event = base("opportunity", opportunity.id, opportunity.lead_id, occurredAt, updated);
     event.event_type = "opportunity_state";
     event.new_status = opportunity.status_id;
@@ -186,7 +192,7 @@ export async function prepareFunnelEventSnapshot(input: FunnelEventSnapshotInput
     rows.push(event);
   }
   for (const record of input.taskRecords ?? []) {
-    const task = normalizeCloseTask(record, input.dataAsOf);
+    const task = normalizeCloseTask(record, input.dataAsOf, observedThrough);
     if (!task) continue;
     // occurred_at is the observed source revision time. Fälligkeit lives only
     // in the explicitly precise due fields, including an unanchored date-only.

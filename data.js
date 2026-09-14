@@ -1,4 +1,4 @@
-import {readError,withRequestTimeout,readWithRetry} from './read-recovery.mjs?v=2026-09-10-recovery';
+import {readError,withRequestTimeout,readWithRetry} from './read-recovery.mjs?v=2026-09-14-stable-sync';
 import { loadOpeningMonthly } from './opening-monthly-data.mjs?v=2026-09-10-monthly-mobile';
 import { createUpdateScheduler } from "./update-scheduler.mjs?v=2026-09-09-cc2-evidence-fix";
 // Datenschicht: Anmeldung, Abfragen und Live-Aktualisierung.

@@ -24,7 +24,7 @@ export function normalizeCustomRecord(record: Row): CloseCustomActivity {
   };
 }
 
-// Called only after ALL pages have loaded. No creation-time cutoff: old drafts
+// Called only after ALL pages have loaded. No lower creation-time cutoff: old drafts
 // can be published late and activity_at can be backdated. Identity is the Close
 // activity ID, never company name, author name or an approximate timestamp.
 export function prepareCustomReconciliation(records: Row[], startDate: string, endDate: string, dataAsOf?: string) {
@@ -32,6 +32,7 @@ export function prepareCustomReconciliation(records: Row[], startDate: string, e
   for (const row of records) {
     if (!Object.values(CLOSE_USERS).includes(row.user_id as typeof CLOSE_USERS.michael)) continue;
     if (!Object.values(ACTIVITY_TYPES).includes(row.custom_activity_type_id as typeof ACTIVITY_TYPES.openingCall)) continue;
+    if (dataAsOf && typeof row.date_created === "string" && !isObservedAt(row.date_created, dataAsOf)) continue;
     const activity = normalizeCustomRecord(row);
     const previous = byId.get(activity.id);
     if (previous && JSON.stringify(previous) !== JSON.stringify(row)) throw new Error("unstable_custom_pagination");
