@@ -1900,3 +1900,8 @@ main { grid-template-columns: minmax(0, 1fr); }
 .journey-dual-values small{display:block;font-size:12px;line-height:1.5;margin-top:8px}
 .journey-period-measures{margin:22px 0}
 @media(max-width:600px){.journey-dual-values{gap:8px}.journey-dual-values>div+div{padding-left:8px}.journey-dual-values strong{font-size:28px}}
+
+.journey-source-context{display:grid;gap:7px;border-top:1px solid #3b506c;margin-top:18px;padding-top:13px;font-size:12px;line-height:1.5;color:#a9bbd0}
+.journey-source-context b{color:#e3ecf7;font-size:14px}
+
+.journey-period-measures strong{white-space:nowrap}

@@ -1,10 +1,10 @@
 import {syncImportState} from './sync-status.mjs?v=2026-09-14-stable-sync';
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-14-stable-sync';
 import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-plain-comparison';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-11-dual-setting';
-import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-11-dual-setting';
-import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-11-dual-setting';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-11-dual-setting";
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-15-clear-conversations';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-15-clear-conversations";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-separate-groups";
 installChartPopover();

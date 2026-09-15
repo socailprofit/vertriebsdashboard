@@ -94,3 +94,18 @@ test('show and no-show overlap is disclosed rather than silently treated as comp
  const r=raw();r.activity_history.push(status('A','followup',noShow,'2026-07-12T08:00:00Z'));
  const report=buildJourneyReport(r);assert.equal(report.groups[0].audit.overlap.length,1);assert.match(renderJourneyReport(report),/keine Gegenanteile/);
 });
+
+ test('primary card shows period conversations, with no shows and CRM selection subordinate',()=>{
+ const r=raw();
+ r.activity_start='2026-09-01T00:00:00Z';
+ r.groups.forEach(g=>g.selection_start=r.activity_start);
+ r.activity_history.push(status('A','followup',STATUS.setting,'2026-09-01T10:00:00Z'),status('A',STATUS.setting,'followup','2026-09-09T10:00:00Z'));
+ // A has only an older conversation; B has a conversation now without exiting Setting now.
+ r.activity_history.push(activity('B','setter_activity','🔎 Setter Follow Up','2026-09-09T10:00:00Z'));
+ const report=buildJourneyReport(r);const g=report.groups[0];
+ assert.equal(g.total,0);assert.equal(g.monthly_entries.length,1);
+ const card=renderJourneyReport(report).split('data-lead-source="setting"')[1].split('</button>')[0];
+ assert.match(card,/<strong>1<\/strong><small>Gespräche im Zeitraum/);
+ assert.match(card,/No Shows im Zeitraum/);assert.match(card,/Leads in der CRM-Auswahl · inkl. No Shows/);
+ assert.equal(renderJourneyEvidence(report,'setting','lead_source','monthly').includes('1 von 1 Leads'),true);
+ });
