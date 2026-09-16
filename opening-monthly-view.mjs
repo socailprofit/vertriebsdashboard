@@ -9,8 +9,8 @@ export const openingMonthMetrics=[
  {key:'appointment_rate',label:'Terminquote',unit:'%',numerator:'appointments',denominator:'decision_maker_contacts'},
 ];
 const metricExplanation={
- calls_gross:'Alle ausgehenden Anrufversuche, auch wenn niemand abnimmt.',
- calls_net:'Ausgehende Anrufe, die angenommen wurden.',
+ calls_gross:'Ein- und ausgehende Anrufversuche mit beendetem Status, auch nicht angenommene oder abgebrochene Anrufe. Entspricht „All Calls“ in Close.',
+ calls_net:'Ein- und ausgehende Anrufe, die in Close als abgeschlossen und angenommen dokumentiert sind.',
  net_rate:'Wie viele von 100 Anrufversuchen wurden angenommen?',
  connection_rate:'Wie oft hat das Vorzimmer zum Entscheider durchgestellt? Berücksichtigt werden bewertbare Vorzimmerkontakte.',
  decision_maker_contacts:'Dokumentierte Kontakte mit einer Person, die über den Auftrag entscheiden kann.',

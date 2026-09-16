@@ -1,6 +1,6 @@
 import {syncImportState} from './sync-status.mjs?v=2026-09-16-five-minute-sync';
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-14-stable-sync';
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-plain-comparison';
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-16-all-calls';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-15-clear-conversations';
@@ -35,7 +35,7 @@ const PROFILE_INITIALS = Object.freeze({
 // Nebenangabe in der Rangliste mit. Setter, Closer, No Shows, Deals und Umsatz
 // werden weiter importiert, aber nicht angezeigt.
 const metricDefinitions = [
-  { key: "callsGross", label: "Anrufe brutto", detail: "Ausgehend, endgültiger Status", format: number, target: "calls_gross" },
+  { key: "callsGross", label: "Anrufe brutto", detail: "Ein- und ausgehend, endgültiger Status", format: number, target: "calls_gross" },
   { key: "callsNet", label: "Anrufe netto", detail: "Abgeschlossen und angenommen", format: number, target: "calls_net" },
   { key: "netRate", label: "Nettoquote", detail: "Netto-Anrufe ÷ Brutto-Anrufe", format: percent, noTarget: true },
   { key: "gatekeeper", label: "Vorzimmer (bewertbar)", detail: "Durchstellversuche ohne Nichterreichbarkeit", format: number, target: "gatekeeper_contacts" },
