@@ -1,4 +1,4 @@
-import {renderQualityOverview,renderQualityCompanies,overviewLeads,liquidity} from './lead-quality-overview.mjs?v=2026-09-16-quality-overview';
+import {renderQualityOverview,renderQualityPeople,renderQualityCompanies,overviewLeads,liquidity} from './lead-quality-overview.mjs?v=2026-09-16-compact-quality';
 import {escapeHtml as esc} from './render-security.mjs';
 import {METRICS,DEFAULT_METRICS,metricFacts,metricEntries,monthlyBounds,personLabel} from './verified-journey.mjs?v=2026-09-11-dual-setting';
 const fmt=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'});
@@ -69,7 +69,7 @@ export function renderJourneyChart(report,enabled=DEFAULT_METRICS) {
 }
 
 export function renderJourneyReport(report,key='setting',dimension='overview',series=DEFAULT_METRICS) {
- const group=report.groups.find(g=>g.key===key)||report.groups[0],leads=group.leads;
+ const group=report.groups.find(g=>g.key===key)||report.groups[0],leads=group.leads.filter(l=>overviewLeads(report).some(r=>r.lead_id===l.lead_id));
  if(!Object.hasOwn(journeyDimensions,dimension))dimension='lead_source';
  const prefix=group.key==='setting'?'setter_':group.key==='closing'?'closer_':null;
  const ownRates=prefix?report.rates.filter(r=>r.key.startsWith(prefix)):[];
@@ -86,7 +86,7 @@ export function renderJourneyReport(report,key='setting',dimension='overview',se
  (ownRates.length?'<section class="selection-outcomes"><div class="selection-heading"><h3>Quoten innerhalb der '+esc(group.label)+'-Auswahl</h3><p>'+group.source_total+' Leads mit Statuswechsel · '+group.total+' davon Gespräch belegt, auch vor dem Zeitraum</p></div><div class="selection-statuses">'+ownRates.map(r=>rateButton(report,r)).join('')+'</div><p class="selection-basis">Zähler und Nenner gehören ausschließlich zur ausgewählten Close-Gruppe. Gespräche aus ihrem früheren Verlauf bleiben berücksichtigt. Offene Follow-ups sind keine Verluste. '+(prefix&&group.audit.overlap.length?group.audit.overlap.length+' Leads haben sowohl Gesprächs- als auch No-Show-Nachweise; die Quoten sind deshalb keine Gegenanteile.':'Zukünftige Termine sind aus Zähler und Nenner ausgeschlossen.')+'</p></section>':'')+
  '<section class="selection-history"><div class="selection-heading"><h3>Alle KPIs im Vergleich</h3></div><div id="lead-history-chart">'+renderJourneyChart(report,series)+'</div></section>'+
  '<section class="selection-analysis"><div class="selection-heading"><h3>Leads nach Herkunft & Verantwortung</h3><label>Aufschlüsseln nach <select id="lead-dimension">'+Object.entries(journeyDimensions).map(([k,v])=>'<option value="'+k+'" '+(dimension===k?'selected':'')+'>'+v+'</option>').join('')+'</select></label></div><div id="lead-filter-controls"></div>'+
- (dimension==='overview'?renderQualityOverview(report):
+ (dimension==='overview'?renderQualityOverview(report):dimension==='opener'?renderQualityPeople(report,overviewLeads(report,true)):
  '<div class="selection-heading"><p>'+esc(group.label)+' · '+leads.length+' Leads · belegter Verlauf · heutige CRM-Zuordnung</p><button type="button" class="selection-detail" data-lead-evidence="all">Alle '+leads.length+' Leads ↗</button>'+(['setting','closing'].includes(group.key)?'<button type="button" class="selection-detail" data-lead-evidence="cohort">Ausgangsgruppe: '+group.source_total+' inkl. No Shows ↗</button>':'')+'</div>'+
  (['companies','working_capital','liquidity_factor'].includes(dimension)?renderQualityCompanies(report,leads,dimension):'<div class="selection-table-wrap"><table class="selection-table"><thead><tr><th>'+journeyDimensions[dimension]+'</th><th>Leads</th><th>Anteil</th><th>Aktueller Status · Anteil je Gruppe</th></tr></thead><tbody>'+buckets(leads,dimension).map(b=>'<tr><th><button class="selection-detail" type="button" data-lead-evidence="dimension" data-lead-value="'+esc(b.label)+'">'+esc(b.label)+' ↗</button></th><td>'+b.leads.length+'</td><td>'+pct(b.leads.length,leads.length)+'</td><td><div class="selection-status-tags">'+statusBuckets(b.leads).map(s=>'<span>'+esc(s.label)+' <b>'+s.leads.length+' · '+pct(s.leads.length,b.leads.length)+'</b></span>').join('')+'</div></td></tr>').join('')+(leads.length?'':'<tr><td colspan="4">Keine belegten Ereignisse für diese Filter.</td></tr>')+'</tbody></table></div>'))+'</section>'+
  '<details class="selection-method"><summary>Auswahl, Close-Abgleich und Datenlücken</summary><p>'+date(report.activity_start)+' bis '+date(report.activity_end)+' (Ende exklusiv). Nur dokumentierte Ereignisse; keine künftigen Termine. Aktuelle CRM-Felder filtern alle Auswertungen gemeinsam, historische Kennzahlen bleiben ereignisbasiert.</p>'+
@@ -98,7 +98,7 @@ export function renderJourneyReport(report,key='setting',dimension='overview',se
 export function renderJourneyEvidence(report,key,dimension,type,value) {
  const g=report.groups.find(g=>g.key===key)||report.groups[0];
  const entries=type==='cohort'?g.cohort:type==='unknown'?g.audit.unknown:type==='monthly'?g.monthly_entries:null;
- const all=type==='company'?overviewLeads(report).filter(l=>l.lead_id===value).map(l=>({...l,evidence:report.facts.filter(f=>f.lead_id===l.lead_id&&Date.parse(f.at)>=Date.parse(report.activity_start))})):entries?entries.map(c=>({...report.leads.find(l=>l.lead_id===c.lead_id),evidence:c.evidence||[c]})):g.leads;
+ const all=type==='company'?overviewLeads(report).filter(l=>l.lead_id===value).map(l=>({...l,evidence:report.facts.filter(f=>f.lead_id===l.lead_id&&Date.parse(f.at)>=Date.parse(report.activity_start))})):entries?entries.map(c=>({...report.leads.find(l=>l.lead_id===c.lead_id),evidence:c.evidence||[c]})):g.leads.filter(l=>overviewLeads(report).some(r=>r.lead_id===l.lead_id));
  const title=type==='company'?(all[0]?.lead_name||'Unternehmen'):type==='cohort'?'CRM-Auswahl · Statuswechsel':type==='unknown'?'Teilnahme ungeklärt':type==='monthly'?'Belegte Gespräche im Zeitraum':'Dokumentierte Leads und Verlauf';
  const leads=type==='dimension'?all.filter(l=>dimensionName(l,dimension)===value):all;
  const fields=['lead_source','industry_wz','opener','working_capital','liquidity_factor','liquidity_statement','backoffice'];

@@ -1,5 +1,5 @@
 import {escapeHtml as esc} from './render-security.mjs';
-import {personLabel} from './verified-journey.mjs?v=2026-09-11-dual-setting';
+import {personLabel,STATUS} from './verified-journey.mjs?v=2026-09-11-dual-setting';
 const number = new Intl.NumberFormat('de-DE',{maximumFractionDigits:2});
 const euro = new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
 export function workingCapital(value) {
@@ -16,9 +16,10 @@ export function liquidity(lead) {
  if(!price||!Number.isFinite(price))return {value:null,label:'—',note:d.offer_note||'Angebotspreis fehlt'};
  const value=capital/price;return {value,label:number.format(value)+'×',note:euro.format(capital)+' ÷ '+euro.format(price)};
 }
-export function overviewLeads(report) {
- const ids=new Set(report.groups.flatMap(g=>[...(g.cohort||[]),...(g.monthly_entries||[]),...g.leads].map(l=>l.lead_id)));
- return report.leads.filter(l=>ids.has(l.lead_id)).sort((a,b)=>(a.lead_name||'').localeCompare(b.lead_name||'','de'));
+export function overviewLeads(report, includeCohorts=false) {
+ const ids=new Set(report.groups.flatMap(g=>[...(includeCohorts?g.cohort||[]:[]),...(g.monthly_entries||[]),...g.leads].map(l=>l.lead_id)));
+ const excluded=new Set([STATUS.disqualified,'stat_9z5zqirMleW4DbhYjsmZnV96jexVlXiYXU3yqIR8KzZ','stat_13rPYib4kw9kmCqcrcVNysFD028WcuKwxQjH6syd0w6']);
+ return report.leads.filter(l=>ids.has(l.lead_id)&&(includeCohorts||!excluded.has(l.status_id))).sort((a,b)=>(a.lead_name||'').localeCompare(b.lead_name||'','de'));
 }
 const owner=l=>{const d=l.dimensions||{};return d.backoffice_id==='linkedin'&&d.backoffice_basis?'LinkedIn':personLabel(d.opener_id,d.opener);};
 const metrics=(report,ids)=>report.groups.map(g=>(g.monthly_entries||[]).filter(l=>ids.has(l.lead_id)).length);
@@ -40,12 +41,12 @@ export function renderQualityCompanies(report,leads,sort='overview') {
  const value=l=>sort==='working_capital'?workingCapital(l.dimensions?.working_capital):liquidity(l).value;
  const av=value(a),bv=value(b);return av===null?bv===null?0:1:bv===null?-1:bv-av;
  });
- return '<div class="selection-table-wrap"><table class="selection-table quality-companies"><thead><tr><th>Unternehmen / Status</th><th>Opener / Backoffice</th><th>Quelle / Branche (WZ)</th><th>Working Capital</th><th>Liquiditätsfaktor</th><th>Setting</th><th>CC1</th><th>CC2</th><th>Neukunde</th></tr></thead><tbody>'+sorted.map(l=>{
+ return '<div class="selection-table-wrap quality-company-scroll"><table class="selection-table quality-companies"><thead><tr><th>Unternehmen / Opener</th><th>Quelle / Branche (WZ)</th><th>Working Capital</th><th>Liquiditätsfaktor</th><th>Setting</th><th>CC1</th><th>CC2</th><th>Neukunde</th></tr></thead><tbody>'+sorted.map(l=>{
  const d=l.dimensions||{},wc=workingCapital(d.working_capital),factor=liquidity(l),ids=new Set([l.lead_id]);
- return '<tr><th><button class="selection-detail" type="button" data-lead-evidence="company" data-lead-value="'+esc(l.lead_id)+'">'+esc(l.lead_name||'Unternehmen ohne Namen')+' ↗</button><small>'+esc(l.status_label||'Status fehlt')+'</small></th><td>'+esc(owner(l))+'</td><td>'+esc(d.lead_source||'Quelle nicht gepflegt')+'<small>'+esc(d.industry_wz||'Branche (WZ) nicht gepflegt')+'</small></td><td>'+(wc===null?'Nicht gepflegt / unklar':euro.format(wc))+(d.financials_date?'<small>Stand: '+esc(d.financials_date)+'</small>':'')+'<small>'+esc(d.liquidity_statement||'Liquiditäts-Aussage fehlt')+'</small></td><td><strong>'+factor.label+'</strong><small>'+esc(factor.note)+'</small></td>'+metrics(report,ids).map(n=>'<td>'+(n?'✓':'—')+'</td>').join('')+'</tr>';
- }).join('')+(sorted.length?'':'<tr><td colspan="9">Keine dokumentierten Leads für diese Filter.</td></tr>')+'</tbody></table></div><p class="selection-basis">✓ = dokumentiertes Ereignis im gewählten Zeitraum. — = kein Nachweis in diesem Zeitraum. Liquiditätsfaktor = Working Capital ÷ eindeutiger einmaliger Angebotspreis aus Close. Fehlende oder mehrdeutige Preise ergeben keinen Faktor.</p>';
+ return '<tr><th><button class="selection-detail" type="button" data-lead-evidence="company" data-lead-value="'+esc(l.lead_id)+'">'+esc(l.lead_name||'Unternehmen ohne Namen')+' ↗</button><small>'+esc(owner(l))+'</small></th><td>'+esc(d.lead_source||'Quelle nicht gepflegt')+'<small>'+esc(d.industry_wz||'Branche (WZ) nicht gepflegt')+'</small></td><td>'+(wc===null?'Nicht gepflegt / unklar':euro.format(wc))+(d.financials_date?'<small>Stand: '+esc(d.financials_date)+'</small>':'')+'</td><td><strong>'+factor.label+'</strong><small>'+esc(factor.note)+'</small></td>'+metrics(report,ids).map((n,i)=>'<td>'+(n?'✓':report.groups[i].leads.some(x=>x.lead_id===l.lead_id)?'früher':'—')+'</td>').join('')+'</tr>';
+ }).join('')+(sorted.length?'':'<tr><td colspan="8">Keine dokumentierten Leads für diese Filter.</td></tr>')+'</tbody></table></div><p class="selection-basis">✓ = im Zeitraum belegt · früher = Gespräch bereits vorher belegt · — = kein Nachweis. Liquiditätsfaktor = Working Capital ÷ eindeutiger einmaliger Angebotspreis aus Close. Fehlende oder mehrdeutige Preise ergeben keinen Faktor.</p>';
 }
 export function renderQualityOverview(report) {
  const leads=overviewLeads(report);
- return renderQualityPeople(report,leads)+'<div class="selection-heading"><h4>Alle '+leads.length+' Unternehmen im Überblick</h4></div>'+renderQualityCompanies(report,leads);
+ return '<p class="selection-basis">'+leads.length+' relevante Unternehmen · belegte Gespräche oder Neukunde · ohne aktuelle Disqualifizierungen und No Shows</p>'+renderQualityCompanies(report,leads);
 }

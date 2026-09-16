@@ -4,7 +4,7 @@ import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-pl
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-15-clear-conversations';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-16-quality-overview";
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-16-compact-quality";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-separate-groups";
 installChartPopover();

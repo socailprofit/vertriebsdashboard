@@ -1,4 +1,4 @@
-import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-16-quality-overview';
+import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-16-compact-quality';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
 import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
 export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
