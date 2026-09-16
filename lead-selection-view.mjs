@@ -1,4 +1,4 @@
-import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-16-table-dimensions';
+import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-16-quality-overview';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
 import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
 export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
@@ -21,7 +21,7 @@ export function dimensionBuckets(leads,key) {
 }
 function sourceRule(group){return group.status_side==='new'?'Wechsel zu „Verkauft – Neukunde“':'Statuswechsel aus „'+group.label+'“';}
 function sourceLink(group){return /^https:\/\/app\.close\.com\/leads\/share\/share_[A-Za-z0-9]+\/$/.test(group.share_url||'')?`<a href="${esc(group.share_url)}" target="_blank" rel="noopener noreferrer">Close-Filtervorlage ↗</a>`:'';}
-export function renderSelectionReport(report,key='setting',dimension='lead_source',chartSeries) {
+export function renderSelectionReport(report,key='setting',dimension='overview',chartSeries) {
  if(report?.facts)return renderJourneyReport(report,key,dimension,chartSeries);
  if(!report?.groups)return '<p>Leadauswertung wird geladen …</p>';
  const group=report.groups.find(g=>g.key===key)||report.groups[0];if(!group)return '<p>Keine Auswertungsquelle eingerichtet.</p>';

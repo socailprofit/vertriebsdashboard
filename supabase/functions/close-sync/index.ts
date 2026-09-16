@@ -1,4 +1,4 @@
-import { LEAD_DIMENSION_FIELDS, isSelectedStatusEvent, leadDimensions } from "../_shared/close-lead-dimensions.ts";
+import { LEAD_DIMENSION_FIELDS, isSelectedStatusEvent, leadDimensions, offerDimensions } from "../_shared/close-lead-dimensions.ts";
 import { fetchStableClosePages, ClosePaginationError } from "../_shared/close-list-pages.ts";
 import { CLOSE_TASK_FIELDS } from "../_shared/close-tasks.ts";
 import { isProcessReportingFact, normalizeCustomRecord, CUSTOM_RECONCILIATION_FIELDS, prepareLeadReportingSnapshot, prepareCustomReconciliation, prepareWonReconciliation, closingReconciliationTotals } from "../_shared/close-reconciliation.ts";
@@ -612,7 +612,7 @@ Deno.serve(async (request) => {
     await markPhase("refreshing_lead_metadata", { requestedLeads: leadIds.length });
     const [refreshedLeads, reportUsers] = await Promise.all([
       fetchCloseLeadMetadata(leadIds,
-        ["id", "display_name", "status_id", "status_label", "date_updated", ...Object.values(LEAD_DIMENSION_FIELDS).map(id => `custom.${id}`)],
+        ["id", "display_name", "status_id", "status_label", "date_updated", "opportunities", ...Object.values(LEAD_DIMENSION_FIELDS).map(id => `custom.${id}`)],
         body => closeRequest<CloseSearchPage>(closeApiKey, "/data/search/", {}, closeReads, body)),
       newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/user/", { _fields: "id,first_name,last_name" }, closeReads),
     ]);
@@ -630,7 +630,7 @@ Deno.serve(async (request) => {
           setter_id: attribution.setterUserId, closer_id: attribution.closerUserId,
           status_id: lead.status_id as string, source_updated_at: lead.date_updated as string,
           lead_source: typeof source === "string" ? source.trim() || null : null,
-          report_dimensions: { ...leadDimensions(lead, reportUserNames, selectedLeadIds.has(leadId)),
+          report_dimensions: { ...leadDimensions(lead, reportUserNames, selectedLeadIds.has(leadId)), ...offerDimensions(lead),
             status_history_complete_at: historyScope.has(leadId) ? snapshotStartedAt : null } });
     }
     const funnelLeads = [...funnelLeadById.values()].sort((a, b) => a.lead_id.localeCompare(b.lead_id));

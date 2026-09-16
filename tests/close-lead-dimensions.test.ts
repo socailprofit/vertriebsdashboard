@@ -32,3 +32,15 @@ test('missing, zero, negative and revised financial values remain distinct',()=>
  const cleared=leadDimensions({},new Map(),false);
  assert.equal(cleared.working_capital,null);assert.equal(cleared.liquidity_statement,null);assert.equal(cleared.industry_wz,null);
 });
+
+test('offer mapping uses a unique real per-lead EUR one-time offer and rejects placeholders and ambiguity',async()=>{
+ const {offerDimensions}=await import('../supabase/functions/_shared/close-lead-dimensions.ts');
+ const offer={id:'oppo_a',lead_id:'lead_a',status_type:'active',value:1000000,value_period:'one_time',value_currency:'EUR','custom.cf_h1lgCzbi6syR4ElTjPKGLrQuLV8ztMI1ONWn8yqAyuo':['LinkedIn Coaching']};
+ const map=(opportunities:unknown[])=>offerDimensions({id:'lead_a',opportunities});
+ assert.equal(map([offer]).offer_price_eur,'10000');
+ assert.equal(map([{...offer,value:2000000}]).offer_price_eur,'20000');
+ assert.equal(map([{...offer,value:100,'custom.cf_h1lgCzbi6syR4ElTjPKGLrQuLV8ztMI1ONWn8yqAyuo':['Bitte wählen']}]).offer_price_eur,null);
+ for(const change of [{lead_id:'other'},{value:0},{value_period:'monthly'},{value_currency:'USD'},{value_currency:null},{status_type:'lost'}])assert.equal(map([{...offer,...change}]).offer_price_eur,null);
+ assert.match(map([offer,{...offer,id:'oppo_b'}]).offer_note,/Mehrere/);
+ assert.equal(map([]).offer_price_eur,null);
+});

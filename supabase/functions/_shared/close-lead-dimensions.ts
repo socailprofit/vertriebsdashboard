@@ -37,3 +37,21 @@ export function leadDimensions(lead: Record<string, unknown>, users: Map<string,
  }
  return dimensions;
 }
+
+// Per-lead offer metadata only; never changes won/customer reconciliation.
+export function offerDimensions(lead: Record<string, unknown>) {
+ const empty = { offer_price_eur: null as string | null, offer_id: null as string | null, offer_note: 'Angebotspreis fehlt' };
+ const rows = Array.isArray(lead.opportunities) ? lead.opportunities as Record<string, unknown>[] : [];
+ const offers = rows.filter(o => o.lead_id === lead.id && o.status_type !== 'lost' &&
+  typeof o.value === 'number' && Number.isSafeInteger(o.value) && o.value > 0 &&
+  // Setting opportunities often contain a 1 EUR placeholder with no offer.
+  (['won'].includes(String(o.status_type)) ||
+   (Array.isArray(o['custom.cf_h1lgCzbi6syR4ElTjPKGLrQuLV8ztMI1ONWn8yqAyuo']) &&
+    (o['custom.cf_h1lgCzbi6syR4ElTjPKGLrQuLV8ztMI1ONWn8yqAyuo'] as unknown[]).some(v => typeof v === 'string' && v.trim() && v !== 'Bitte wählen'))));
+ if (!offers.length) return empty;
+ if (offers.length !== 1) return {...empty, offer_note: 'Mehrere Angebote – Preis nicht eindeutig'};
+ const offer = offers[0];
+ if (offer.value_period !== 'one_time') return {...empty, offer_note: 'Laufzeit / Gesamtpreis fehlt'};
+ if (offer.value_currency !== 'EUR') return {...empty, offer_note: 'Angebotswährung nicht EUR oder ungeklärt'};
+ return {offer_price_eur: String((offer.value as number) / 100), offer_id: text(offer.id), offer_note: 'Einmaliger Angebotswert aus Close'};
+}

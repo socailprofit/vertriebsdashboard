@@ -1905,3 +1905,16 @@ main { grid-template-columns: minmax(0, 1fr); }
 .journey-source-context b{color:#e3ecf7;font-size:14px}
 
 .journey-period-measures strong{white-space:nowrap}
+
+/* Only the lead-quality table: keep existing page and KPI layout intact. */
+.selection-analysis .quality-summary{min-width:920px;margin-bottom:28px}
+.quality-rates{min-width:190px}.quality-rates>span{display:block;white-space:nowrap;margin-bottom:5px}
+.selection-table .quality-fraction{display:inline;font-size:11px}
+.selection-analysis .quality-companies{min-width:1100px;table-layout:fixed}
+.quality-companies th:first-child{width:22%}.quality-companies th:nth-child(2){width:11%}.quality-companies th:nth-child(3){width:19%}.quality-companies th:nth-child(4){width:15%}.quality-companies th:nth-child(5){width:17%}
+.selection-analysis .quality-companies td{white-space:normal;overflow-wrap:anywhere}
+.quality-companies th:nth-child(n+6),.quality-companies td:nth-child(n+6){text-align:center;padding-left:5px;padding-right:5px}
+.quality-companies button{font:inherit;text-align:left}.selection-analysis h4{font-size:17px;margin:22px 0 10px}
+.selection-analysis .quality-companies thead th{white-space:normal;overflow-wrap:anywhere;letter-spacing:0;text-transform:none}
+.selection-analysis .quality-companies tbody th,.selection-analysis .quality-summary tbody th{color:#eaf1fc;font-size:14px;letter-spacing:0;text-transform:none}
+.selection-analysis .quality-summary tbody tr:first-child{font-weight:600;background:#0c172840}

@@ -4,7 +4,7 @@ import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-pl
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
 import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
 import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-15-clear-conversations';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-16-table-dimensions";
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-16-quality-overview";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-separate-groups";
 installChartPopover();
@@ -85,7 +85,7 @@ const state = {
   targets: [],
   antonyLeadReport: null,
   leadSelection: "setting",
-  leadDimension: "lead_source",
+  leadDimension: "overview",
   leadFilters: {role:"owner"},
   leadChartSeries: ["setting_source","setting","setter_show","cc1_show","cc2_show","customer"],
   periodRange: { start: null, end: null },
@@ -1153,7 +1153,7 @@ document.addEventListener("click", (event) => {
   if(canViewAntony() && state.view==="antony") {
     if(event.target.closest("[data-reset-lead-filters]")){state.leadFilters={role:"owner"};renderAntony();return;}
     const source=event.target.closest("[data-lead-source]");
-    if(source){state.leadSelection=source.dataset.leadSource;renderAntony();return;}
+    if(source){state.leadSelection=source.dataset.leadSource;if(state.leadDimension==="overview")state.leadDimension="companies";renderAntony();return;}
     const detail=event.target.closest("[data-lead-evidence]");
     if(detail){const dialog=document.querySelector("#lead-evidence-dialog");
       dialog.innerHTML=renderLeadEvidence(filterLeadReport(state.antonyLeadReport,state.leadFilters),state.leadSelection,state.leadDimension,detail.dataset.leadEvidence,detail.dataset.leadValue);

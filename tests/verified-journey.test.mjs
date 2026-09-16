@@ -36,7 +36,7 @@ test('missing entry yields no fabricated rate, forecasts excluded, follow-up is 
  const report=buildJourneyReport(r);assert.equal(report.rates.find(r=>r.key==='setter_show').value,null);assert.equal(report.groups[3].total,2);assert.equal(report.facts.filter(f=>f.key==='lost').length,0);
 });
 test('render includes all stages, cohort evidence, only verified assignment and escape-safe names',()=>{
- const r=raw();r.leads[0].lead_name='<img onerror=bad>';const report=buildJourneyReport(r);const html=renderJourneyReport(report);assert.match(html,/Quoten innerhalb der Setting-Auswahl/);assert.match(html,/data-lead-evidence="cohort"/);assert.match(html,/data-lead-chart-series="cc2_show"/);
+ const r=raw();r.leads[0].lead_name='<img onerror=bad>';const report=buildJourneyReport(r);const html=renderJourneyReport(report);assert.match(html,/Quoten innerhalb der Setting-Auswahl/);assert.match(html,/data-lead-evidence="company"/);assert.match(html,/data-lead-chart-series="cc2_show"/);
  const details=renderJourneyEvidence(report,'setting','lead_source','cohort');assert.match(details,/&lt;img/);assert.match(details,/2 von 2 Leads/);
 });
 test('explicit No Show status is evidence and historical UTC month end includes its last two hours',()=>{
@@ -58,8 +58,8 @@ test('Setting and Closing populations remain separate even when later stages bel
  assert(report.groups[1].leads.every(l=>['C','D'].includes(l.lead_id)));
  assert.equal(report.groups[3].total,2);assert.equal(report.groups[3].source_total,2);
  assert(!report.rates.some(r=>['setting_cc1','cc1_customer','cc2_customer'].includes(r.key)));
- const settingView=renderJourneyReport(report,'setting');assert.match(settingView,/Setting · belegte Showrate/);assert.doesNotMatch(settingView,/CC1 · belegte Showrate/);
- const closingView=renderJourneyReport(report,'closing');assert.match(closingView,/CC1 · belegte Showrate/);assert.doesNotMatch(closingView,/Setting · belegte Showrate/);
+ const settingView=renderJourneyReport(report,'setting','lead_source');assert.match(settingView,/Setting · belegte Showrate/);assert.doesNotMatch(settingView,/CC1 · belegte Showrate/);
+ const closingView=renderJourneyReport(report,'closing','lead_source');assert.match(closingView,/CC1 · belegte Showrate/);assert.doesNotMatch(closingView,/Setting · belegte Showrate/);
  assert.equal(report.rates.find(r=>r.key==='setter_show').denominator.length,2);
 });
 
