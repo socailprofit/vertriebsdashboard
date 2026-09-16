@@ -22,4 +22,4 @@
 
 - 2026-09-03: GitHub's automated schedule emitted no runs despite an active workflow; replaced as the production scheduler by this database-owned design.
 
-- 2026-09-16: Corrected All Calls mapping for Michael/Felix. Calls use the actual `activity_at` window; today and yesterday are re-read every five minutes, so an in-progress call or concurrent edit is picked up by the next complete read. Existing source pagination retry, import deadlines and atomic funnel publication remain in place.
+- 2026-09-16: Corrected All Calls mapping for Michael/Felix. Close rejects `activity_at` filters on its type endpoint. The existing creation-time fetch buffer therefore stays intact; the importer assigns day/hour exclusively by `activity_at`. Today and yesterday are re-read every five minutes, so an in-progress call or concurrent edit is picked up by the next complete read. Existing source pagination retry, import deadlines and atomic funnel publication remain in place.
