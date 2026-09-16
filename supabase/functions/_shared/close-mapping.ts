@@ -69,7 +69,8 @@ export const NEWSLETTER_WORKFLOW = {
 // zählen ausdrücklich nicht.
 const COMPLETED_NEWSLETTER_STATUSES = new Set(["goal", "finished"]);
 
-const FINAL_CALL_STATUSES = new Set(["completed", "no-answer", "busy", "failed", "timeout"]);
+export const CALL_MAPPING_VERSION = "2026-09-16.all-calls";
+const FINAL_CALL_STATUSES = new Set(["completed", "no-answer", "busy", "failed", "timeout", "cancel"]);
 const APPOINTMENT_RESULTS = new Set([
   "4: ✅ Termin vereinbart",
   "Entscheider: Termin vereinbart",
@@ -222,10 +223,13 @@ export function mapCall(call: CloseCall): ActivityFact {
     call.lead_id ?? null,
     call.activity_at,
   );
-  const isFinalOutbound = call.direction === "outbound" && FINAL_CALL_STATUSES.has(call.status ?? "");
-  const isAnswered = isFinalOutbound && call.status === "completed" && call.disposition === "answered";
+  // Close Activity Overview: All Calls, including inbound and cancelled attempts.
+  // A cancelled attempt or mailbox is never evidence of an answered conversation.
+  const isFinalCall = ["outbound", "inbound"].includes(call.direction) && FINAL_CALL_STATUSES.has(call.status ?? "");
+  const isAnswered = isFinalCall && call.status === "completed" && call.disposition === "answered";
 
-  fact.callsGross = isFinalOutbound ? 1 : 0;
+  fact.mappingVersion = CALL_MAPPING_VERSION;
+  fact.callsGross = isFinalCall ? 1 : 0;
   fact.callsNet = isAnswered ? 1 : 0;
   fact.talkSeconds = isAnswered ? Math.max(0, call.duration ?? 0) : 0;
   return fact;

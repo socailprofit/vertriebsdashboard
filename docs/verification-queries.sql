@@ -91,8 +91,8 @@ where feld in (select feld from gezaehlt group by feld having count(*) <= 25)
 order by feld, anzahl desc;
 
 -- 8. Stimmen die Regeln für Brutto und Netto?
---    Brutto = ausgehend mit endgültigem Status (completed, no-answer, busy,
---    failed, timeout). Netto = zusätzlich status 'completed' und
+--    Brutto = ein- oder ausgehend mit endgültigem Status (completed, no-answer, busy,
+--    failed, timeout, cancel). Netto = zusätzlich status 'completed' und
 --    disposition 'answered'. Diese Aufstellung zeigt, welche Kombinationen
 --    real vorkommen — darunter auch solche, die die Regel bewusst ausschließt.
 select payload ->> 'direction'   as richtung,

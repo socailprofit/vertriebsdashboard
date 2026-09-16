@@ -32,7 +32,7 @@ Close bleibt alleinige operative Quelle. Das Sheet dient zur Prüfung der fachli
 
 | KPI | Close-Quelle | Regel |
 |---|---|---|
-| Anrufe brutto | Call Activity | `direction = outbound` und finaler Status `completed`, `no-answer`, `busy`, `failed` oder `timeout` |
+| Anrufe brutto | Call Activity | Ein- und ausgehende Anrufe (`All Calls`), finaler Status `completed`, `no-answer`, `busy`, `failed`, `timeout` oder `cancel` |
 | Anrufe netto | Call Activity | Brutto-Call mit `status = completed` und `disposition = answered` |
 | Gesprächszeit | Call Activity | Summe `duration` nur für Netto-Calls |
 | Beste Anrufzeiten | Call Activity und Opening/Follow-up | Pro Stunde in `Europe/Berlin`: produktive Erreichbarkeit, Durchstell-, Entscheider- und Terminquote; kleine Stichproben werden zum persönlichen Periodenmittel geglättet |
@@ -41,7 +41,7 @@ Close bleibt alleinige operative Quelle. Das Sheet dient zur Prüfung der fachli
 
 ### Zeit- und Zeitraumlogik
 
-- Der Tag einer Aktivität und ihre Stunde stammen aus Close `activity_at`, vor dem Speichern nach `Europe/Berlin` umgerechnet. Die Uhrzeit des stündlichen Syncs verändert keine Kennzahl.
+- Der Tag einer Aktivität und ihre Stunde stammen aus Close `activity_at`, vor dem Speichern nach `Europe/Berlin` umgerechnet. Die Uhrzeit des fünfminütigen Syncs verändert keine Kennzahl.
 - **Tag** zeigt exakt den ausgewählten Kalendertag. Antonys Tagesverlauf enthält mindestens **08:00 bis 17:00** und erweitert sich bis zur frühesten/spätesten tatsächlich vorhandenen Aktivität. Leere Stunden bleiben sichtbar.
 - **Woche** zeigt Montag bis Stichtag, maximal Freitag; Samstag und Sonntag gehören nicht in die Vertriebswoche.
 - **Monat** beginnt am Ersten und endet am Stichtag, bei einem abgeschlossenen Monat am letzten Kalendertag. Die Trendtabelle zeigt den aktuellen sowie die zwei vorherigen Monate.
@@ -49,7 +49,7 @@ Close bleibt alleinige operative Quelle. Das Sheet dient zur Prüfung der fachli
 - Stunden ohne Grundgesamtheit zeigen bei Quoten einen Strich statt `0 %`. Stunden mit weniger als drei Kontakten bleiben sichtbar, werden aber als zu kleine Basis gedämpft und nicht als Empfehlung behandelt.
 - Die Stunden-Gesamtqualität gewichtet produktive Erreichbarkeit mit 35 %, Durchstellung mit 25 % sowie Entscheider- und Terminquote mit je 20 %. `Mailbox` und `außerhalb der Geschäftszeiten` werden dabei von den technisch als beantwortet gemeldeten Calls abgezogen. Diese Klassifizierung gilt ausschließlich für die Stundenempfehlung und verändert Anrufe brutto, Anrufe netto oder deren Quote nicht.
 
-`created`, `in-progress` und `cancel` zählen nicht als abgeschlossener Versuch. Durch die überlappenden Sync-Fenster werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
+`created` und `in-progress` zählen noch nicht als abgeschlossener Versuch. `cancel` zählt als Brutto-Versuch, nie als Netto-Gespräch. Durch die überlappenden Sync-Fenster werden zwischenzeitlich laufende Calls beim nächsten Sync erneut geprüft.
 
 ### KPI-Umfang des ersten Dashboards
 

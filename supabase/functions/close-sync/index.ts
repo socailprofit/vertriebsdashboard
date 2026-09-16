@@ -34,9 +34,8 @@ const SALES_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
 const CUSTOM_ACTIVITY_USER_IDS = [...SALES_USER_IDS, CLOSE_USERS.antony];
 const MAX_RANGE_DAYS = 31;
 const RETENTION_MONTHS = 3;
-// Call imports retain the existing creation-time buffer. Custom activities
-// are fully paginated without a creation cutoff and reconciled by activity_at.
-const ACTIVITY_FETCH_BUFFER_DAYS = 2;
+// Calls are queried and reported by activity_at, never by date_created.
+// The scheduled overlap re-reads today and yesterday on every run.
 const PAGE_SIZE = 100;
 const MAX_RECORDS_PER_RESOURCE = 20_000;
 const jsonHeaders = { "content-type": "application/json; charset=utf-8" };
@@ -442,8 +441,8 @@ Deno.serve(async (request) => {
     };
 
     const activityWindow = {
-      date_created__gte: berlinMidnightUtc(addDays(startDate, -ACTIVITY_FETCH_BUFFER_DAYS)),
-      date_created__lt: berlinMidnightUtc(addDays(nextDate, ACTIVITY_FETCH_BUFFER_DAYS)),
+      activity_at__gte: startTimestamp,
+      activity_at__lt: endTimestamp,
     };
     // Custom activities are fetched unfiltered by type: Close only allows the
     // custom_activity_type filter together with a single lead_id, which a daily

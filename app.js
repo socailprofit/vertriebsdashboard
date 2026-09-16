@@ -1,4 +1,4 @@
-import {syncImportState} from './sync-status.mjs?v=2026-09-14-stable-sync';
+import {syncImportState} from './sync-status.mjs?v=2026-09-16-five-minute-sync';
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-14-stable-sync';
 import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-10-plain-comparison';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
@@ -896,7 +896,7 @@ function renderManager() {
 // Muss mit dem Supabase-Cron-Job übereinstimmen. Die krummen Minuten vermeiden
 // Lastspitzen und bleiben für die sichtbare "nächster Lauf"-Schätzung bewusst
 // konstant.
-const SYNC_MINUTEN = [7, 22, 37, 52];
+const SYNC_MINUTEN = [2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57];
 
 function minutesToNextSync() {
   const jetzt = new Date();
@@ -930,7 +930,7 @@ function renderSyncBadge() {
   }
 
   const titel = state.status === "live"
-    ? "Der Sync läuft alle 15 Minuten über Supabase Cron. Der angezeigte nächste Lauf ist eine Schätzung."
+    ? "Close wird alle 5 Minuten eingelesen. Die Verarbeitung dauert zusätzlich etwa 1–2 Minuten. Der geöffnete Tab übernimmt den fertigen Datenstand automatisch."
     : "";
 
   document.querySelector(".sync-status").innerHTML =

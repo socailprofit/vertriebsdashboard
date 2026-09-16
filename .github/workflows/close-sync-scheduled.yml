@@ -1,7 +1,7 @@
 name: Close sync manual fallback
 
 # GitHub Actions bleibt ausschließlich ein manuell startbarer Notfallweg.
-# Den produktiven 15-Minuten-Takt übernimmt Supabase Cron in der Datenbank:
+# Den produktiven 5-Minuten-Takt übernimmt Supabase Cron in der Datenbank:
 # das vermeidet die nachweislich ausgebliebenen GitHub-Schedule-Events und
 # verhindert doppelte Imports aus zwei unabhängigen Zeitplänen.
 

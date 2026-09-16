@@ -9,6 +9,6 @@ export function syncImportState(syncRun, dataAsOf, now = Date.now()) {
    ? { delayed: true, note: 'Import verzögert' }
    : { delayed: false, note: 'Neue Daten werden eingelesen' };
  }
- if (!Number.isFinite(age) || age > 30 * 60_000) return { delayed: true, note: 'Aktualisierung steht aus' };
+ if (!Number.isFinite(age) || age > 10 * 60_000) return { delayed: true, note: 'Aktualisierung steht aus' };
  return { delayed: false, note: '' };
 }
