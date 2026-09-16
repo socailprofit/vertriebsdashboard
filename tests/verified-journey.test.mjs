@@ -109,3 +109,27 @@ test('show and no-show overlap is disclosed rather than silently treated as comp
  assert.match(card,/No Shows im Zeitraum/);assert.match(card,/Leads in der CRM-Auswahl · inkl. No Shows/);
  assert.equal(renderJourneyEvidence(report,'setting','lead_source','monthly').includes('1 von 1 Leads'),true);
  });
+test('table quality dimensions preserve every KPI, cohort and graph',()=>{
+ const source=raw(),before=buildJourneyReport(source);
+ source.leads[0].dimensions={...source.leads[0].dimensions,industry_wz:'28.99 Sondermaschinenbau',working_capital:'47.579,71',liquidity_statement:'liquide',financials_date:'31.12.2024'};
+ const after=buildJourneyReport(source);
+ assert.deepEqual(after.facts,before.facts);
+ assert.deepEqual(after.rates.map(r=>[r.key,r.value,r.numerator.map(l=>l.lead_id),r.denominator.map(l=>l.lead_id)]),before.rates.map(r=>[r.key,r.value,r.numerator.map(l=>l.lead_id),r.denominator.map(l=>l.lead_id)]));
+ assert.deepEqual(after.groups.map(g=>[g.key,g.total,g.source_total,g.monthly_entries.length]),before.groups.map(g=>[g.key,g.total,g.source_total,g.monthly_entries.length]));
+ const tableOnly=html=>html.match(/<section class="selection-analysis">[\s\S]*?<\/section>/)[0];
+ const rest=html=>html.replace(tableOnly(html),'');
+ const original=renderJourneyReport(before),updated=renderJourneyReport(after,'setting','liquidity_statement');
+ assert.equal(rest(updated),rest(original));
+ const table=tableOnly(updated);
+ assert.match(table,/liquide/);assert.match(table,/Working Capital/);assert.match(table,/Unterbranche \(WZ\)/);
+ assert.doesNotMatch(table,/<option value="(?:owner|setter|closer)"/);
+ const detail=renderJourneyEvidence(after,'setting','liquidity_statement','dimension','liquide');
+ assert.match(detail,/1 von 1 Leads/);assert.match(detail,/47\.579,71/);assert.match(detail,/Stand: 31\.12\.2024/);assert.match(detail,/28\.99 Sondermaschinenbau/);
+ assert.doesNotMatch(detail,/<th>(?:Lead-Owner|Setter|Closer)<\/th>/);
+});
+test('table financial metadata remains escaped and missing values do not become zero or an inferred rating',()=>{
+ const source=raw();source.leads[0].dimensions={working_capital:'0',liquidity_statement:'<img src=x onerror=alert(1)>',financials_date:'<script>x</script>',industry_wz:'<b>WZ</b>'};
+ const report=buildJourneyReport(source),html=renderJourneyEvidence(report,'setting','lead_source','all');
+ assert.match(html,/>0<small>/);assert.match(html,/&lt;img/);assert.match(html,/&lt;script/);assert.match(html,/&lt;b&gt;WZ/);assert.doesNotMatch(html,/<img|<script|<b>WZ/);
+ const missing=renderJourneyReport(buildJourneyReport(raw()),'setting','working_capital');assert.match(missing,/Nicht gepflegt/);
+});

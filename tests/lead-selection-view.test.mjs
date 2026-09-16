@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {statusBuckets,dimensionBuckets,renderSelectionReport,renderLeadEvidence,uniqueLeads} from '../lead-selection-view.mjs';
-const lead=(id,status,owner=null)=>({lead_id:id,lead_name:id,status_id:status,status_label:status,dimensions:{owner},matching_events:1});
+const lead=(id,status,owner=null)=>({lead_id:id,lead_name:id,status_id:status,status_label:status,dimensions:{owner,opener:owner},matching_events:1});
 const group={key:'setting',label:'Setting',status_side:'old',leads:[lead('lead_A','No Show'),lead('lead_B','Follow-up'),lead('lead_C','Follow-up','Owner')]};
 test('No Shows remain in the total selection, but relevant status rates exclude them',()=>{
  const g={...group,leads:[lead('lead_A','stat_9z5zqirMleW4DbhYjsmZnV96jexVlXiYXU3yqIR8KzZ'),lead('lead_B','Follow-up'),lead('lead_C','Disqualified')]};
@@ -11,7 +11,7 @@ test('No Shows remain in the total selection, but relevant status rates exclude 
 test('repeated matching exits never inflate a lead selection',()=>assert.equal(uniqueLeads({...group,leads:[...group.leads,group.leads[0]]}).length,3));
 test('missing dimensions remain visible and subgroup rates use their own denominator',()=>{
  assert.equal(dimensionBuckets(group.leads,'owner').find(x=>x.label==='Nicht gepflegt').leads.length,2);
- const html=renderSelectionReport({groups:[group]},'setting','owner');assert.match(html,/50 %/);assert.match(html,/Nicht gepflegt/);
+ const html=renderSelectionReport({groups:[group]},'setting','opener');assert.match(html,/50 %/);assert.match(html,/Nicht gepflegt/);
 });
 test('identically named users with different CRM ids remain separate',()=>{
  const a=lead('a','S','Alex'),b=lead('b','S','Alex');a.dimensions.owner_id='u1';b.dimensions.owner_id='u2';assert.equal(dimensionBuckets([a,b],'owner').length,2);
