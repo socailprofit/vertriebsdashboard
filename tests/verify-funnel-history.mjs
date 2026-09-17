@@ -16,6 +16,7 @@ for(const m of ['20260907121749_normalize_transfer_opportunities','2026090807133
 await db.exec(read('../supabase/migrations/20260908145135_lead_funnel_event_history.sql'));
 await db.exec(read('../supabase/migrations/20260908153602_stage_funnel_snapshot_inputs.sql'));
 if(process.env.FUNNEL_TEST_BROKEN_GUARD!=='1')await db.exec(read('../supabase/migrations/20260908155026_restore_complete_lead_attribution_guard.sql'));
+if(process.env.SYNC_IO_TEST==='1')await (await import('./verify-sync-io.mjs')).installIo(db);
 const M='user_PtDJ2ZbYSQx82Dht5CRc2QBLcDfRjvXKjQuOi1N5lzy';
 const row={lead_id:'lead',event_type:'setter_activity',occurred_at:'2026-08-10T08:00:00Z',meeting_id:null,previous_status:null,new_status:'published',setter_id:M,closer_id:null,source_event_id:'activity',source_kind:'custom_activity',source_updated_at:'2026-08-10T08:01:00Z',source_revision:'a'.repeat(64),payload:{date_created:'2026-08-10T08:00:00Z',status:'published'}};
 const args=[[],[],[],[],[],[],[],[row],[],[],[],[]];
@@ -85,4 +86,5 @@ assert.equal((await db.query("select (select snapshot_started_at from close_reco
 await db.query("select confirm_close_task_snapshot('2026-09-10T11:55:00Z',0)");
 assert.equal((await db.query("select has_function_privilege('authenticated','confirm_close_task_snapshot(timestamptz,integer)','execute') allowed")).rows[0].allowed,false);
 console.log('PASS task source coverage, stale/count guards, withdrawn tasks, empty complete snapshot and browser denial.');
+if(process.env.SYNC_IO_TEST==='1')await (await import('./verify-sync-io.mjs')).verifyIo(db,sync,row,M);
 await db.close();
