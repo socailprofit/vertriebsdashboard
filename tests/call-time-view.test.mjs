@@ -4,7 +4,7 @@ import { renderCallTimeProfile } from '../call-time-view.mjs';
 
 const people = [{slug:'michael',display_name:'Michael Giesbrecht',color:'#458bff'},
   {slug:'felix',display_name:'Felix Wenk',color:'#ffa900'}];
-const row = (slug, metric_hour, appointments) => ({ slug, metric_hour, calls_gross:30, calls_net:20,
+const row = (slug, metric_hour, appointments) => ({ slug, metric_hour, opening_activities:30, calls_gross:30, calls_net:20,
   productive_calls:20, gatekeeper_contacts:10, connected_calls:5, decision_maker_contacts:10, appointments,
   period_start:'2026-09-01',period_end:'2026-09-09', gf_unavailable_calls:3 });
 

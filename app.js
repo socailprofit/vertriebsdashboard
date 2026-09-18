@@ -1,4 +1,4 @@
-import {syncImportState} from './sync-status.mjs?v=2026-09-16-five-minute-sync';
+import {syncImportState,nextSyncLabel} from './sync-status.mjs?v=2026-09-18-business-clock';
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-14-stable-sync';
 import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-16-all-calls';
 import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
@@ -13,7 +13,8 @@ import { escapeHtml, safeColor } from "./render-security.mjs?v=2026-09-09-cc2-ev
 // nach einer Veröffentlichung nicht die alte Datei weiterbenutzt. Sie steht in
 // index.html, hier und in data.js und wird bei jedem Release erhöht.
 import * as data from "./data.js?v=2026-09-14-stable-sync";
-import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-09-best-call-times";
+import { renderCallTimeProfile } from "./call-time-view.mjs?v=2026-09-18-hour-evidence";
+import { callTimeHours } from "./call-time-score.mjs?v=2026-09-18-hour-evidence";
 import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-control.mjs?v=2026-09-09-cc2-evidence-fix";
 
 // Sobald die finalen Profilbilder vorliegen, muss nur hier der jeweilige Pfad
@@ -699,9 +700,9 @@ function renderSeries() {
   // die Anrufaktivität dieses einen Tages stündlich und getrennt je Person.
   if (state.period === "day") {
     title.textContent = "Aktivität am Tag";
-    const hours = Array.from({ length: 10 }, (_, index) => index + 8);
+    const hours = callTimeHours(state.hours.filter(row=>orderedPeople().some(person=>person.slug===row.slug)));
     document.querySelector("#series-note").textContent =
-      `Erfasste Aktivität am ${germanDate(state.periodRange.start)}: jeder Punkt zählt Anrufe innerhalb einer Stunde (08:00–17:59 Uhr, Berliner Zeit). Werte außerhalb dieses Fensters sind hier nicht dargestellt.`;
+      `Erfasste Aktivität am ${germanDate(state.periodRange.start)}: Anrufe je Stunde nach tatsächlichem Anrufbeginn, Berliner Zeit. Alle Stunden mit Aktivität sind enthalten; die laufende Stunde ist noch unvollständig.`;
     const metrics = [
       ["Anrufe brutto", "calls_gross"],
       ["Anrufe netto", "calls_net"],
@@ -893,18 +894,6 @@ function renderManager() {
     : `<span>Noch kein Sync-Lauf erfasst.</span>`;
 }
 
-// Muss mit dem Supabase-Cron-Job übereinstimmen. Die krummen Minuten vermeiden
-// Lastspitzen und bleiben für die sichtbare "nächster Lauf"-Schätzung bewusst
-// konstant.
-const SYNC_MINUTEN = [2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57];
-
-function minutesToNextSync() {
-  const jetzt = new Date();
-  const vergangen = jetzt.getMinutes() * 60 + jetzt.getSeconds();
-  const naechste = SYNC_MINUTEN.find((minute) => minute * 60 > vergangen) ?? (SYNC_MINUTEN[0] + 60);
-  return Math.max(0, Math.ceil((naechste * 60 - vergangen) / 60));
-}
-
 function minutesSince(isoTimestamp) {
   if (!isoTimestamp) return null;
   const differenz = Date.now() - Date.parse(isoTimestamp);
@@ -920,9 +909,8 @@ function renderSyncBadge() {
   let note;
   if (state.status === "live") {
     const her = minutesSince(state.lastCalculated);
-    const bis = minutesToNextSync();
     const zuletzt = her === null ? "Stand unbekannt" : her < 1 ? "gerade aktualisiert" : `zuletzt vor ${her} Min`;
-    note = state.backgroundError?`${zuletzt} · ${state.backgroundRetry?"Verbindung wird automatisch erneut geprüft":"Aktualisierung fehlgeschlagen"}`:state.optionalErrors?.length?`${zuletzt} · ${state.optionalErrors.map(e=>e.label).join(", ")} wird erneut geladen`:`${zuletzt} · ${importState.note ? `${importState.note} · ` : ""}nächster Lauf in ~${bis} Min`;
+    note = state.backgroundError?`${zuletzt} · ${state.backgroundRetry?"Verbindung wird automatisch erneut geprüft":"Aktualisierung fehlgeschlagen"}`:state.optionalErrors?.length?`${zuletzt} · ${state.optionalErrors.map(e=>e.label).join(", ")} wird erneut geladen`:`${zuletzt} · ${importState.note ? `${importState.note} · ` : ""}${nextSyncLabel()}`;
   } else if (state.status === "preview") {
     note = "Beispielzahlen, nicht aus Close";
   } else {
@@ -930,7 +918,7 @@ function renderSyncBadge() {
   }
 
   const titel = state.status === "live"
-    ? "Close wird alle 5 Minuten eingelesen. Die Verarbeitung dauert zusätzlich etwa 1–2 Minuten. Der geöffnete Tab übernimmt den fertigen Datenstand automatisch."
+    ? "Close wird Mo–Fr von 07:30 bis 17:00 Uhr deutscher Zeit alle 5 Minuten eingelesen. Die Verarbeitung dauert zusätzlich etwa 1–2 Minuten. Der geöffnete Tab übernimmt den fertigen Datenstand automatisch."
     : "";
 
   document.querySelector(".sync-status").innerHTML =

@@ -2,6 +2,7 @@ const NUMBER_FIELDS = [
   "calls_gross",
   "calls_net",
   "productive_calls",
+  "opening_activities",
   "gatekeeper_contacts",
   "connected_calls",
   "decision_maker_contacts",
@@ -19,7 +20,7 @@ const NUMBER_FIELDS = [
 const FACTORS = [
   { key: "productive", weight: 0.35, successes: "productive_calls", attempts: "calls_gross" },
   { key: "connection", weight: 0.25, successes: "connected_calls", attempts: "gatekeeper_contacts" },
-  { key: "decision", weight: 0.2, successes: "decision_maker_contacts", attempts: "productive_calls" },
+  { key: "decision", weight: 0.2, successes: "decision_maker_contacts", attempts: "opening_activities" },
   { key: "appointment", weight: 0.2, successes: "appointments", attempts: "decision_maker_contacts" },
 ];
 
@@ -102,7 +103,9 @@ export function calculateCallTimeQuality(row = {}, baseline = {}) {
     rates,
     smoothedRates,
     inconsistent,
-    quality: hasActivity && weightUsed > 0 && inconsistent.length === 0
+    // Missing stages must not inflate the remaining weights and make an hour
+    // with no documented decisions appear better than a fully evidenced hour.
+    quality: hasActivity && FACTORS.every(f=>rates[f.key]!==null) && weightUsed > 0 && inconsistent.length === 0
       ? clampRate(weightedTotal / weightUsed) : null,
   };
 }
@@ -112,7 +115,7 @@ export function callTimeMetric(quality, mode = "quality") {
     quality: { label: "Gesamtqualität", value: quality.quality, base: quality.calls_gross, success: null },
     productive: { label: "Erreichbarkeit", value: quality.rates.productive, base: quality.calls_gross, success: quality.productive_calls },
     connection: { label: "Durchstellquote", value: quality.rates.connection, base: quality.gatekeeper_contacts, success: quality.connected_calls },
-    decision: { label: "Entscheiderquote", value: quality.rates.decision, base: quality.productive_calls, success: quality.decision_maker_contacts },
+    decision: { label: "Entscheiderquote", value: quality.rates.decision, base: quality.opening_activities, success: quality.decision_maker_contacts },
     appointment: { label: "Terminquote", value: quality.rates.appointment, base: quality.decision_maker_contacts, success: quality.appointments },
   };
   return definitions[mode] ?? definitions.quality;
@@ -138,7 +141,7 @@ export function analyzeCallTimeWindows(rows = [], mode = "quality") {
     const metric = callTimeMetric(quality, mode);
     const rankingValue = mode === "quality" ? quality.quality : quality.smoothedRates[mode];
     const enoughData = quality.calls_gross >= CALL_TIME_MIN_CALLS && (
-      mode === "quality" ? quality.productive_calls >= CALL_TIME_MIN_CONTACTS
+      mode === "quality" ? FACTORS.every(f=>quality[f.attempts]>=(f.key==='productive'?CALL_TIME_MIN_CALLS:CALL_TIME_MIN_CONTACTS))
         : metric.base >= (mode === "productive" ? CALL_TIME_MIN_CALLS : CALL_TIME_MIN_CONTACTS)
     );
     const eligible = enoughData && quality.inconsistent.length === 0 && metric.value > 0
@@ -150,4 +153,15 @@ export function analyzeCallTimeWindows(rows = [], mode = "quality") {
       || b.quality.calls_gross - a.quality.calls_gross || a.hour - b.hour)
     .slice(0, 2);
   return { windows, ranked };
+}
+
+// One shared axis for the hourly graph and matrix, including activity outside
+// the old 08–18 range. Blank intervening hours stay visible, invented future
+// hours do not. Call and documentation timestamps remain separate sources.
+export function callTimeHours(rows = []) {
+ const hours=rows.filter(r=>r.metric_hour!==null&&r.metric_hour!==undefined&&r.metric_hour!==''&&NUMBER_FIELDS.some(k=>Number(r[k])>0)).map(r=>Number(r.metric_hour))
+  .filter(h=>Number.isInteger(h)&&h>=0&&h<=23);
+ if(!hours.length)return [];
+ const start=Math.min(...hours),end=Math.max(...hours);
+ return Array.from({length:end-start+1},(_,i)=>start+i);
 }

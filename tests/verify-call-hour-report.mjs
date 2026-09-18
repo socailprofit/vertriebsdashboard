@@ -16,6 +16,8 @@ await db.exec(read('fixtures/kpi-schema.sql'));
 const previous = read('../supabase/migrations/20260909115217_exclude_linkedin_channel_from_personal_appointments.sql');
 await db.exec(previous.slice(previous.indexOf('CREATE OR REPLACE FUNCTION'), previous.indexOf('$function$;') + '$function$;'.length));
 await db.exec(read('../supabase/migrations/20260909124042_add_call_hour_diagnostics.sql'));
+await db.exec(read('../supabase/migrations/20260918120337_correct_call_hour_evidence.sql'));
+await db.exec(read('../supabase/migrations/20260918120337_correct_call_hour_evidence.sql')); // idempotent
 await db.exec("insert into sales_people(close_user_id,slug,display_name,color) values ('user_m','michael','Michael','#4488ff'),('user_f','felix','Felix','#ffaa00')");
 
 const gatekeeper = 'custom.cf_8Bjba56AJvfLXwNKJwhjVJwSmCdaHBlTVyH25kxp3M1';
@@ -60,6 +62,7 @@ for (const period of ['day','week','month','trend']) {
     }
   }
   const michael = report.find(r=>r.slug==='michael' && r.metric_hour===9);
+  assert.equal(michael.opening_activities,9);
   assert.equal(michael.calls_gross,20);
   assert.equal(michael.calls_net,20);
   assert.equal(michael.productive_calls,17);
@@ -81,6 +84,10 @@ for (const period of ['day','week','month','trend']) {
     assert.equal(report.find(r=>r.slug==='michael' && r.metric_hour===20).calls_gross,1);
   }
 }
+await add('unanswered-mailbox',{calls_gross:1,calls_net:0},{outcome_id:'outcome_030sp0X2TRtdT8YPJfqwWS'},{type:'call'});
+const extra=(await db.query("select get_call_hour_report('day','2026-09-07') report")).rows[0].report.find(r=>r.slug==='michael'&&r.metric_hour===9);
+assert.equal(extra.calls_gross,21);assert.equal(extra.calls_net,20);assert.equal(extra.mailbox_calls,3);assert.equal(extra.productive_calls,17);
+
 for(const params of [['invalid','2026-09-09'],[null,'2026-09-09'],['month',null]]) {
   await assert.rejects(db.query('select get_call_hour_report($1,$2)',params));
 }

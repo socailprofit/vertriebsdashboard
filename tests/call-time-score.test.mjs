@@ -6,10 +6,12 @@ import {
   calculateCallTimeQuality,
   callTimeMetric,
   analyzeCallTimeWindows,
+  callTimeHours,
 } from "../call-time-score.mjs";
 
 test("Mailbox und ausserhalb der Geschaeftszeiten mindern nur die produktive Erreichbarkeit", () => {
   const row = {
+    opening_activities: 8,
     calls_gross: 10,
     calls_net: 8,
     mailbox_calls: 2,
@@ -29,11 +31,11 @@ test("Mailbox und ausserhalb der Geschaeftszeiten mindern nur die produktive Err
 
 test("kleine Stundenbasis wird zum Periodenmittel geglaettet", () => {
   const baseline = aggregateCallTimeRows([
-    { calls_gross: 50, calls_net: 25, productive_calls: 25, gatekeeper_contacts: 20, connected_calls: 10, decision_maker_contacts: 12, appointments: 6 },
-    { calls_gross: 50, calls_net: 25, productive_calls: 25, gatekeeper_contacts: 20, connected_calls: 10, decision_maker_contacts: 12, appointments: 6 },
+    { opening_activities:25, calls_gross: 50, calls_net: 25, productive_calls: 25, gatekeeper_contacts: 20, connected_calls: 10, decision_maker_contacts: 12, appointments: 6 },
+    { opening_activities:25, calls_gross: 50, calls_net: 25, productive_calls: 25, gatekeeper_contacts: 20, connected_calls: 10, decision_maker_contacts: 12, appointments: 6 },
   ]);
   const singleHit = calculateCallTimeQuality(
-    { calls_gross: 1, calls_net: 1, productive_calls: 1, gatekeeper_contacts: 1, connected_calls: 1, decision_maker_contacts: 1, appointments: 1 },
+    { opening_activities:1, calls_gross: 1, calls_net: 1, productive_calls: 1, gatekeeper_contacts: 1, connected_calls: 1, decision_maker_contacts: 1, appointments: 1 },
     baseline,
   );
 
@@ -49,7 +51,7 @@ test("eine leere Stunde erhaelt keine erfundene Qualitaet", () => {
   assert.equal(callTimeMetric(empty, "quality").value, null);
 });
 
-const hour = (metric_hour, overrides = {}) => ({ metric_hour, calls_gross: 30, calls_net: 20,
+const hour = (metric_hour, overrides = {}) => ({ metric_hour, opening_activities:30, calls_gross: 30, calls_net: 20,
   productive_calls: 20, gatekeeper_contacts: 10, connected_calls: 5,
   decision_maker_contacts: 10, appointments: 2, ...overrides });
 
@@ -62,7 +64,7 @@ test('zwei verschiedene Stunden werden pro Kennzahl geordnet, auch nach 18 Uhr',
 });
 
 test('ein einzelner Treffer und geringe Anrufbasis werden nicht empfohlen', () => {
-  const single = hour(8, { calls_gross: 1, calls_net: 1, productive_calls: 1,
+  const single = hour(8, { opening_activities:1, calls_gross: 1, calls_net: 1, productive_calls: 1,
     gatekeeper_contacts: 1, connected_calls: 1, decision_maker_contacts: 1, appointments: 1 });
   for (const mode of ['quality','productive','connection','decision','appointment']) {
     assert.deepEqual(analyzeCallTimeWindows([single, hour(9), hour(10)], mode).ranked.map(entry => entry.hour), [9, 10]);
@@ -99,7 +101,7 @@ test('widerspruechliche Werte werden nicht als 100 Prozent kaschiert oder empfoh
 });
 
 test('Gleichstand nutzt zuerst die groessere Basis, danach die fruehere Stunde', () => {
-  const rows = [hour(10), hour(9), hour(11, { calls_gross: 60, calls_net: 40, productive_calls: 40,
+  const rows = [hour(10), hour(9), hour(11, { opening_activities:60, calls_gross: 60, calls_net: 40, productive_calls: 40,
     gatekeeper_contacts: 20, connected_calls: 10, decision_maker_contacts: 20, appointments: 4 })];
   assert.deepEqual(analyzeCallTimeWindows(rows, 'appointment').ranked.map(entry => entry.hour), [11, 9]);
 });
@@ -110,4 +112,25 @@ test('fehlende Stufen werden nicht aus fremden Stunden ergaenzt', () => {
   assert.equal(q.rates.connection, null);
   assert.equal(q.smoothedRates.connection, null);
   assert.equal(q.smoothedRates.appointment, null);
+});
+
+
+test('missing sales stages cannot make an hour with zero decisions the best overall hour',()=>{
+ const empty=hour(8,{gatekeeper_contacts:0,connected_calls:0,decision_maker_contacts:0,appointments:0});
+ const report=analyzeCallTimeWindows([empty,hour(9)],'quality');
+ assert.equal(report.windows[0].quality.quality,null);
+ assert.deepEqual(report.ranked.map(r=>r.hour),[9]);
+});
+test('decision denominator comes from the same documentation, not unrelated phone calls',()=>{
+ const q=calculateCallTimeQuality(hour(9,{productive_calls:20,opening_activities:4,decision_maker_contacts:2,appointments:1}));
+ assert.equal(q.rates.decision,50);
+ assert.equal(callTimeMetric(q,'decision').base,4);
+ assert.equal(analyzeCallTimeWindows([hour(9,{opening_activities:4,decision_maker_contacts:2,appointments:1})]).ranked.length,0);
+});
+test('shared hourly axis includes early and late activity, gaps and no invented future hours',()=>{
+ assert.deepEqual(callTimeHours([hour(7),hour(9)]),[7,8,9]);
+ assert.deepEqual(callTimeHours([hour(22),hour(23)]),[22,23]);
+ assert.deepEqual(callTimeHours([{metric_hour:8,calls_gross:0}]),[]);
+ assert.deepEqual(callTimeHours([hour(24),hour(-1)]),[]);
+ assert.deepEqual(callTimeHours([hour(null),hour(undefined),hour('')]),[]);
 });
