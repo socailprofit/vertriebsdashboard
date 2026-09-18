@@ -1399,7 +1399,9 @@ function applyWidgetMode(name) {
 let sessionExpected=false;
 const recovery=createReadRecovery(()=>state.sessionUserId?refresh({background:true}):startSession().catch(reportStartupFailure),{
   enabled:()=>sessionExpected&&!state.forcePasswordSetup&&!state.profile.mustChangePassword,
-  visible:()=>document.visibilityState!=="hidden"&&navigator.onLine!==false,
+  // onLine is only an OS hint: Chrome can report false while Supabase is reachable.
+  // Let real request results drive retry/backoff; only hidden tabs pause polling.
+  visible:()=>document.visibilityState!=="hidden",
 });
 document.addEventListener("visibilitychange",()=>recovery.visibilityChanged());
 window.addEventListener("online",()=>recovery.signal());

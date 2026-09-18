@@ -1,8 +1,26 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
-import {isTransientReadError,isAccessError} from '../read-recovery.mjs';
+import {isTransientReadError,isAccessError,createReadRecovery} from '../read-recovery.mjs';
 const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const flow=app.slice(app.indexOf('async function refresh('),app.indexOf('// Scheitert der Start'));
 const deferred=()=>{let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j;});return{promise,resolve,reject};};
+test('actual app wiring polls and recovers despite a false offline hint, without a reload or online event',async()=>{
+ const jobs=new Map(),events=new Map();let id=0,reads=0,fail=false,loop;
+ const document={visibilityState:'visible',addEventListener:(event,fn)=>events.set(event,fn)};
+ const c=vm.createContext({document,navigator:{onLine:false},window:{addEventListener:(event,fn)=>events.set(event,fn)},
+  state:{sessionUserId:'signed-in',profile:{}},
+  createReadRecovery:(run,options)=>(loop=createReadRecovery(run,{...options,setTimer(fn,ms){jobs.set(++id,{fn,ms});return id;},clearTimer:id=>jobs.delete(id)})),
+  refresh:async()=>{reads++;if(fail)loop.failed(new Error('Failed to fetch'));else loop.success();},
+ });
+ vm.runInContext(app.slice(app.indexOf('let sessionExpected=false;'),app.indexOf('function boot()'))+'sessionExpected=true;',c);
+ const flush=async()=>{assert.equal(jobs.size,1);const [id,job]=jobs.entries().next().value;jobs.delete(id);await job.fn();};
+ loop.success();await flush();await flush();assert.equal(reads,2);
+ fail=true;await flush();assert.equal([...jobs.values()][0].ms,3000);
+ await flush();assert.equal([...jobs.values()][0].ms,10000);
+ fail=false;await flush();assert.equal([...jobs.values()][0].ms,90000);
+ document.visibilityState='hidden';events.get('visibilitychange')();loop.signal();assert.equal(jobs.size,0);
+ document.visibilityState='visible';events.get('visibilitychange')();await flush();assert.equal(reads,6);
+ loop.stop();assert.equal(jobs.size,0);
+});
 function setup(complete=true){
  const state={status:'live'},nodes=new Map(),requests=[],queued=[];let renders=0;
  const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,dataset:{},attributes:{},setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];},close(){}});return nodes.get(id);};
