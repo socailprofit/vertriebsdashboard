@@ -9,3 +9,5 @@ The scheduled import remains every five minutes, Monday–Friday 07:30–17:00 E
 - Incomplete source reads remain rejected. The next scheduled invocation reads the normal source window; there are no extra cron ticks or overnight Close requests.
 
 Validation: transient HTTP/transport failures, body timeouts, malformed JSON, permanent errors, retry limits, elapsed budgets, stale-versus-active status records and existing UI background recovery tests. Deploy only the Edge Function with its existing authentication policy; no SQL migration is required.
+
+Worker resource pressure: the server also returned HTTP 546 WORKER_RESOURCE_LIMIT during two uploads. Upload diagnostics now reuse measured chunk lengths instead of serializing the full snapshot and escaped chunks again. Tests compare the original and optimized upload manifest, chunk bodies, hashes and exact byte limits; the reporting payload is identical. This reduces CPU/allocation overhead without omitting source records. It does not constitute a guarantee against all platform resource limits.

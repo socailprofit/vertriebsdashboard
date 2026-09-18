@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { funnelPayloadBytes } from "../supabase/functions/_shared/close-funnel-payload.ts";
 import { createHash } from "node:crypto";
 import { prepareCloseFunnelUpload, uploadCloseFunnelSnapshot, FUNNEL_UPLOAD_MAX_REQUEST_BYTES } from "../supabase/functions/_shared/close-funnel-upload.ts";
 const runId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -12,6 +13,7 @@ test("splits a production-size snapshot at row boundaries within the exact 256 K
   const data = { ...snapshot(), p_events: Array.from({ length: 6543 }, (_, i) => ({ id: i, text: 'a😀"\\\n'.repeat(160) })) };
   const plan = await prepareCloseFunnelUpload(runId, data);
   assert(plan.diagnostics.chunks > 40);
+  assert.deepEqual(plan.diagnostics.sourcePayloadBytes, funnelPayloadBytes(data));
   assert(plan.diagnostics.maxRequestBytes <= FUNNEL_UPLOAD_MAX_REQUEST_BYTES);
   assert(plan.diagnostics.payloadBytes > 9_000_000);
   assert.deepEqual(plan.chunks.filter(c => c.section === "p_events").flatMap(c => JSON.parse(c.text)), data.p_events);

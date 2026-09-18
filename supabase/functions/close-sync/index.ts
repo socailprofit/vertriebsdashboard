@@ -732,10 +732,11 @@ Deno.serve(async (request) => {
       p_funnel_leads: funnelLeads,
       p_status_created_since: statusCreatedSince,
     };
-    const payloadBytes = funnelPayloadBytes(snapshotPayload);
+    // Write mode derives the same byte counts from the upload plan. Avoid
+    // serializing the entire ~15 MB snapshot an extra time just for diagnostics.
+    const payloadBytes = mode === "dry-run" ? funnelPayloadBytes(snapshotPayload) : null;
     const funnelDiagnostics: JsonRecord = { ...flowDiagnostics, payloadBytes, sourceReadCompletedAt };
-    await markPhase("snapshot_prepared", { payloadBytes: payloadBytes.totalBytes,
-      ...Object.fromEntries(Object.entries(payloadBytes.sections).map(([section, value]) => [`${section}_bytes`, value.bytes])) });
+    await markPhase("snapshot_prepared", payloadBytes ? { payloadBytes: payloadBytes.totalBytes } : {});
     if (mode === "write" && supabase) {
       // Calls keep their explicitly requested daily range. Custom activities
       // and Won records reconcile the entire retained window atomically.
@@ -763,6 +764,7 @@ Deno.serve(async (request) => {
         if (!committed || committed.funnel_events !== funnelEvents.length || committed.processes !== flow.processes.length)
           throw new SyncError("invalid_funnel_commit_response", "Funnel commit counts could not be verified");
         funnelDiagnostics.upload = uploaded.diagnostics;
+        funnelDiagnostics.payloadBytes = uploaded.diagnostics.sourcePayloadBytes;
         const { error: taskCoverageError } = await supabase.rpc("confirm_close_task_snapshot", {
           p_snapshot: snapshotStartedAt, p_expected_task_count: funnelEvents.filter(event => event.source_kind === "task").length,
         });

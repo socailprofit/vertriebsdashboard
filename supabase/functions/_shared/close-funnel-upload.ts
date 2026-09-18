@@ -10,7 +10,8 @@ export type FunnelUploadManifest = Record<string, { rows: number; chunks: ChunkS
 export type FunnelUploadChunk = { section: string; index: number; text: string; spec: ChunkSpec; requestBytes: number };
 export type FunnelUploadPlan = {
   runId: string; snapshotStartedAt: string; manifest: FunnelUploadManifest; chunks: FunnelUploadChunk[];
-  diagnostics: { chunks: number; payloadBytes: number; wireBytes: number; maxRequestBytes: number };
+  diagnostics: { chunks: number; payloadBytes: number; wireBytes: number; maxRequestBytes: number;
+    sourcePayloadBytes: { totalBytes: number; sections: Record<string, { bytes: number; rows: number | null }> } };
 };
 export type FunnelUploadProgress = {
   phase: "prepared" | "uploading" | "finalizing" | "committed";
@@ -38,13 +39,17 @@ export async function prepareCloseFunnelUpload(runId: string, snapshot: Record<s
   if (typeof snapshotStartedAt !== "string" || !Number.isFinite(Date.parse(snapshotStartedAt))) fail("invalid_funnel_upload_time");
   const manifest: FunnelUploadManifest = {}, chunks: FunnelUploadChunk[] = [];
   let payloadBytes = 0, requestBytesTotal = 0, maxRequestBytes = 0;
+  const sourceSections: Record<string, { bytes: number; rows: number | null }> = {};
+  let sourceTotalBytes = bytes('{"p_snapshot":{}}') + sections.length - 1;
   for (const section of sections) {
     const value = snapshot[section], isScalar = scalars.has(section);
     if (isScalar ? typeof value !== "string" : !Array.isArray(value)) fail("invalid_funnel_upload_section_type");
     const sectionChunks: FunnelUploadChunk[] = [];
-    const append = async (text: string, rows: number) => {
+    const append = async (text: string, rows: number, escapedBytes?: number) => {
       const index = sectionChunks.length;
-      const requestBytes = wireBytes(chunkArgs(runId, section, index, text));
+      // Row escaping was already measured while splitting. Reuse that count
+      // instead of serializing each complete large chunk again for diagnostics.
+      const requestBytes = wireBytes(chunkArgs(runId, section, index, "")) + (escapedBytes ?? bytes(JSON.stringify(text)) - 2);
       const raw = encoder.encode(text);
       if (requestBytes > FUNNEL_UPLOAD_MAX_REQUEST_BYTES || raw.byteLength > FUNNEL_UPLOAD_MAX_REQUEST_BYTES) fail("funnel_upload_row_too_large");
       payloadBytes += raw.byteLength;
@@ -69,19 +74,24 @@ export async function prepareCloseFunnelUpload(runId: string, snapshot: Record<s
         const size = bytes(JSON.stringify(encoded)) - 2;
         if (size + 2 > contentBudget) fail("funnel_upload_row_too_large");
         if (used + size + (parts.length ? 1 : 0) > contentBudget) {
-          await append(`[${parts.join(",")}]`, parts.length); parts = []; used = 2;
+          await append(`[${parts.join(",")}]`, parts.length, used); parts = []; used = 2;
         }
         used += size + (parts.length ? 1 : 0); parts.push(encoded);
       }
-      await append(`[${parts.join(",")}]`, parts.length);
+      await append(`[${parts.join(",")}]`, parts.length, used);
     }
     manifest[section] = { rows: isScalar ? 1 : (value as unknown[]).length, chunks: sectionChunks.map(chunk => chunk.spec) };
+    // Concatenating two JSON arrays replaces ][ (two bytes) with one comma.
+    const sourceBytes = sectionChunks.reduce((sum, chunk) => sum + chunk.spec.bytes, 0) - (isScalar ? 0 : sectionChunks.length - 1);
+    sourceSections[section] = { bytes: sourceBytes, rows: isScalar ? null : (value as unknown[]).length };
+    sourceTotalBytes += bytes(JSON.stringify(section)) + 1 + sourceBytes;
   }
   const beginBytes = wireBytes({ p_run_id: runId, p_snapshot_started_at: snapshotStartedAt, p_manifest: manifest });
   if (beginBytes > FUNNEL_UPLOAD_MAX_REQUEST_BYTES) fail("funnel_upload_manifest_too_large");
   requestBytesTotal += beginBytes + wireBytes({ p_run_id: runId }); maxRequestBytes = Math.max(maxRequestBytes, beginBytes);
   return { runId, snapshotStartedAt: snapshotStartedAt as string, manifest, chunks,
-    diagnostics: { chunks: chunks.length, payloadBytes, wireBytes: requestBytesTotal, maxRequestBytes } };
+    diagnostics: { chunks: chunks.length, payloadBytes, wireBytes: requestBytesTotal, maxRequestBytes,
+      sourcePayloadBytes: { totalBytes: sourceTotalBytes, sections: sourceSections } } };
 }
 
 function retryable(error: { code?: string; message?: string }) {
