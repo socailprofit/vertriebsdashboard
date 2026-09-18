@@ -9,6 +9,7 @@ import { CloseReadBudgetError, CloseReadTimeoutError, createCloseReadLimiter, fe
 import { funnelPayloadBytes } from "../_shared/close-funnel-payload.ts";
 import { FunnelUploadError, uploadCloseFunnelSnapshot } from "../_shared/close-funnel-upload.ts";
 import { retrySnapshotSelect, safeSupabaseJwtIssue } from "../_shared/snapshot-read-retry.ts";
+import { ABANDONED_SYNC_AFTER_MS, writeSyncStatus } from "../_shared/sync-run-status.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.115.0";
 import {
   CLOSE_USERS,
@@ -187,11 +188,11 @@ async function closeRequest<T>(apiKey: string, path: string, params: Record<stri
   const url = new URL(`${CLOSE_API_BASE}${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   try {
-  const result = await reader.run(signal => fetch(url, {
+  return await reader.run<T>(signal => fetch(url, {
     method: searchBody ? "POST" : "GET", signal,
     headers: { authorization: `Basic ${btoa(`${apiKey}:`)}`, ...(searchBody ? { "content-type": "application/json" } : {}) },
     ...(searchBody ? { body: JSON.stringify(searchBody) } : {}),
-  }));
+  }), async result => {
   if (!result.ok) {
     const details = (await result.text()).slice(0, 500);
     // Close's message must not reach the caller's public log, so probe it with a
@@ -206,6 +207,7 @@ async function closeRequest<T>(apiKey: string, path: string, params: Record<stri
     );
   }
   return await result.json() as T;
+  });
   } catch (error) {
     if (error instanceof SyncError) throw error;
     const timedOut = error instanceof CloseReadTimeoutError || error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
@@ -414,6 +416,17 @@ Deno.serve(async (request) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
     if (mode === "write") {
+      // Ten minutes exceeds even the paid worker's 400-second lifetime. A
+      // killed worker cannot finish its catch block; expire only its run status.
+      // Fresh runs, completed runs and all reporting records remain untouched.
+      try {
+        const expired = await writeSyncStatus(signal => supabase!.from("sync_runs").update({
+          status: "failed", completed_at: new Date().toISOString(),
+          error_message: "Worker exceeded maximum lifetime without reporting completion; next scheduled run retries automatically",
+        }).eq("status", "running").is("completed_at", null)
+          .lt("started_at", new Date(Date.now() - ABANDONED_SYNC_AFTER_MS).toISOString()).abortSignal(signal));
+        if (expired.error) console.warn("close_sync_expiry_status_unavailable");
+      } catch { console.warn("close_sync_expiry_status_unavailable"); }
       const { data, error } = await supabase.from("sync_runs").insert({
         status: "running",
         source_window_start: startTimestamp,
@@ -772,14 +785,14 @@ Deno.serve(async (request) => {
       }
       const { error: cleanupError } = await supabase.rpc("cleanup_dashboard_history");
       if (cleanupError) throw supabaseError("rpc cleanup_dashboard_history", cleanupError);
-      const { error: runError } = await supabase.from("sync_runs").update({
+      const { error: runError } = await writeSyncStatus(signal => supabase!.from("sync_runs").update({
         status: "success",
         completed_at: new Date().toISOString(),
         fetched_records: rawCalls.length + customResult.value.length + opportunities.length + newsletterResult.value.length + meetingResult.value.length + statusResult.value.length + taskResult.value.length,
         upserted_records: rawRows.length + factRows.length + opportunityRows.length + newsletterRows.length + funnelEvents.length + flow.processes.length,
         metadata: { mode, mappingVersion: MAPPING_VERSION, trigger, scheduled, phase: "complete", warnings, calendar: calendar.diagnostics,
-          funnel: funnelDiagnostics, dataAsOf: snapshotStartedAt },
-      }).eq("id", syncRunId);
+          funnel: funnelDiagnostics, closeReads: closeReads.diagnostics, dataAsOf: snapshotStartedAt },
+      }).eq("id", syncRunId).eq("status", "running").abortSignal(signal));
       if (runError) throw supabaseError("update sync_runs", runError);
     }
 
@@ -821,11 +834,14 @@ Deno.serve(async (request) => {
   } catch (error) {
     console.error(error);
     if (supabase && syncRunId) {
-      await supabase.from("sync_runs").update({
+      try {
+      const failed = await writeSyncStatus(signal => supabase!.from("sync_runs").update({
         status: "failed",
         completed_at: new Date().toISOString(),
         error_message: error instanceof Error ? error.message.slice(0, 1_000) : "Unknown sync error",
-      }).eq("id", syncRunId);
+      }).eq("id", syncRunId).eq("status", "running").abortSignal(signal));
+      if (failed.error) console.warn("close_sync_failure_status_unavailable");
+      } catch { console.warn("close_sync_failure_status_unavailable"); }
     }
     const failure = error instanceof CloseReadBudgetError
       ? { error: "close_read_budget_exhausted", retryOnNextSchedule: true }

@@ -1,6 +1,7 @@
 type ReadOptions = {
   now?: () => number; sleep?: (milliseconds: number) => Promise<void>;
   maxElapsedMs?: number; minSpacingMs?: number; max429Retries?: number; requestTimeoutMs?: number;
+  maxTransientRetries?: number; maxSnapshotRetries?: number;
 };
 export class CloseReadBudgetError extends Error {
   constructor() { super("close_read_budget_exhausted"); }
@@ -32,9 +33,11 @@ export function createCloseReadLimiter(options: ReadOptions = {}) {
   const spacing = options.minSpacingMs ?? 50;
   const maxRetries = options.max429Retries ?? 4;
   const requestTimeout = options.requestTimeoutMs ?? 30_000;
+  const maxTransientRetries = options.maxTransientRetries ?? 1;
+  const maxSnapshotRetries = options.maxSnapshotRetries ?? 3;
   let admission = Promise.resolve();
   let nextStart = 0, blockedUntil = 0;
-  const diagnostics = { requests: 0, rateLimitRetries: 0, waitedMs: 0 };
+  const diagnostics = { requests: 0, rateLimitRetries: 0, transientRetries: 0, waitedMs: 0 };
   async function enter() {
     const turn = admission.then(async () => {
       while (true) {
@@ -50,8 +53,19 @@ export function createCloseReadLimiter(options: ReadOptions = {}) {
     admission = turn.catch(() => {});
     await turn;
   }
-  async function run(read: (signal: AbortSignal) => Promise<Response>): Promise<Response> {
-    for (let attempt = 0; ; attempt++) {
+  async function run<T = Response>(read: (signal: AbortSignal) => Promise<Response>, consume?: (response: Response) => Promise<T>): Promise<T> {
+    let rateRetries = 0, transientRetries = 0;
+    const retryTransient = async (reset = 0) => {
+      const delay = Math.max(500, reset);
+      // A retry must fit a whole request within the existing read budget.
+      // The shared cap prevents an unhealthy upstream from multiplying traffic.
+      if (transientRetries >= maxTransientRetries || diagnostics.transientRetries >= maxSnapshotRetries ||
+        now() + delay + requestTimeout >= deadline) return false;
+      transientRetries++; diagnostics.transientRetries++;
+      blockedUntil = Math.max(blockedUntil, now() + delay);
+      return true;
+    };
+    for (;;) {
       await enter();
       const remaining = deadline - now();
       if (remaining <= 0) throw new CloseReadBudgetError();
@@ -61,6 +75,7 @@ export function createCloseReadLimiter(options: ReadOptions = {}) {
       try {
         response = await read(signal);
       } catch (error) {
+        if ((signal.aborted || error instanceof TypeError) && await retryTransient()) continue;
         if (signal.aborted) throw remaining <= requestTimeout ? new CloseReadBudgetError() : new CloseReadTimeoutError();
         throw error;
       }
@@ -68,11 +83,22 @@ export function createCloseReadLimiter(options: ReadOptions = {}) {
       const remainingHeader = response.headers.get("ratelimit")?.match(/\bremaining\s*=\s*"?([0-9.]+)/i)?.[1];
       if (response.status === 429 || remainingHeader !== undefined && Number(remainingHeader) === 0)
         blockedUntil = Math.max(blockedUntil, now() + (reset || (response.status === 429 ? 1000 : 0)));
-      if (response.status !== 429 || attempt >= maxRetries) return response;
-      diagnostics.rateLimitRetries++;
-      // Discard the rejected response before reusing the connection. Its body
-      // may contain organization details and never belongs in diagnostics.
-      await response.body?.cancel();
+      if (response.status === 429 && rateRetries < maxRetries) {
+        rateRetries++; diagnostics.rateLimitRetries++;
+        await response.body?.cancel(); continue;
+      }
+      if ([408, 500, 502, 503, 504].includes(response.status) && await retryTransient(reset)) {
+        await response.body?.cancel(); continue;
+      }
+      try {
+        // Keep JSON/body consumption inside the same timeout/retry boundary:
+        // receiving headers alone is not a complete CRM response.
+        return consume ? await consume(response) : response as T;
+      } catch (error) {
+        if ((signal.aborted || error instanceof TypeError) && await retryTransient()) continue;
+        if (signal.aborted) throw remaining <= requestTimeout ? new CloseReadBudgetError() : new CloseReadTimeoutError();
+        throw error;
+      }
     }
   }
   return { run, diagnostics, isBudgetExhausted: () => now() >= deadline };

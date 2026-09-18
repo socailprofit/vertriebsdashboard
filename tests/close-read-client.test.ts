@@ -39,8 +39,8 @@ test("a 429 cooldown blocks additional concurrent reads as well as the rejected 
   await c.advance(1); assert.deepEqual(starts, [0, 2000]);
   await c.advance(100); assert.deepEqual(starts, [0, 2000, 2100]); await Promise.all([a, b]);
 });
-test("401 and non-rate-limit failures are returned once without a speculative retry", async () => {
-  for (const status of [400, 401, 403, 404, 500]) {
+test("permanent HTTP failures are returned once without a speculative retry", async () => {
+  for (const status of [400, 401, 403, 404]) {
     let calls = 0;
     const limiter = createCloseReadLimiter({ minSpacingMs: 0 });
     assert.equal((await limiter.run(async () => { calls++; return new Response(null, { status }); })).status, status);
@@ -68,7 +68,7 @@ test("aborted reads distinguish the per-request limit from the total snapshot de
     [{ requestTimeoutMs: 5, maxElapsedMs: 1000 }, CloseReadTimeoutError],
     [{ requestTimeoutMs: 1000, maxElapsedMs: 5 }, CloseReadBudgetError],
   ] as const) {
-    const limiter = createCloseReadLimiter({ ...options, minSpacingMs: 0 });
+    const limiter = createCloseReadLimiter({ ...options, minSpacingMs: 0, maxTransientRetries: 0 });
     // AbortSignal.timeout does not itself keep Node's test process alive.
     const keepAlive = setTimeout(() => {}, 100);
     try {
@@ -121,4 +121,53 @@ test("lead search follows every cursor and rejects missing, foreign or duplicate
   await assert.rejects(() => fetchCloseLeadMetadata(["a", "b"], ["id"], async () => ({ data: [{ id: "a" }], cursor: null })), /incomplete_funnel_lead_metadata/);
   await assert.rejects(() => fetchCloseLeadMetadata(["a"], ["id"], async () => ({ data: [{ id: "other" }], cursor: null })), /unstable_funnel_lead_search/);
   await assert.rejects(() => fetchCloseLeadMetadata(["a"], ["id"], async () => ({ data: [{ id: "a" }, { id: "a" }], cursor: null })), /unstable_funnel_lead_search/);
+});
+
+test('transient HTTP errors recover once, honor Retry-After and share a snapshot retry cap', async () => {
+  let at=0;
+  const limiter=createCloseReadLimiter({now:()=>at,sleep:async ms=>{at+=ms;},minSpacingMs:0,maxSnapshotRetries:2});
+  for(const status of [408,503]) {
+    let calls=0;
+    const result=await limiter.run(async()=>++calls===1?new Response(null,{status,headers:{'Retry-After':'2'}}):new Response('ok'));
+    assert.equal(result.status,200); assert.equal(calls,2);
+  }
+  let calls=0;
+  assert.equal((await limiter.run(async()=>{calls++;return new Response(null,{status:502});})).status,502);
+  assert.equal(calls,1);assert.equal(at,4000);assert.equal(limiter.diagnostics.transientRetries,2);
+});
+test('persistent upstream failure stops after two attempts, without replaying forever', async()=>{
+  let at=0,calls=0;
+  const limiter=createCloseReadLimiter({now:()=>at,sleep:async ms=>{at+=ms;},minSpacingMs:0});
+  assert.equal((await limiter.run(async()=>{calls++;return new Response(null,{status:500});})).status,500);
+  assert.equal(calls,2);
+});
+test('network failure and timeout after headers retry the entire read including its body', async()=>{
+  for(const failure of ['network','body-timeout']) {
+    let calls=0,at=0;
+    const limiter=createCloseReadLimiter({minSpacingMs:0,requestTimeoutMs:5,maxElapsedMs:2000,sleep:async ms=>{at+=ms;},now:()=>at});
+    const keepAlive=setTimeout(()=>{},1000);
+    try {
+      let activeSignal:AbortSignal;
+      const result=await limiter.run(async signal=>{
+        activeSignal=signal; calls++;
+        if(calls===1&&failure==='network')throw new TypeError('fetch failed');
+        return new Response('{"ok":true}');
+      },async response=>{
+        if(calls===1&&failure==='body-timeout')await new Promise((_resolve,reject)=>activeSignal.addEventListener('abort',()=>reject(activeSignal.reason),{once:true}));
+        return response.json();
+      });
+      assert.deepEqual(result,{ok:true});assert.equal(calls,2);
+    }finally{clearTimeout(keepAlive);}
+  }
+});
+test('invalid JSON does not retry and a near deadline never adds another request',async()=>{
+  let calls=0;
+  const limiter=createCloseReadLimiter({minSpacingMs:0});
+  await assert.rejects(()=>limiter.run(async()=>{calls++;return new Response('invalid');},r=>r.json()),SyntaxError);
+  assert.equal(calls,1);
+  let at=0;
+  const near=createCloseReadLimiter({now:()=>at,minSpacingMs:0,maxElapsedMs:31000});
+  at=1000;calls=0;
+  assert.equal((await near.run(async()=>{calls++;return new Response(null,{status:503});})).status,503);
+  assert.equal(calls,1);
 });
