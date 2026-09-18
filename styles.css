@@ -1073,8 +1073,8 @@ tbody td:first-child { font-weight: 620; }
 
 /* Wenige Kontakte ergeben eine Quote, aber keine Aussage. Sichtbar bleiben,
    ohne als Empfehlung zu wirken. */
-.hour-bar.is-thin { opacity: 0.5; }
-.hour-bar.is-missing { opacity: 0.38; }
+.hour-bar.is-thin .hour-track { opacity: 0.5; }
+.hour-bar.is-missing .hour-track { opacity: 0.38; }
 
 .chart-legend { margin: 12px 0 0; color: var(--muted-2); font-size: 0.72rem; line-height: 1.5; }
 
