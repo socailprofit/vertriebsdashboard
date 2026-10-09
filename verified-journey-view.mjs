@@ -1,6 +1,6 @@
-import {renderQualityOverview,renderQualityPeople,renderQualityCompanies,overviewLeads,liquidity} from './lead-quality-overview.mjs?v=2026-09-16-compact-quality';
+import {renderQualityOverview,renderQualityPeople,renderQualityCompanies,overviewLeads,liquidity} from './lead-quality-overview.mjs?v=2026-10-09-active-roster';
 import {escapeHtml as esc} from './render-security.mjs';
-import {METRICS,DEFAULT_METRICS,metricFacts,metricEntries,monthlyBounds,personLabel} from './verified-journey.mjs?v=2026-09-11-dual-setting';
+import {METRICS,DEFAULT_METRICS,metricFacts,metricEntries,monthlyBounds,personLabel} from './verified-journey.mjs?v=2026-10-09-active-roster';
 const fmt=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'});
 const date=v=>Number.isFinite(typeof v==='number'?v:Date.parse(v))?fmt.format(new Date(v))+' Uhr':'—';
 const pct=(n,d)=>d?new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(n/d*100)+' %':'—';

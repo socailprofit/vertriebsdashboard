@@ -1,5 +1,5 @@
 import {escapeHtml as esc} from './render-security.mjs';
-import {personLabel,STATUS} from './verified-journey.mjs?v=2026-09-11-dual-setting';
+import {personLabel,STATUS} from './verified-journey.mjs?v=2026-10-09-active-roster';
 const number = new Intl.NumberFormat('de-DE',{maximumFractionDigits:2});
 const euro = new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
 export function workingCapital(value) {

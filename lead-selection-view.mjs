@@ -1,7 +1,7 @@
-import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-09-16-compact-quality';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
-import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
-export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
+import {renderJourneyReport,renderJourneyEvidence} from './verified-journey-view.mjs?v=2026-10-09-active-roster';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-10-09-active-roster';
+import { uniqueLeads, selectionPopulation } from './lead-selection-model.mjs?v=2026-10-09-active-roster';
+export { uniqueLeads, selectionPopulation, NO_SHOW_STATUS_IDS } from './lead-selection-model.mjs?v=2026-10-09-active-roster';
 import { escapeHtml as esc } from './render-security.mjs?v=2026-09-10-separate-groups';
 export const dimensions = Object.freeze({lead_source:'Herkunft / Leadquelle',industry_wz:'Branche / Unterbranche (WZ)',opener:'Opener',working_capital:'Working Capital',liquidity_statement:'Liquiditäts-Aussage',employees:'Mitarbeiterzahl'});
 const pct = (n,d) => d ? `${new Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(n/d*100)} %` : '—';

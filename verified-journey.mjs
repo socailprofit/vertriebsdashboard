@@ -7,9 +7,8 @@ export const STATUS = Object.freeze({
  disqualified:'stat_P1L8WuHSs14kYHbMuTRYQtuD98mjJIXMn9dnQNmEWCT',
 });
 export const PEOPLE = Object.freeze([
- {value:'user_thRspTxlj3UlN5P4ALk2vGwdSh2KlFxPth8OldN3pq4',label:'Felix'},
  {value:'user_PtDJ2ZbYSQx82Dht5CRc2QBLcDfRjvXKjQuOi1N5lzy',label:'Michael'},
- {value:'user_0ppgt8ZGdSGuoTvR7KE4UZPUqP6OJhLmQOkxizfacgR',label:'Antony'},
+ {value:'user_0ppgt8ZGdSGuoTvR7KE4UZPUqP6OJhLmQOkxizfacgR',label:'Anthony'},
  {value:'linkedin',label:'LinkedIn'},
 ]);
 export function assignment(dimensions={},role='owner') {

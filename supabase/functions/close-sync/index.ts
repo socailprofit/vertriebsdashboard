@@ -31,8 +31,8 @@ import {
 } from "../_shared/close-mapping.ts";
 
 const CLOSE_API_BASE = "https://api.close.com/api/v1";
-const SALES_USER_IDS = [CLOSE_USERS.michael, CLOSE_USERS.felix];
-const CUSTOM_ACTIVITY_USER_IDS = [...SALES_USER_IDS, CLOSE_USERS.antony];
+// Historical authors remain in custom reconciliation; active callers come from sales_people.
+type ActiveSalesPerson = { slug: string; close_user_id: string };
 const MAX_RANGE_DAYS = 31;
 const RETENTION_MONTHS = 3;
 // Call imports retain the existing creation-time buffer. Custom activities
@@ -331,9 +331,10 @@ function summarize(
   newsletterSends: Array<NonNullable<ReturnType<typeof mapNewsletterSend>>>,
   startTimestamp: string,
   endTimestamp: string,
+  salesPeople: ActiveSalesPerson[],
 ) {
   const result: Record<string, Record<string, number | null>> = {};
-  for (const [slug, userId] of Object.entries({ michael: CLOSE_USERS.michael, felix: CLOSE_USERS.felix })) {
+  for (const { slug, close_user_id: userId } of salesPeople) {
     const ownFacts = facts.filter((fact) => fact.closeUserId === userId);
     const ownDeals = deals.filter((deal) => deal.openerCloseUserId === userId);
     const ownNewsletterSends = newsletterSends.filter((completion) => {
@@ -454,6 +455,16 @@ Deno.serve(async (request) => {
       }
     };
 
+    const { data: salesPeople, error: rosterError } = await retrySnapshotSelect(() => supabase!
+      .from("sales_people").select("slug,close_user_id").eq("active", true)
+      .order("sort_order").abortSignal(AbortSignal.timeout(15_000)));
+    if (rosterError) throw supabaseError("read active sales roster", rosterError);
+    if (!salesPeople?.length || salesPeople.some(p => !p.close_user_id)) {
+      throw new SyncError("invalid_sales_roster", "No complete active sales roster");
+    }
+    const salesUserIds = salesPeople.map(p => p.close_user_id);
+    const customActivityUserIds = [...new Set([...Object.values(CLOSE_USERS), ...salesUserIds])];
+
     const activityWindow = {
       date_created__gte: berlinMidnightUtc(addDays(startDate, -ACTIVITY_FETCH_BUFFER_DAYS)),
       date_created__lt: berlinMidnightUtc(addDays(nextDate, ACTIVITY_FETCH_BUFFER_DAYS)),
@@ -469,10 +480,10 @@ Deno.serve(async (request) => {
     const [callResult, customResult, opportunityResult, newsletterResult, meetingResult, statusResult, taskResult] = await Promise.all([
       settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/call/", {
         ...activityWindow,
-        user_id: SALES_USER_IDS.join(","),
+        user_id: salesUserIds.join(","),
       }, closeReads)),
       settle(newsletterOnly ? Promise.resolve([]) : closeList<JsonRecord>(closeApiKey, "/activity/custom/", {
-        user_id: CUSTOM_ACTIVITY_USER_IDS.join(","),
+        user_id: customActivityUserIds.join(","),
         _fields: CUSTOM_RECONCILIATION_FIELDS.join(","),
       }, closeReads)),
       settle(newsletterOnly ? Promise.resolve([]) : closeList<CloseOpportunity>(closeApiKey, "/opportunity/", {
@@ -608,7 +619,7 @@ Deno.serve(async (request) => {
       ...customFacts.filter(fact => isProcessReportingFact(fact)).map(fact => fact.leadId).filter((id): id is string => id !== null),
       ...storedProcesses.filter(row => row.payload.closed_at === null).map(row => row.payload.lead_id)]);
     const knownTypes = new Set<string>(Object.values(ACTIVITY_TYPES));
-    const knownAuthors = new Set<string>(CUSTOM_ACTIVITY_USER_IDS);
+    const knownAuthors = new Set<string>(customActivityUserIds);
     const historicalProcessLeadIds = completeCustomRows.filter(row => knownTypes.has(String(row.custom_activity_type_id)) && knownAuthors.has(String(row.user_id)))
       .map(normalizeCustomRecord).map(mapCustomActivity).filter(fact => fact && isProcessReportingFact(fact))
       .map(fact => fact!.leadId).filter((leadId): leadId is string => leadId !== null);
@@ -829,7 +840,7 @@ Deno.serve(async (request) => {
       people: summarize(activityFacts.filter(fact => {
         const day = metricTimeInReportingTimezone(fact.occurredAt).metricDate;
         return day >= startDate && day <= endDate;
-      }), deals.filter(deal => deal.wonDate >= startDate && deal.wonDate <= endDate), newsletterSends, startTimestamp, endTimestamp),
+      }), deals.filter(deal => deal.wonDate >= startDate && deal.wonDate <= endDate), newsletterSends, startTimestamp, endTimestamp, salesPeople),
       warnings,
       syncRunId,
     });

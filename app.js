@@ -1,10 +1,10 @@
 import {syncImportState,nextSyncLabel} from './sync-status.mjs?v=2026-09-18-business-clock';
 import {createReadRecovery,isTransientReadError,isAccessError} from './read-recovery.mjs?v=2026-09-14-stable-sync';
-import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-09-16-all-calls';
-import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-09-15-clear-conversations';
-import { filterLeadReport } from './lead-selection-model.mjs?v=2026-09-15-clear-conversations';
-import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-09-15-clear-conversations';
-import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-09-16-compact-quality";
+import { renderOpeningMonthly } from './opening-monthly-view.mjs?v=2026-10-09-active-roster';
+import { renderHistoryChart } from './lead-history-chart.mjs?v=2026-10-09-active-roster';
+import { filterLeadReport } from './lead-selection-model.mjs?v=2026-10-09-active-roster';
+import { renderLeadFilters } from './lead-selection-filters.mjs?v=2026-10-09-active-roster';
+import { renderSelectionReport, renderLeadEvidence, selectionPreview } from "./lead-selection-view.mjs?v=2026-10-09-active-roster";
 import { workdaysBetween, goalPeriodRange, salesTargetForRange, grossCallPerformanceClass } from "./sales-goals.mjs?v=2026-09-09-cc2-evidence-fix";
 import { installChartPopover } from "./chart-popover.mjs?v=2026-09-10-separate-groups";
 installChartPopover();
@@ -22,13 +22,13 @@ import { hasAntonyDashboardAccess, hasWeeklyReviewAccess } from "./access-contro
 // oder einem nicht ladbaren Bild bleibt automatisch der Initialen-Platzhalter.
 const PROFILE_IMAGES = Object.freeze({
   michael: "./assets/profiles/michael.png",
-  felix: "./assets/profiles/felix.png",
+  anthony: "./assets/profiles/antony.png",
   antony: "./assets/profiles/antony.png",
 });
 
 const PROFILE_INITIALS = Object.freeze({
   michael: "MG",
-  felix: "FW",
+  anthony: "AR",
   antony: "AR",
 });
 
@@ -65,8 +65,8 @@ const targetFields = [
 
 const periodLabels = { day: "Tag", week: "Woche", month: "Monat", trend: "3 Monate" };
 const viewCopy = {
-  team: ["Gemeinsamer Wettbewerb", "Michael gegen Felix", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
-  antony: ["Vertriebssteuerung", "Antony im Fokus", "Relevante Leads von Setting bis Neukunde, aufgeteilt nach aktuellem Close-Status."],
+  team: ["Gemeinsamer Wettbewerb", "Vertrieb im Vergleich", "Alle Kernkennzahlen getrennt, vergleichbar und als Team zusammengeführt."],
+  antony: ["Vertriebssteuerung", "Setting & Closing im Fokus", "Relevante Leads von Setting bis Neukunde, aufgeteilt nach aktuellem Close-Status."],
   chef: ["Steuerung", "Ziele setzen", "Ziele bestimmen die Farben der Kennzahlen im gesamten Dashboard."],
   betrieb: ["Betrieb", "Sync-Status", "Zustand des Datenimports aus Close."],
 };
@@ -238,8 +238,12 @@ function canViewWeeklyReview() {
   return state.status === "preview" || hasWeeklyReviewAccess(state.profile);
 }
 
+function isOpeningView() {
+  return state.view === "team" || state.people.some(person => person.slug === state.view);
+}
+
 function canViewThreeMonthReview() {
-  return state.period === "month" && ["team", "michael", "felix"].includes(state.view);
+  return state.period === "month" && isOpeningView();
 }
 
 // --- Daten laden -------------------------------------------------------------
@@ -445,7 +449,7 @@ function renderNav() {
       initials: PROFILE_INITIALS.antony,
       image: PROFILE_IMAGES.antony,
     });
-    buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Antony</span></button>`);
+    buttons.push(`<button class="nav-button nav-button--person" data-view="antony">${antonyAvatar}<span>Setting & Closing</span></button>`);
   }
 
   const navigation = document.querySelector(".view-nav");
@@ -463,7 +467,7 @@ function renderHeader() {
   });
 
   const person = state.people.find((entry) => entry.slug === state.view);
-  const copy = viewCopy[state.view] ?? [
+  const copy = state.view === "team" ? [viewCopy.team[0], state.people.map(p => firstName(p.display_name)).join(" gegen ") || viewCopy.team[1], viewCopy.team[2]] : viewCopy[state.view] ?? [
     "Persönliche Ansicht",
     `${person ? firstName(person.display_name) : "Person"} im Fokus`,
     "Der eigene Fortschritt prominent, das Team bleibt als Vergleich sichtbar.",
@@ -945,7 +949,9 @@ function updateUrl() {
 }
 
 function render() {
-  document.body.classList.toggle("is-opening-view",["team","michael","felix"].includes(state.view));
+  // Former personal links return to the active team without exposing a retired view.
+  if (state.people.length && !viewCopy[state.view] && !state.people.some(p => p.slug === state.view)) state.view = "team";
+  document.body.classList.toggle("is-opening-view",isOpeningView());
   const leadDialog=document.querySelector("#lead-evidence-dialog");
   leadDialog.close();leadDialog.innerHTML="";
   if (state.view === "antony" && !canViewAntony()) {
@@ -1162,7 +1168,7 @@ document.addEventListener("click", (event) => {
   }
   if(event.target.closest("#toggle-goals")){state.goalsVisible=!state.goalsVisible;renderGoals();return;}
   const openingViewButton=event.target.closest("[data-opening-view]");
-  if(openingViewButton && ["team","michael","felix"].includes(state.view)){
+  if(openingViewButton && isOpeningView()){
     state.openingView=openingViewButton.dataset.openingView==="development"?"development":"months";
     renderOpeningReview();document.querySelector(`[data-opening-view="${state.openingView}"]`).focus();return;
   }
@@ -1296,12 +1302,12 @@ document.querySelector("#goal-editor").addEventListener("submit", async (event) 
 function samplePreview() {
   const people = [
     { id: "p1", slug: "michael", display_name: "Michael Giesbrecht", color: "#3b9dff", sort_order: 10 },
-    { id: "p2", slug: "felix", display_name: "Felix Wenk", color: "#f5a524", sort_order: 20 },
+    { id: "p2", slug: "anthony", display_name: "Anthony Rigone", color: "#f5a524", sort_order: 20 },
   ];
   state.people = people;
   state.metrics = {
     michael: { slug: "michael", displayName: "Michael Giesbrecht", color: "#3b9dff", callsGross: 479, callsNet: 312, netRate: 65.1, talkMinutes: 642, gatekeeper: 186, connected: 121, connectionRate: 65.1, directDecisionMakers: 44, decisionMakers: 165, appointments: 58, appointmentRate: 35.2, mailbox: 31, outsideBusinessHours: 7, dealsWon: 7, winRate: 12.1, revenue: 4200000, newsletters: null },
-    felix: { slug: "felix", displayName: "Felix Wenk", color: "#f5a524", callsGross: 408, callsNet: 233, netRate: 57.1, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, mailbox: 18, outsideBusinessHours: 11, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
+    anthony: { slug: "anthony", displayName: "Anthony Rigone", color: "#f5a524", callsGross: 408, callsNet: 233, netRate: 57.1, talkMinutes: 401, gatekeeper: 152, connected: 68, connectionRate: 44.7, directDecisionMakers: 27, decisionMakers: 95, appointments: 21, appointmentRate: 22.1, mailbox: 18, outsideBusinessHours: 11, dealsWon: 3, winRate: 14.3, revenue: 1600000, newsletters: null },
   };
   state.periodRange = { start: "2026-09-01", end: "2026-09-30" };
   // Wie die echten Ziele: 150 Brutto-Anrufe je Arbeitstag und 25 % Terminquote.

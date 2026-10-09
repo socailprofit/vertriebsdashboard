@@ -107,7 +107,7 @@ function developmentChart(rows,shown,months,options){
 }
 export function renderOpeningMonthly(rows,people,view,referenceDate,mode='months',chartOptions={}) {
  const months=[...new Set(rows.map(r=>r.month_start))].sort();
- const shown=people.filter(p=>['michael','felix'].includes(p.slug)&&(view==='team'||view===p.slug));
+ const shown=people.filter(p=>p.active!==false&&(view==='team'||view===p.slug));
  const heading=`<div class="selection-heading opening-month-heading"><div><p class="eyebrow">Dreimonatsrückblick</p><h3>Entwicklung der Vertriebler</h3></div><div class="rate-switch opening-view-switch" role="group" aria-label="Entwicklungsansicht">${[['months','Monatswerte'],['development','Gesamtentwicklung']].map(([key,label])=>`<button type="button" data-opening-view="${key}" aria-pressed="${mode===key}" class="${mode===key?'active':''}">${label}</button>`).join('')}</div></div><p class="selection-basis">Grün = mehr, Rot = weniger als im Vormonat. Läuft der Monat noch, vergleichen wir nur die gleichen Tage beider Monate. Fehlende Daten werden nicht als null gezählt.</p>`;
  if(!months.length)return heading+'<p>Für diesen Zeitraum sind noch keine Monatswerte verfügbar.</p>';
  if(mode==='development')return heading+developmentChart(rows,shown,months,chartOptions);
